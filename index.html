@@ -66,6 +66,19 @@
   .guide.top    { top: 0; }
   .guide.bottom { bottom: 0; }
 
+  .guide-tick {
+    position: absolute;
+    left: 35%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 0.22em;
+    background: rgba(255, 255, 255, 0.55);
+    border-radius: 1px;
+    pointer-events: none;
+  }
+  .guide-tick.top    { top: 0.12em; }
+  .guide-tick.bottom { bottom: 0.12em; }
+
   .word {
     position: relative;
     height: 1em;
@@ -364,9 +377,11 @@
     <main class="reader" aria-label="RSVP reader">
       <div class="word-area">
         <div class="guide top"></div>
+        <div class="guide-tick top"></div>
         <div class="word" id="word">
           <span class="before" id="before"></span><span class="orp" id="orp"></span><span class="after" id="after"></span>
         </div>
+        <div class="guide-tick bottom"></div>
         <div class="guide bottom"></div>
       </div>
     </main>
