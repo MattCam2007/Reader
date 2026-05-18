@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a1a1a">
+<title>RSVP Reader</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: #1a1a1a;
+    color: #e8e8e8;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 1rem;
+  }
+
+  .reader {
+    width: 100%;
+    max-width: 36rem;
+  }
+
+  .word-area {
+    position: relative;
+    font-size: clamp(2.5rem, 8vw, 4.5rem);
+    padding: 0.45em 0;
+  }
+
+  .guide {
+    position: absolute;
+    left: 35%;
+    transform: translateX(-50%);
+    width: 14ch;
+    max-width: 92%;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.18);
+    pointer-events: none;
+  }
+  .guide.top    { top: 0; }
+  .guide.bottom { bottom: 0; }
+
+  .word {
+    position: relative;
+    height: 1em;
+    line-height: 1;
+  }
+
+  .word span {
+    position: absolute;
+    top: 0;
+    white-space: pre;
+    font-variant-ligatures: none;
+  }
+
+  .word .before {
+    right: calc(65% + 0.5ch);
+    text-align: right;
+  }
+
+  .word .orp {
+    left: 35%;
+    transform: translateX(-50%);
+    color: #e74c3c;
+  }
+
+  .word .after {
+    left: calc(35% + 0.5ch);
+  }
+</style>
+</head>
+<body>
+  <main class="reader" aria-label="RSVP reader">
+    <div class="word-area">
+      <div class="guide top"></div>
+      <div class="word">
+        <span class="before" id="before"></span><span class="orp" id="orp"></span><span class="after" id="after"></span>
+      </div>
+      <div class="guide bottom"></div>
+    </div>
+  </main>
+
+<script>
+(() => {
+  const textToRead = `It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife.
+
+However little known the feelings or views of such a man may be on his first entering a neighbourhood, this truth is so well fixed in the minds of the surrounding families, that he is considered the rightful property of some one or other of their daughters.
+
+"My dear Mr. Bennet," said his lady to him one day, "have you heard that Netherfield Park is let at last?"
+
+Mr. Bennet replied that he had not.
+
+"But it is," returned she; "for Mrs. Long has just been here, and she told me all about it."
+
+Mr. Bennet made no answer.
+
+"Do you not want to know who has taken it?" cried his wife impatiently.
+
+"You want to tell me, and I have no objection to hearing it."
+
+This was invitation enough.
+
+"Why, my dear, you must know, Mrs. Long says that Netherfield is taken by a young man of large fortune from the north of England; that he came down on Monday in a chaise and four to see the place, and was so much delighted with it that he agreed with Mr. Morris immediately; that he is to take possession before Michaelmas, and some of his servants are to be in the house by the end of next week."
+
+"What is his name?"
+
+"Bingley."
+
+"Is he married or single?"
+
+"Oh! Single, my dear, to be sure! A single man of large fortune; four or five thousand a year. What a fine thing for our girls!"`;
+
+  const PARAGRAPH_BREAK = "\n";
+  const WPM = 400;
+  const FRAME_MS = 60000 / WPM;
+
+  function tokenize(text) {
+    const tokens = [];
+    const paragraphs = text.split(/\n\n+/);
+    paragraphs.forEach((para, i) => {
+      const words = para.trim().split(/\s+/).filter(Boolean);
+      for (const w of words) tokens.push(w);
+      if (i < paragraphs.length - 1) tokens.push(PARAGRAPH_BREAK);
+    });
+    return tokens;
+  }
+
+  function orpIndex(word) {
+    const n = word.length;
+    if (n <= 1)  return 0;
+    if (n <= 5)  return 1;
+    if (n <= 9)  return 2;
+    if (n <= 13) return 3;
+    return 4;
+  }
+
+  const beforeEl = document.getElementById("before");
+  const orpEl    = document.getElementById("orp");
+  const afterEl  = document.getElementById("after");
+
+  function render(word) {
+    const i = orpIndex(word);
+    beforeEl.textContent = word.slice(0, i);
+    orpEl.textContent    = word.charAt(i);
+    afterEl.textContent  = word.slice(i + 1);
+  }
+
+  const tokens = tokenize(textToRead);
+  let idx = 0;
+
+  function tick() {
+    if (idx >= tokens.length) idx = 0;
+    let tok = tokens[idx++];
+    while (tok === PARAGRAPH_BREAK) {
+      if (idx >= tokens.length) idx = 0;
+      tok = tokens[idx++];
+    }
+    render(tok);
+    setTimeout(tick, FRAME_MS);
+  }
+
+  tick();
+})();
+</script>
+</body>
+</html>
