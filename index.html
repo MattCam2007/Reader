@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#1a1a1a">
 <title>RSVP Reader</title>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -176,6 +178,75 @@
     transform: translateY(1px);
   }
 
+  /* ---------- Status overlay (loading / error) ---------- */
+
+  .status-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.25rem;
+    padding: 1.5rem;
+    text-align: center;
+    background: #1a1a1a;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 150ms ease;
+    z-index: 2;
+  }
+  body.loading .status-overlay,
+  body.error   .status-overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  body.loading .reader,
+  body.loading .context-view,
+  body.error   .reader,
+  body.error   .context-view {
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  .status-msg {
+    font-size: 1.05rem;
+    color: #cfcfcf;
+    line-height: 1.45;
+    max-width: 28rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .status-msg.error {
+    color: #e74c3c;
+  }
+
+  /* ---------- Action buttons ---------- */
+
+  .action-btn {
+    padding: 0.6rem 1.4rem;
+    background: rgba(255, 255, 255, 0.06);
+    color: #e8e8e8;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .action-btn:active {
+    background: rgba(255, 255, 255, 0.14);
+  }
+
+  .picker-actions {
+    display: flex;
+    justify-content: center;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
   /* ---------- Picker bars ---------- */
 
   .pickers {
@@ -303,9 +374,18 @@
       <div class="context-text" id="contextText"></div>
       <button class="resume-btn" id="resumeBtn" type="button">Resume</button>
     </section>
+    <div class="status-overlay" id="statusOverlay" aria-live="polite">
+      <div class="status-msg" id="statusMsg">Loading…</div>
+      <button class="action-btn" id="statusRetryBtn" type="button" hidden>Choose another file</button>
+    </div>
   </div>
 
+  <input type="file" id="epubFileInput" accept=".epub,application/epub+zip" hidden>
+
   <div class="pickers">
+    <div class="picker-actions">
+      <button class="action-btn" id="openEpubBtn" type="button">Open EPUB</button>
+    </div>
     <div class="picker" aria-label="Reading speed">
       <div class="picker-display"><span id="wpmValue">400</span><span class="picker-unit">WPM</span></div>
       <div class="strip-wrap">
@@ -435,17 +515,27 @@ This was invitation enough.
     afterEl.textContent  = token.slice(i + 1);
   }
 
-  const { tokens, paragraphs, tokenToPara } = tokenize(textToRead);
+  let { tokens, paragraphs, tokenToPara } = tokenize(textToRead);
 
   // ---------- Playback state machine ----------
 
   const STATE_PLAYING = "playing";
   const STATE_PAUSED  = "paused";
+  const STATE_LOADING = "loading";
+  const STATE_ERROR   = "error";
 
   let currentIdx    = 0;     // always points at the token currently displayed
   let pendingTimer  = null;  // single in-flight setTimeout cell
   let state         = STATE_PLAYING;
   let rampRemaining = 0;     // 5..1 during ease-in after a resume, 0 otherwise
+
+  function setState(s) {
+    state = s;
+    document.body.classList.remove("paused", "loading", "error");
+    if (s === STATE_PAUSED)       document.body.classList.add("paused");
+    else if (s === STATE_LOADING) document.body.classList.add("loading");
+    else if (s === STATE_ERROR)   document.body.classList.add("error");
+  }
 
   function rampSpeedFactor() {
     // word 1 of resume = 0.5x, word 2 = 0.625x, ..., word 5 = 1.0x
@@ -484,8 +574,7 @@ This was invitation enough.
       clearTimeout(pendingTimer);
       pendingTimer = null;
     }
-    state = STATE_PAUSED;
-    document.body.classList.add("paused");
+    setState(STATE_PAUSED);
     contextViewEl.setAttribute("aria-hidden", "false");
     renderContext();
   }
@@ -494,8 +583,7 @@ This was invitation enough.
     if (state !== STATE_PAUSED) return;
     currentIdx = rewindWords(currentIdx, 3);
     rampRemaining = 5;
-    state = STATE_PLAYING;
-    document.body.classList.remove("paused");
+    setState(STATE_PLAYING);
     contextViewEl.setAttribute("aria-hidden", "true");
     play();
   }
@@ -712,6 +800,152 @@ This was invitation enough.
     min: 0, max: 100, step: 5, majorEvery: 25,
     initial: lengthStrength,
     onChange: (v) => { lengthStrength = v; },
+  });
+
+  // ---------- EPUB loading ----------
+
+  const statusMsgEl     = document.getElementById("statusMsg");
+  const statusRetryBtn  = document.getElementById("statusRetryBtn");
+  const openEpubBtn     = document.getElementById("openEpubBtn");
+  const epubFileInput   = document.getElementById("epubFileInput");
+
+  const BLOCK_TAGS = new Set([
+    "P", "DIV", "SECTION", "ARTICLE",
+    "H1", "H2", "H3", "H4", "H5", "H6",
+    "LI", "BLOCKQUOTE", "PRE", "DT", "DD",
+  ]);
+  const SKIP_TAGS = new Set([
+    "SCRIPT", "STYLE", "NAV", "HEADER", "FOOTER",
+    "ASIDE", "FORM", "BUTTON", "SELECT", "INPUT",
+    "NOSCRIPT", "TEMPLATE", "IMG", "FIGURE", "FIGCAPTION",
+  ]);
+
+  function walkForText(node, buf) {
+    if (!node) return;
+    if (node.nodeType === Node.TEXT_NODE) {
+      buf.push(node.nodeValue);
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+    const tag = node.tagName.toUpperCase();
+    if (SKIP_TAGS.has(tag)) return;
+    if (tag === "BR") { buf.push("\n"); return; }
+
+    const isBlock = BLOCK_TAGS.has(tag);
+    if (isBlock) buf.push("\n\n");
+    for (const child of node.childNodes) walkForText(child, buf);
+    if (isBlock) buf.push("\n\n");
+  }
+
+  function extractTextFromDoc(doc) {
+    const root = doc && (doc.body || doc.documentElement);
+    if (!root) return "";
+    const buf = [];
+    walkForText(root, buf);
+    let text = buf.join("");
+    text = text.replace(/ /g, " ");
+    text = text.replace(/[^\S\n]+/g, " ");
+    text = text.replace(/ ?\n ?/g, "\n");
+    text = text.replace(/\n{3,}/g, "\n\n");
+    return text.trim();
+  }
+
+  async function extractFullText(book) {
+    const items = (book.spine && book.spine.spineItems) || [];
+    if (!items.length) throw new Error("This EPUB has no readable spine items.");
+
+    const parts = [];
+    for (let i = 0; i < items.length; i++) {
+      const section = items[i];
+      statusMsgEl.textContent = "Parsing… " + (i + 1) + " / " + items.length;
+      try {
+        const doc = await section.load(book.load.bind(book));
+        const text = extractTextFromDoc(doc);
+        if (text) parts.push(text);
+      } catch (sectionErr) {
+        console.warn("Skipping section:", section && section.href, sectionErr);
+      } finally {
+        if (section && typeof section.unload === "function") {
+          try { section.unload(); } catch (_) {}
+        }
+      }
+    }
+    return parts.join("\n\n");
+  }
+
+  function loadText(text) {
+    const result = tokenize(text);
+    tokens      = result.tokens;
+    paragraphs  = result.paragraphs;
+    tokenToPara = result.tokenToPara;
+    currentIdx    = 0;
+    rampRemaining = 0;
+    if (pendingTimer !== null) {
+      clearTimeout(pendingTimer);
+      pendingTimer = null;
+    }
+    setState(STATE_PLAYING);
+    contextViewEl.setAttribute("aria-hidden", "true");
+    play();
+  }
+
+  function showLoadError(msg) {
+    setState(STATE_ERROR);
+    statusMsgEl.classList.add("error");
+    statusMsgEl.textContent = msg;
+    statusRetryBtn.hidden = false;
+  }
+
+  async function loadEpub(file) {
+    if (pendingTimer !== null) {
+      clearTimeout(pendingTimer);
+      pendingTimer = null;
+    }
+    rampRemaining = 0;
+    setState(STATE_LOADING);
+    statusMsgEl.classList.remove("error");
+    statusRetryBtn.hidden = true;
+    statusMsgEl.textContent = "Loading " + file.name + "…";
+
+    let book = null;
+    try {
+      if (typeof ePub !== "function") {
+        throw new Error("EPUB library failed to load. Check your connection.");
+      }
+      const buffer = await file.arrayBuffer();
+      book = ePub(buffer);
+      await book.ready;
+
+      const text = await extractFullText(book);
+      if (!text || text.length < 32) {
+        throw new Error("No readable text found in this EPUB (it may be image-only or DRM-protected).");
+      }
+      loadText(text);
+    } catch (err) {
+      console.error("EPUB load failed:", err);
+      showLoadError(err && err.message ? err.message : "Couldn't read that file.");
+    } finally {
+      if (book && typeof book.destroy === "function") {
+        try { book.destroy(); } catch (_) {}
+      }
+    }
+  }
+
+  openEpubBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    epubFileInput.click();
+  });
+
+  statusRetryBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    epubFileInput.click();
+  });
+
+  epubFileInput.addEventListener("change", (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";  // allow re-picking the same file
+    if (file) loadEpub(file);
   });
 
   play();
