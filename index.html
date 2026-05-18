@@ -77,13 +77,17 @@
   .word .after {
     left: calc(35% + 0.5ch);
   }
+
+  .word.break .orp {
+    color: rgba(232, 232, 232, 0.3);
+  }
 </style>
 </head>
 <body>
   <main class="reader" aria-label="RSVP reader">
     <div class="word-area">
       <div class="guide top"></div>
-      <div class="word">
+      <div class="word" id="word">
         <span class="before" id="before"></span><span class="orp" id="orp"></span><span class="after" id="after"></span>
       </div>
       <div class="guide bottom"></div>
@@ -144,15 +148,39 @@ This was invitation enough.
     return 4;
   }
 
+  // Detect terminal punctuation even when wrapped by closing quotes/brackets,
+  // so sentence endings inside dialog (e.g. `last?"`) still land.
+  const TRAILING_CLOSERS = /[")'\]”’]+$/;
+
+  function durationMultiplier(token) {
+    if (token === PARAGRAPH_BREAK) return 2.5;
+    let m = 1;
+    if (token.length > 8) m = Math.max(m, 1.3);
+    const trimmed = token.replace(TRAILING_CLOSERS, "");
+    const last = trimmed.charAt(trimmed.length - 1);
+    if (last === "," || last === ";" || last === ":") m = Math.max(m, 1.5);
+    if (last === "." || last === "!" || last === "?") m = Math.max(m, 2.2);
+    return m;
+  }
+
+  const wordEl   = document.getElementById("word");
   const beforeEl = document.getElementById("before");
   const orpEl    = document.getElementById("orp");
   const afterEl  = document.getElementById("after");
 
-  function render(word) {
-    const i = orpIndex(word);
-    beforeEl.textContent = word.slice(0, i);
-    orpEl.textContent    = word.charAt(i);
-    afterEl.textContent  = word.slice(i + 1);
+  function render(token) {
+    if (token === PARAGRAPH_BREAK) {
+      wordEl.classList.add("break");
+      beforeEl.textContent = "";
+      orpEl.textContent    = "—";
+      afterEl.textContent  = "";
+      return;
+    }
+    wordEl.classList.remove("break");
+    const i = orpIndex(token);
+    beforeEl.textContent = token.slice(0, i);
+    orpEl.textContent    = token.charAt(i);
+    afterEl.textContent  = token.slice(i + 1);
   }
 
   const tokens = tokenize(textToRead);
@@ -160,13 +188,9 @@ This was invitation enough.
 
   function tick() {
     if (idx >= tokens.length) idx = 0;
-    let tok = tokens[idx++];
-    while (tok === PARAGRAPH_BREAK) {
-      if (idx >= tokens.length) idx = 0;
-      tok = tokens[idx++];
-    }
+    const tok = tokens[idx++];
     render(tok);
-    setTimeout(tick, FRAME_MS);
+    setTimeout(tick, FRAME_MS * durationMultiplier(tok));
   }
 
   tick();
