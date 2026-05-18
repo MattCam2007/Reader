@@ -269,11 +269,11 @@ This was invitation enough.
   const PARAGRAPH_BREAK = "\n";
 
   let currentWPM = 400;
-  // 0 = no length boost; 50 reproduces Phase 2 (8-letter word ≈ 1.30x);
-  // 100 doubles the per-letter intensity (8-letter ≈ 1.60x, 13-letter ≈ 2.60x).
+  // 0 = no length boost; default 50 gives an 8-letter word ≈ 1.80x and a
+  // 13-letter word ≈ 2.80x; 100 nearly doubles that again (≈2.60x and 4.60x).
   let lengthStrength = 50;
-  const LEN_THRESHOLD = 5;
-  const LEN_SCALE = 500;
+  const LEN_THRESHOLD = 4;
+  const LEN_SCALE = 250;
 
   function tokenize(text) {
     const tokens = [];
