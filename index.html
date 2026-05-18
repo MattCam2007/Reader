@@ -19,11 +19,18 @@
 
   body {
     display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-direction: column;
     min-height: 100vh;
     min-height: 100dvh;
+  }
+
+  .reader-wrap {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     padding: 1rem;
+    min-height: 0;
   }
 
   .reader {
@@ -81,18 +88,133 @@
   .word.break .orp {
     color: rgba(232, 232, 232, 0.3);
   }
+
+  /* ---------- WPM picker ---------- */
+
+  .wpm-bar {
+    flex: 0 0 auto;
+    padding: 0.5rem 0 calc(0.5rem + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .wpm-display {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    color: #cfcfcf;
+    font-size: 1.05rem;
+    line-height: 1.4;
+  }
+  .wpm-display .wpm-unit {
+    color: rgba(207, 207, 207, 0.55);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    margin-left: 0.3em;
+  }
+
+  .strip-wrap {
+    position: relative;
+    height: 46px;
+    margin-top: 0.25rem;
+  }
+
+  .wpm-strip {
+    position: absolute;
+    inset: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    overscroll-behavior: contain;
+    touch-action: pan-x;
+  }
+  .wpm-strip::-webkit-scrollbar { display: none; }
+
+  .wpm-track {
+    display: flex;
+    align-items: flex-start;
+    height: 100%;
+  }
+
+  .tick {
+    flex: 0 0 18px;
+    height: 100%;
+    position: relative;
+    scroll-snap-align: center;
+    cursor: pointer;
+  }
+  .tick::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 4px;
+    width: 1px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.22);
+    transform: translateX(-50%);
+  }
+  .tick.major::before {
+    height: 14px;
+    background: rgba(255, 255, 255, 0.45);
+  }
+  .tick-label {
+    position: absolute;
+    top: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.5);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .wpm-pointer {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e74c3c;
+    transform: translateX(-1px);
+    pointer-events: none;
+    z-index: 2;
+    border-radius: 1px;
+  }
+  .wpm-pointer::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: -3px;
+    width: 8px;
+    height: 8px;
+    background: #e74c3c;
+    transform: translateX(-50%) rotate(45deg);
+  }
 </style>
 </head>
 <body>
-  <main class="reader" aria-label="RSVP reader">
-    <div class="word-area">
-      <div class="guide top"></div>
-      <div class="word" id="word">
-        <span class="before" id="before"></span><span class="orp" id="orp"></span><span class="after" id="after"></span>
+  <div class="reader-wrap">
+    <main class="reader" aria-label="RSVP reader">
+      <div class="word-area">
+        <div class="guide top"></div>
+        <div class="word" id="word">
+          <span class="before" id="before"></span><span class="orp" id="orp"></span><span class="after" id="after"></span>
+        </div>
+        <div class="guide bottom"></div>
       </div>
-      <div class="guide bottom"></div>
+    </main>
+  </div>
+
+  <div class="wpm-bar" aria-label="Reading speed">
+    <div class="wpm-display"><span id="wpmValue">400</span><span class="wpm-unit">WPM</span></div>
+    <div class="strip-wrap">
+      <div class="wpm-strip" id="wpmStrip">
+        <div class="wpm-track" id="wpmTrack"></div>
+      </div>
+      <div class="wpm-pointer"></div>
     </div>
-  </main>
+  </div>
 
 <script>
 (() => {
@@ -125,8 +247,12 @@ This was invitation enough.
 "Oh! Single, my dear, to be sure! A single man of large fortune; four or five thousand a year. What a fine thing for our girls!"`;
 
   const PARAGRAPH_BREAK = "\n";
-  const WPM = 400;
-  const FRAME_MS = 60000 / WPM;
+
+  const MIN_WPM = 100;
+  const MAX_WPM = 800;
+  const STEP_WPM = 25;
+  const TICK_PX = 18;
+  let currentWPM = 400;
 
   function tokenize(text) {
     const tokens = [];
@@ -190,9 +316,94 @@ This was invitation enough.
     if (idx >= tokens.length) idx = 0;
     const tok = tokens[idx++];
     render(tok);
-    setTimeout(tick, FRAME_MS * durationMultiplier(tok));
+    const frameMs = 60000 / currentWPM;
+    setTimeout(tick, frameMs * durationMultiplier(tok));
   }
 
+  // ---------- WPM picker ----------
+
+  const wpmValueEl = document.getElementById("wpmValue");
+  const stripEl    = document.getElementById("wpmStrip");
+  const trackEl    = document.getElementById("wpmTrack");
+
+  function buildTrack() {
+    const frag = document.createDocumentFragment();
+    for (let w = MIN_WPM; w <= MAX_WPM; w += STEP_WPM) {
+      const t = document.createElement("div");
+      t.className = w % 100 === 0 ? "tick major" : "tick";
+      t.dataset.wpm = w;
+      if (w % 100 === 0) {
+        const label = document.createElement("div");
+        label.className = "tick-label";
+        label.textContent = w;
+        t.appendChild(label);
+      }
+      frag.appendChild(t);
+    }
+    trackEl.appendChild(frag);
+  }
+
+  function setEdgePadding() {
+    const pad = (stripEl.clientWidth - TICK_PX) / 2;
+    trackEl.style.paddingLeft  = pad + "px";
+    trackEl.style.paddingRight = pad + "px";
+  }
+
+  function wpmToScrollLeft(w) {
+    return ((w - MIN_WPM) / STEP_WPM) * TICK_PX;
+  }
+
+  function scrollLeftToWpm(sl) {
+    const i = Math.round(sl / TICK_PX);
+    const w = MIN_WPM + i * STEP_WPM;
+    return Math.max(MIN_WPM, Math.min(MAX_WPM, w));
+  }
+
+  function syncFromScroll() {
+    const w = scrollLeftToWpm(stripEl.scrollLeft);
+    if (w !== currentWPM) {
+      currentWPM = w;
+      wpmValueEl.textContent = w;
+    }
+  }
+
+  function scrollToWpm(w, smooth) {
+    stripEl.scrollTo({
+      left: wpmToScrollLeft(w),
+      behavior: smooth ? "smooth" : "auto",
+    });
+  }
+
+  function initPicker() {
+    buildTrack();
+    setEdgePadding();
+    wpmValueEl.textContent = currentWPM;
+    scrollToWpm(currentWPM, false);
+
+    stripEl.addEventListener("scroll", syncFromScroll, { passive: true });
+
+    // Translate vertical mouse-wheel into horizontal scroll for desktop.
+    stripEl.addEventListener("wheel", (e) => {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        e.preventDefault();
+        stripEl.scrollLeft += e.deltaY;
+      }
+    }, { passive: false });
+
+    // Tap a tick to jump to it.
+    trackEl.addEventListener("click", (e) => {
+      const tick = e.target.closest(".tick");
+      if (!tick) return;
+      scrollToWpm(parseInt(tick.dataset.wpm, 10), true);
+    });
+
+    window.addEventListener("resize", () => {
+      setEdgePadding();
+      scrollToWpm(currentWPM, false);
+    });
+  }
+
+  initPicker();
   tick();
 })();
 </script>
