@@ -90,24 +90,31 @@
     color: rgba(232, 232, 232, 0.3);
   }
 
-  /* ---------- WPM picker ---------- */
+  /* ---------- Picker bars ---------- */
 
-  .wpm-bar {
+  .pickers {
     flex: 0 0 auto;
-    padding: 0.5rem 0 calc(0.5rem + env(safe-area-inset-bottom, 0px));
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    user-select: none;
-    -webkit-user-select: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
   }
 
-  .wpm-display {
+  .picker {
+    padding-top: 0.5rem;
+    user-select: none;
+    -webkit-user-select: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .picker-display {
     text-align: center;
     font-variant-numeric: tabular-nums;
     color: #cfcfcf;
     font-size: 1.05rem;
     line-height: 1.4;
   }
-  .wpm-display .wpm-unit {
+  .picker-display .picker-unit {
     color: rgba(207, 207, 207, 0.55);
     font-size: 0.7rem;
     letter-spacing: 0.08em;
@@ -120,7 +127,7 @@
     margin-top: 0.25rem;
   }
 
-  .wpm-strip {
+  .picker-strip {
     position: absolute;
     inset: 0;
     overflow-x: auto;
@@ -131,9 +138,9 @@
     overscroll-behavior: contain;
     touch-action: pan-x;
   }
-  .wpm-strip::-webkit-scrollbar { display: none; }
+  .picker-strip::-webkit-scrollbar { display: none; }
 
-  .wpm-track {
+  .picker-track {
     display: flex;
     align-items: flex-start;
     height: 100%;
@@ -171,7 +178,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .wpm-pointer {
+  .picker-pointer {
     position: absolute;
     left: 50%;
     top: 0;
@@ -183,7 +190,7 @@
     z-index: 2;
     border-radius: 1px;
   }
-  .wpm-pointer::before {
+  .picker-pointer::before {
     content: "";
     position: absolute;
     left: 50%;
@@ -208,13 +215,24 @@
     </main>
   </div>
 
-  <div class="wpm-bar" aria-label="Reading speed">
-    <div class="wpm-display"><span id="wpmValue">400</span><span class="wpm-unit">WPM</span></div>
-    <div class="strip-wrap">
-      <div class="wpm-strip" id="wpmStrip">
-        <div class="wpm-track" id="wpmTrack"></div>
+  <div class="pickers">
+    <div class="picker" aria-label="Reading speed">
+      <div class="picker-display"><span id="wpmValue">400</span><span class="picker-unit">WPM</span></div>
+      <div class="strip-wrap">
+        <div class="picker-strip" id="wpmStrip">
+          <div class="picker-track" id="wpmTrack"></div>
+        </div>
+        <div class="picker-pointer"></div>
       </div>
-      <div class="wpm-pointer"></div>
+    </div>
+    <div class="picker" aria-label="Long word pause intensity">
+      <div class="picker-display"><span id="lenValue">50</span><span class="picker-unit">LENGTH</span></div>
+      <div class="strip-wrap">
+        <div class="picker-strip" id="lenStrip">
+          <div class="picker-track" id="lenTrack"></div>
+        </div>
+        <div class="picker-pointer"></div>
+      </div>
     </div>
   </div>
 
@@ -250,11 +268,12 @@ This was invitation enough.
 
   const PARAGRAPH_BREAK = "\n";
 
-  const MIN_WPM = 100;
-  const MAX_WPM = 800;
-  const STEP_WPM = 25;
-  const TICK_PX = 18;
   let currentWPM = 400;
+  // 0 = no length boost; 50 reproduces Phase 2 (8-letter word ≈ 1.30x);
+  // 100 doubles the per-letter intensity (8-letter ≈ 1.60x, 13-letter ≈ 2.60x).
+  let lengthStrength = 50;
+  const LEN_THRESHOLD = 5;
+  const LEN_SCALE = 500;
 
   function tokenize(text) {
     const tokens = [];
@@ -280,10 +299,14 @@ This was invitation enough.
   // so sentence endings inside dialog (e.g. `last?"`) still land.
   const TRAILING_CLOSERS = /[")'\]”’]+$/;
 
+  function lengthMultiplier(len) {
+    const extra = Math.max(0, len - LEN_THRESHOLD);
+    return 1 + extra * (lengthStrength / LEN_SCALE);
+  }
+
   function durationMultiplier(token) {
     if (token === PARAGRAPH_BREAK) return 2.5;
-    let m = 1;
-    if (token.length > 8) m = Math.max(m, 1.3);
+    let m = lengthMultiplier(token.length);
     const trimmed = token.replace(TRAILING_CLOSERS, "");
     const last = trimmed.charAt(trimmed.length - 1);
     if (last === "," || last === ";" || last === ":") m = Math.max(m, 1.5);
@@ -322,73 +345,77 @@ This was invitation enough.
     setTimeout(tick, frameMs * durationMultiplier(tok));
   }
 
-  // ---------- WPM picker ----------
+  // ---------- Picker factory ----------
 
-  const wpmValueEl = document.getElementById("wpmValue");
-  const stripEl    = document.getElementById("wpmStrip");
-  const trackEl    = document.getElementById("wpmTrack");
+  const TICK_PX = 18;
 
-  function buildTrack() {
-    const frag = document.createDocumentFragment();
-    for (let w = MIN_WPM; w <= MAX_WPM; w += STEP_WPM) {
-      const t = document.createElement("div");
-      t.className = w % 100 === 0 ? "tick major" : "tick";
-      t.dataset.wpm = w;
-      if (w % 100 === 0) {
-        const label = document.createElement("div");
-        label.className = "tick-label";
-        label.textContent = w;
-        t.appendChild(label);
+  function createPicker(opts) {
+    const { stripId, trackId, valueId, min, max, step, majorEvery, initial, onChange } = opts;
+    const stripEl = document.getElementById(stripId);
+    const trackEl = document.getElementById(trackId);
+    const valueEl = document.getElementById(valueId);
+    let current = initial;
+
+    function buildTrack() {
+      const frag = document.createDocumentFragment();
+      for (let v = min; v <= max; v += step) {
+        const t = document.createElement("div");
+        const major = v % majorEvery === 0;
+        t.className = major ? "tick major" : "tick";
+        t.dataset.value = v;
+        if (major) {
+          const label = document.createElement("div");
+          label.className = "tick-label";
+          label.textContent = v;
+          t.appendChild(label);
+        }
+        frag.appendChild(t);
       }
-      frag.appendChild(t);
+      trackEl.appendChild(frag);
     }
-    trackEl.appendChild(frag);
-  }
 
-  function setEdgePadding() {
-    const pad = (stripEl.clientWidth - TICK_PX) / 2;
-    trackEl.style.paddingLeft  = pad + "px";
-    trackEl.style.paddingRight = pad + "px";
-  }
-
-  function wpmToScrollLeft(w) {
-    return ((w - MIN_WPM) / STEP_WPM) * TICK_PX;
-  }
-
-  function scrollLeftToWpm(sl) {
-    const i = Math.round(sl / TICK_PX);
-    const w = MIN_WPM + i * STEP_WPM;
-    return Math.max(MIN_WPM, Math.min(MAX_WPM, w));
-  }
-
-  function syncFromScroll() {
-    const w = scrollLeftToWpm(stripEl.scrollLeft);
-    if (w !== currentWPM) {
-      currentWPM = w;
-      wpmValueEl.textContent = w;
+    function setEdgePadding() {
+      const pad = (stripEl.clientWidth - TICK_PX) / 2;
+      trackEl.style.paddingLeft  = pad + "px";
+      trackEl.style.paddingRight = pad + "px";
     }
-  }
 
-  function scrollToWpm(w, smooth) {
-    stripEl.scrollTo({
-      left: wpmToScrollLeft(w),
-      behavior: smooth ? "smooth" : "auto",
-    });
-  }
+    function valueToScrollLeft(v) {
+      return ((v - min) / step) * TICK_PX;
+    }
 
-  function initPicker() {
+    function scrollLeftToValue(sl) {
+      const i = Math.round(sl / TICK_PX);
+      const v = min + i * step;
+      return Math.max(min, Math.min(max, v));
+    }
+
+    function syncFromScroll() {
+      const v = scrollLeftToValue(stripEl.scrollLeft);
+      if (v !== current) {
+        current = v;
+        valueEl.textContent = v;
+        if (onChange) onChange(v);
+      }
+    }
+
+    function scrollToValue(v, smooth) {
+      stripEl.scrollTo({
+        left: valueToScrollLeft(v),
+        behavior: smooth ? "smooth" : "auto",
+      });
+    }
+
     buildTrack();
-    wpmValueEl.textContent = currentWPM;
+    valueEl.textContent = current;
 
-    // Defer until layout has actually been resolved so clientWidth is real.
     requestAnimationFrame(() => {
       setEdgePadding();
-      scrollToWpm(currentWPM, false);
+      scrollToValue(current, false);
     });
 
     stripEl.addEventListener("scroll", syncFromScroll, { passive: true });
 
-    // Translate vertical mouse-wheel into horizontal scroll for desktop.
     stripEl.addEventListener("wheel", (e) => {
       if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
         e.preventDefault();
@@ -396,20 +423,32 @@ This was invitation enough.
       }
     }, { passive: false });
 
-    // Tap a tick to jump to it.
     trackEl.addEventListener("click", (e) => {
       const tick = e.target.closest(".tick");
       if (!tick) return;
-      scrollToWpm(parseInt(tick.dataset.wpm, 10), true);
+      scrollToValue(parseInt(tick.dataset.value, 10), true);
     });
 
     window.addEventListener("resize", () => {
       setEdgePadding();
-      scrollToWpm(currentWPM, false);
+      scrollToValue(current, false);
     });
   }
 
-  initPicker();
+  createPicker({
+    stripId: "wpmStrip", trackId: "wpmTrack", valueId: "wpmValue",
+    min: 100, max: 800, step: 25, majorEvery: 100,
+    initial: currentWPM,
+    onChange: (v) => { currentWPM = v; },
+  });
+
+  createPicker({
+    stripId: "lenStrip", trackId: "lenTrack", valueId: "lenValue",
+    min: 0, max: 100, step: 5, majorEvery: 25,
+    initial: lengthStrength,
+    onChange: (v) => { lengthStrength = v; },
+  });
+
   tick();
 })();
 </script>
