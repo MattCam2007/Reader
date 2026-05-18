@@ -838,8 +838,26 @@ This was invitation enough.
     if (isBlock) buf.push("\n\n");
   }
 
-  function extractTextFromDoc(doc) {
-    const root = doc && (doc.body || doc.documentElement);
+  function extractTextFromDoc(docOrEl) {
+    if (!docOrEl) return "";
+    let root;
+    if (docOrEl.nodeType === 9 /* DOCUMENT */) {
+      root = docOrEl.body
+        || (docOrEl.querySelector && docOrEl.querySelector("body"))
+        || docOrEl.documentElement;
+    } else if (docOrEl.nodeType === 1 /* ELEMENT */) {
+      // epub.js' section.load() resolves with xml.documentElement (the <html>
+      // element), not the Document. Look for body inside it; fall back to the
+      // element itself if no body is present.
+      const tag = docOrEl.tagName ? docOrEl.tagName.toUpperCase() : "";
+      if (tag === "HTML") {
+        root = (docOrEl.querySelector && docOrEl.querySelector("body")) || docOrEl;
+      } else {
+        root = docOrEl;
+      }
+    } else {
+      return "";
+    }
     if (!root) return "";
     const buf = [];
     walkForText(root, buf);
