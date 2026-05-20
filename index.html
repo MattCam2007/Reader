@@ -27,6 +27,13 @@
     min-height: 100dvh;
   }
 
+  .main-area {
+    position: relative;
+    flex: 1 1 auto;
+    display: flex;
+    min-height: 0;
+  }
+
   .reader-wrap {
     flex: 1 1 auto;
     display: flex;
@@ -114,7 +121,7 @@
   /* ---------- Context view (paused state) ---------- */
 
   .context-view {
-    position: fixed;
+    position: absolute;
     inset: 0;
     background: #1a1a1a;
     display: flex;
@@ -129,37 +136,12 @@
     pointer-events: auto;
   }
 
-  .context-bar {
-    flex: 0 0 auto;
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    padding: calc(env(safe-area-inset-top, 0px) + 0.4rem) 0.5rem 0.25rem;
-  }
-
-  .context-link {
-    background: transparent;
-    border: 0;
-    color: rgba(232, 232, 232, 0.55);
-    font-family: inherit;
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    padding: 0.55rem 0.85rem;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .context-link:active {
-    color: rgba(232, 232, 232, 0.9);
-  }
-
   .context-text {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 0.5rem 1.25rem 1.5rem;
+    padding: calc(env(safe-area-inset-top, 0px) + 1rem) 1.25rem 1.5rem;
   }
   .context-text::-webkit-scrollbar { width: 6px; }
   .context-text::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
@@ -200,7 +182,7 @@
     flex: 0 0 auto;
     display: flex;
     justify-content: center;
-    padding: 0.75rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+    padding: 0.75rem 1rem 0.5rem;
     background: linear-gradient(to top, #1a1a1a 70%, rgba(26, 26, 26, 0));
   }
 
@@ -406,35 +388,34 @@
 </style>
 </head>
 <body>
-  <div class="reader-wrap">
-    <main class="reader" aria-label="RSVP reader">
-      <div class="word-area">
-        <div class="guide top"></div>
-        <div class="guide-tick top"></div>
-        <div class="word" id="word">
-          <span class="before" id="before"></span><span class="orp" id="orp"></span><span class="after" id="after"></span>
+  <div class="main-area">
+    <div class="reader-wrap">
+      <main class="reader" aria-label="RSVP reader">
+        <div class="word-area">
+          <div class="guide top"></div>
+          <div class="guide-tick top"></div>
+          <div class="word" id="word">
+            <span class="before" id="before"></span><span class="orp" id="orp"></span><span class="after" id="after"></span>
+          </div>
+          <div class="guide-tick bottom"></div>
+          <div class="guide bottom"></div>
         </div>
-        <div class="guide-tick bottom"></div>
-        <div class="guide bottom"></div>
+      </main>
+      <div class="status-overlay" id="statusOverlay" aria-live="polite">
+        <div class="status-msg" id="statusMsg">Loading…</div>
+        <button class="action-btn" id="statusRetryBtn" type="button" hidden>Choose another file</button>
       </div>
-    </main>
-    <div class="status-overlay" id="statusOverlay" aria-live="polite">
-      <div class="status-msg" id="statusMsg">Loading…</div>
-      <button class="action-btn" id="statusRetryBtn" type="button" hidden>Choose another file</button>
     </div>
-  </div>
 
-  <section class="context-view" id="contextView" aria-label="Reading context" aria-hidden="true">
-    <div class="context-bar">
-      <button class="context-link" id="openEpubFromContext" type="button">Open EPUB</button>
-    </div>
-    <div class="context-text" id="contextText">
-      <div class="context-text-inner" id="contextTextInner"></div>
-    </div>
-    <div class="context-footer">
-      <button class="resume-btn" id="resumeBtn" type="button">Resume</button>
-    </div>
-  </section>
+    <section class="context-view" id="contextView" aria-label="Reading context" aria-hidden="true">
+      <div class="context-text" id="contextText">
+        <div class="context-text-inner" id="contextTextInner"></div>
+      </div>
+      <div class="context-footer">
+        <button class="resume-btn" id="resumeBtn" type="button">Resume</button>
+      </div>
+    </section>
+  </div>
 
   <input type="file" id="epubFileInput" accept=".epub,application/epub+zip" hidden>
 
@@ -1008,11 +989,6 @@ This was invitation enough.
   }
 
   openEpubBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    epubFileInput.click();
-  });
-
-  document.getElementById("openEpubFromContext").addEventListener("click", (e) => {
     e.stopPropagation();
     epubFileInput.click();
   });
