@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#1a1a1a">
 <title>RSVP Reader</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -42,16 +42,13 @@
     padding: 1rem;
     min-height: 0;
     position: relative;
+    cursor: pointer;
   }
 
   .reader {
     width: 100%;
     max-width: 36rem;
     transition: opacity 150ms ease;
-  }
-  body.paused .reader {
-    opacity: 0;
-    pointer-events: none;
   }
 
   .word-area {
@@ -118,219 +115,8 @@
     color: rgba(232, 232, 232, 0.3);
   }
 
-  /* ---------- Context view (paused state) ---------- */
-
-  .context-view {
-    position: absolute;
-    inset: 0;
-    background: #1a1a1a;
-    display: flex;
-    flex-direction: column;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 180ms ease;
-    z-index: 50;
-  }
-  body.paused .context-view {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  .context-text {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: calc(env(safe-area-inset-top, 0px) + 1rem) 1.25rem 1.5rem;
-  }
-  .context-text::-webkit-scrollbar { width: 6px; }
-  .context-text::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
-
-  .context-text-inner {
-    max-width: 34rem;
-    margin: 0 auto;
-    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", Cambria, "Times New Roman", serif;
-    font-size: 1.125rem;
-    line-height: 1.7;
-    color: #d8d8d8;
-  }
-
-  .context-para {
-    margin: 0 0 1em;
-    text-align: left;
-  }
-  .context-para:last-child { margin-bottom: 0; }
-
-  .cw {
-    cursor: pointer;
-    border-radius: 3px;
-    padding: 1px 2px;
-    margin: 0 -1px;
-    transition: background-color 100ms ease, color 100ms ease;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .cw.current {
-    background: rgba(231, 76, 60, 0.4);
-    color: #ffffff;
-  }
-  .cw.flash {
-    background: rgba(231, 76, 60, 0.8);
-    color: #ffffff;
-  }
-
-  .context-footer {
-    flex: 0 0 auto;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 0.75rem 1rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
-    background: linear-gradient(to top, #1a1a1a 78%, rgba(26, 26, 26, 0));
-  }
-
-  .resume-btn {
-    padding: 1rem 3rem;
-    background: #e74c3c;
-    color: #ffffff;
-    font-family: inherit;
-    font-size: 1rem;
-    font-weight: 600;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    border: 0;
-    border-radius: 999px;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    box-shadow: 0 6px 22px rgba(231, 76, 60, 0.4);
-  }
-  .resume-btn:active {
-    background: #c0392b;
-    transform: translateY(1px);
-  }
-
-  /* ---------- Seek bar (slim, visible while reading) ---------- */
-
-  .seekbar {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 22px;
-    cursor: pointer;
-    touch-action: none;
-    z-index: 3;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .seekbar::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.10);
-  }
-  .seekbar-fill {
-    position: absolute;
-    left: 0;
-    bottom: 0;
-    width: 0%;
-    height: 4px;
-    background: #e74c3c;
-    pointer-events: none;
-    transition: width 120ms linear;
-  }
-  body.loading .seekbar,
-  body.error .seekbar {
-    display: none;
-  }
-
-  /* ---------- Seek panel (full controls, paused state) ---------- */
-
-  .seek-panel {
-    width: 100%;
-    max-width: 34rem;
-    margin: 0 auto 0.75rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .seek-readout {
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-    color: rgba(207, 207, 207, 0.85);
-    font-size: 0.8rem;
-    letter-spacing: 0.02em;
-  }
-
-  .seek-slider {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 100%;
-    height: 22px;
-    background: transparent;
-    cursor: pointer;
-  }
-  .seek-slider::-webkit-slider-runnable-track {
-    height: 4px;
-    border-radius: 2px;
-    background: rgba(255, 255, 255, 0.18);
-  }
-  .seek-slider::-moz-range-track {
-    height: 4px;
-    border-radius: 2px;
-    background: rgba(255, 255, 255, 0.18);
-  }
-  .seek-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 18px;
-    height: 18px;
-    margin-top: -7px;
-    border-radius: 50%;
-    background: #e74c3c;
-    border: 2px solid #1a1a1a;
-    box-shadow: 0 2px 8px rgba(231, 76, 60, 0.5);
-  }
-  .seek-slider::-moz-range-thumb {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #e74c3c;
-    border: 2px solid #1a1a1a;
-    box-shadow: 0 2px 8px rgba(231, 76, 60, 0.5);
-  }
-
-  .seek-steps {
-    display: flex;
-    justify-content: center;
-    gap: 0.4rem;
-    flex-wrap: wrap;
-  }
-
-  .step-btn {
-    flex: 0 0 auto;
-    min-width: 3rem;
-    padding: 0.5rem 0.6rem;
-    background: rgba(255, 255, 255, 0.06);
-    color: #e8e8e8;
-    font-family: inherit;
-    font-size: 0.8rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    font-variant-numeric: tabular-nums;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 8px;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .step-btn:active {
-    background: rgba(255, 255, 255, 0.16);
-  }
-  .step-btn:disabled {
-    opacity: 0.3;
-    cursor: default;
-  }
+  /* Dim the word slightly while paused so the state is obvious. */
+  body.paused .reader { opacity: 0.55; }
 
   /* ---------- Status overlay (loading / error) ---------- */
 
@@ -356,9 +142,7 @@
     pointer-events: auto;
   }
   body.loading .reader,
-  body.loading .context-view,
-  body.error   .reader,
-  body.error   .context-view {
+  body.error   .reader {
     opacity: 0 !important;
     pointer-events: none !important;
   }
@@ -374,14 +158,186 @@
     color: #e74c3c;
   }
 
-  /* ---------- Action buttons ---------- */
+  /* ---------- Control panel (always on the one-word screen) ---------- */
+
+  .controls {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 0.5rem 0.9rem calc(0.6rem + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  body.loading .controls,
+  body.error   .controls {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .seek {
+    width: 100%;
+    max-width: 40rem;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .seek-readout {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    color: rgba(207, 207, 207, 0.9);
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
+  }
+
+  /* Big, thumb-friendly position slider. */
+  .seek-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 44px;
+    background: transparent;
+    cursor: pointer;
+    touch-action: none;
+  }
+  .seek-slider::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .seek-slider::-moz-range-track {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .seek-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 32px;
+    height: 32px;
+    margin-top: -13px;
+    border-radius: 50%;
+    background: #e74c3c;
+    border: 3px solid #1a1a1a;
+    box-shadow: 0 2px 10px rgba(231, 76, 60, 0.55);
+  }
+  .seek-slider::-moz-range-thumb {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #e74c3c;
+    border: 3px solid #1a1a1a;
+    box-shadow: 0 2px 10px rgba(231, 76, 60, 0.55);
+  }
+
+  /* Granularity selector: what one slide / step moves by. */
+  .grain {
+    display: flex;
+    gap: 0.4rem;
+  }
+  .grain-btn {
+    flex: 1 1 0;
+    min-height: 48px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #cfcfcf;
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .grain-btn.is-active {
+    background: rgba(231, 76, 60, 0.22);
+    color: #ffffff;
+    border-color: rgba(231, 76, 60, 0.7);
+  }
+  .grain-btn:active {
+    background: rgba(255, 255, 255, 0.14);
+  }
+
+  /* Transport: step back / play-pause / step forward. */
+  .transport {
+    display: flex;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+  .nav-btn {
+    flex: 0 0 4.5rem;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.08);
+    color: #e8e8e8;
+    font-size: 1.5rem;
+    line-height: 1;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 14px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+  }
+  .nav-btn:active {
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .nav-btn:disabled {
+    opacity: 0.3;
+  }
+  .play-btn {
+    flex: 1 1 auto;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #e74c3c;
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    border: 0;
+    border-radius: 14px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 6px 22px rgba(231, 76, 60, 0.4);
+  }
+  .play-btn:active {
+    background: #c0392b;
+    transform: translateY(1px);
+  }
+
+  /* ---------- Settings (speed, length, file) ---------- */
+
+  .settings {
+    width: 100%;
+    max-width: 40rem;
+    margin: 0 auto;
+  }
+  .settings > summary {
+    list-style: none;
+    cursor: pointer;
+    text-align: center;
+    color: rgba(207, 207, 207, 0.55);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 0.6rem;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .settings > summary::-webkit-details-marker { display: none; }
 
   .action-btn {
-    padding: 0.6rem 1.4rem;
+    padding: 0.85rem 1.6rem;
     background: rgba(255, 255, 255, 0.06);
     color: #e8e8e8;
     font-family: inherit;
-    font-size: 0.78rem;
+    font-size: 0.85rem;
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -397,45 +353,35 @@
   .picker-actions {
     display: flex;
     justify-content: center;
-    padding-top: 0.5rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 0.6rem;
   }
 
   /* ---------- Picker bars ---------- */
 
-  .pickers {
-    flex: 0 0 auto;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
-  }
-
   .picker {
-    padding-top: 0.5rem;
+    padding-top: 0.4rem;
     user-select: none;
     -webkit-user-select: none;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
   }
 
   .picker-display {
     text-align: center;
     font-variant-numeric: tabular-nums;
     color: #cfcfcf;
-    font-size: 1.05rem;
-    line-height: 1.4;
+    font-size: 1.25rem;
+    line-height: 1.3;
   }
   .picker-display .picker-unit {
     color: rgba(207, 207, 207, 0.55);
-    font-size: 0.7rem;
-    letter-spacing: 0.08em;
-    margin-left: 0.3em;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    margin-left: 0.35em;
   }
 
   .strip-wrap {
     position: relative;
-    height: 46px;
-    margin-top: 0.25rem;
+    height: 60px;
+    margin-top: 0.3rem;
   }
 
   .picker-strip {
@@ -459,7 +405,7 @@
   }
 
   .tick {
-    flex: 0 0 18px;
+    flex: 0 0 28px;
     height: 100%;
     position: relative;
     scroll-snap-align: center;
@@ -469,22 +415,22 @@
     content: "";
     position: absolute;
     left: 50%;
-    top: 4px;
+    top: 6px;
     width: 1px;
-    height: 8px;
+    height: 12px;
     background: rgba(255, 255, 255, 0.22);
     transform: translateX(-50%);
   }
   .tick.major::before {
-    height: 14px;
+    height: 20px;
     background: rgba(255, 255, 255, 0.45);
   }
   .tick-label {
     position: absolute;
-    top: 22px;
+    top: 31px;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 0.65rem;
+    font-size: 0.78rem;
     color: rgba(255, 255, 255, 0.5);
     font-variant-numeric: tabular-nums;
   }
@@ -505,9 +451,9 @@
     content: "";
     position: absolute;
     left: 50%;
-    top: -3px;
-    width: 8px;
-    height: 8px;
+    top: -4px;
+    width: 10px;
+    height: 10px;
     background: #e74c3c;
     transform: translateX(-50%) rotate(45deg);
   }
@@ -515,7 +461,7 @@
 </head>
 <body>
   <div class="main-area">
-    <div class="reader-wrap">
+    <div class="reader-wrap" id="readerWrap">
       <main class="reader" aria-label="RSVP reader">
         <div class="word-area">
           <div class="guide top"></div>
@@ -531,39 +477,27 @@
         <div class="status-msg" id="statusMsg">Loading…</div>
         <button class="action-btn" id="statusRetryBtn" type="button" hidden>Choose another file</button>
       </div>
-      <div class="seekbar" id="seekbar" aria-hidden="true">
-        <div class="seekbar-fill" id="seekbarFill"></div>
-      </div>
     </div>
-
-    <section class="context-view" id="contextView" aria-label="Reading context" aria-hidden="true">
-      <div class="context-text" id="contextText">
-        <div class="context-text-inner" id="contextTextInner"></div>
-      </div>
-      <div class="context-footer">
-        <div class="seek-panel">
-          <div class="seek-readout" id="seekReadout"></div>
-          <input class="seek-slider" id="seekSlider" type="range" min="0" max="0" value="0" step="1" aria-label="Seek by word">
-          <div class="seek-steps">
-            <button class="step-btn" id="prevPara" type="button" aria-label="Previous paragraph" title="Previous paragraph">◀¶</button>
-            <button class="step-btn" id="prevSent" type="button" aria-label="Previous sentence" title="Previous sentence">◀S</button>
-            <button class="step-btn" id="prevWord" type="button" aria-label="Previous word" title="Previous word">◀W</button>
-            <button class="step-btn" id="nextWord" type="button" aria-label="Next word" title="Next word">W▶</button>
-            <button class="step-btn" id="nextSent" type="button" aria-label="Next sentence" title="Next sentence">S▶</button>
-            <button class="step-btn" id="nextPara" type="button" aria-label="Next paragraph" title="Next paragraph">¶▶</button>
-          </div>
-        </div>
-        <button class="resume-btn" id="resumeBtn" type="button">Resume</button>
-      </div>
-    </section>
   </div>
 
   <input type="file" id="epubFileInput" accept=".epub,application/epub+zip" hidden>
 
-  <div class="pickers">
-    <div class="picker-actions">
-      <button class="action-btn" id="openEpubBtn" type="button">Open EPUB</button>
+  <div class="controls">
+    <div class="seek">
+      <div class="seek-readout" id="seekReadout"></div>
+      <input class="seek-slider" id="seekSlider" type="range" min="0" max="0" value="0" step="1" aria-label="Reading position">
+      <div class="grain" role="group" aria-label="Move by">
+        <button class="grain-btn is-active" type="button" data-unit="word">Word</button>
+        <button class="grain-btn" type="button" data-unit="sentence">Sentence</button>
+        <button class="grain-btn" type="button" data-unit="paragraph">Paragraph</button>
+      </div>
+      <div class="transport">
+        <button class="nav-btn" id="stepPrev" type="button" aria-label="Step back">◀</button>
+        <button class="play-btn" id="playPause" type="button" aria-label="Play or pause"><span id="playLabel">Pause</span></button>
+        <button class="nav-btn" id="stepNext" type="button" aria-label="Step forward">▶</button>
+      </div>
     </div>
+
     <div class="picker" aria-label="Reading speed">
       <div class="picker-display"><span id="wpmValue">400</span><span class="picker-unit">WPM</span></div>
       <div class="strip-wrap">
@@ -573,15 +507,22 @@
         <div class="picker-pointer"></div>
       </div>
     </div>
-    <div class="picker" aria-label="Long word pause intensity">
-      <div class="picker-display"><span id="lenValue">50</span><span class="picker-unit">LENGTH</span></div>
-      <div class="strip-wrap">
-        <div class="picker-strip" id="lenStrip">
-          <div class="picker-track" id="lenTrack"></div>
+
+    <details class="settings" id="settings">
+      <summary>Settings</summary>
+      <div class="picker" aria-label="Long word pause intensity">
+        <div class="picker-display"><span id="lenValue">50</span><span class="picker-unit">LENGTH</span></div>
+        <div class="strip-wrap">
+          <div class="picker-strip" id="lenStrip">
+            <div class="picker-track" id="lenTrack"></div>
+          </div>
+          <div class="picker-pointer"></div>
         </div>
-        <div class="picker-pointer"></div>
       </div>
-    </div>
+      <div class="picker-actions">
+        <button class="action-btn" id="openEpubBtn" type="button">Open EPUB</button>
+      </div>
+    </details>
   </div>
 
 <script>
@@ -626,6 +567,7 @@ This was invitation enough.
   function tokenize(text) {
     const tokens = [];
     const paragraphs = [];          // each is an array of token indices
+    const paragraphStarts = [];     // first token index of each non-empty paragraph
     const tokenToPara = [];         // tokens[i] -> paragraph index, or -1 for breaks
     const wordTokenIndices = [];    // word ordinal -> token index (words only)
     const tokenToWordOrdinal = [];  // tokens[i] -> word ordinal, or -1 for breaks
@@ -648,13 +590,17 @@ This was invitation enough.
       // A paragraph boundary always closes the current sentence.
       sentenceOpen = false;
       paragraphs.push(indices);
+      if (indices.length) paragraphStarts.push(indices[0]);
       if (pi < paraTexts.length - 1) {
         tokenToPara.push(-1);
         tokenToWordOrdinal.push(-1);
         tokens.push(PARAGRAPH_BREAK);
       }
     });
-    return { tokens, paragraphs, tokenToPara, wordTokenIndices, tokenToWordOrdinal, sentenceStarts };
+    return {
+      tokens, paragraphs, paragraphStarts, tokenToPara,
+      wordTokenIndices, tokenToWordOrdinal, sentenceStarts,
+    };
   }
 
   function orpIndex(word) {
@@ -711,7 +657,10 @@ This was invitation enough.
     afterEl.textContent  = token.slice(i + 1);
   }
 
-  let { tokens, paragraphs, tokenToPara, wordTokenIndices, tokenToWordOrdinal, sentenceStarts } = tokenize(textToRead);
+  let {
+    tokens, paragraphs, paragraphStarts, tokenToPara,
+    wordTokenIndices, tokenToWordOrdinal, sentenceStarts,
+  } = tokenize(textToRead);
 
   // ---------- Playback state machine ----------
 
@@ -720,11 +669,13 @@ This was invitation enough.
   const STATE_LOADING = "loading";
   const STATE_ERROR   = "error";
 
-  let currentIdx     = 0;     // always points at the token currently displayed
-  let pendingTimer   = null;  // single in-flight setTimeout cell
+  let currentIdx     = 0;       // always points at the token currently displayed
+  let pendingTimer   = null;    // single in-flight setTimeout cell
   let state          = STATE_PLAYING;
-  let rampRemaining  = 0;     // 5..1 during ease-in after a resume, 0 otherwise
-  let manuallySeeked = false; // true once the user steps/scrubs during a pause
+  let rampRemaining  = 0;       // 5..1 during ease-in after a resume, 0 otherwise
+  let manuallySeeked = false;   // true once the user steps/scrubs during a pause
+  let granularity    = "word";  // "word" | "sentence" | "paragraph"
+  let sliderDragging = false;   // true while the user holds the position slider
 
   function setState(s) {
     state = s;
@@ -774,8 +725,6 @@ This was invitation enough.
     }
     manuallySeeked = false;
     setState(STATE_PAUSED);
-    contextViewEl.setAttribute("aria-hidden", "false");
-    renderContext();
     updateSeekUI();
   }
 
@@ -789,8 +738,12 @@ This was invitation enough.
     manuallySeeked = false;
     rampRemaining = 5;
     setState(STATE_PLAYING);
-    contextViewEl.setAttribute("aria-hidden", "true");
     play();
+  }
+
+  function togglePlay() {
+    if (state === STATE_PLAYING) pause();
+    else if (state === STATE_PAUSED) resume();
   }
 
   function rewindWords(from, count) {
@@ -834,10 +787,7 @@ This was invitation enough.
   function stepSentence(from, dir) {
     if (!sentenceStarts.length) return from;
     const cur = currentWordIdx(from);
-    let si = 0;
-    for (let k = 0; k < sentenceStarts.length; k++) {
-      if (sentenceStarts[k] <= cur) si = k; else break;
-    }
+    const si = lastIndexAtMost(sentenceStarts, cur);
     if (dir < 0) {
       // If mid-sentence, snap to the start of the current sentence first.
       if (cur > sentenceStarts[si]) return sentenceStarts[si];
@@ -847,95 +797,26 @@ This was invitation enough.
   }
 
   function stepParagraph(from, dir) {
+    if (!paragraphStarts.length) return from;
     const cur = currentWordIdx(from);
-    const pi = getParagraphIndex(cur);
+    const pi = lastIndexAtMost(paragraphStarts, cur);
     if (dir < 0) {
-      if (paragraphs[pi].length && cur > paragraphs[pi][0]) return paragraphs[pi][0];
-      for (let p = pi - 1; p >= 0; p--) {
-        if (paragraphs[p].length) return paragraphs[p][0];
-      }
-      return paragraphs[pi].length ? paragraphs[pi][0] : cur;
+      // If mid-paragraph, snap to the start of the current paragraph first.
+      if (cur > paragraphStarts[pi]) return paragraphStarts[pi];
+      return paragraphStarts[Math.max(0, pi - 1)];
     }
-    for (let p = pi + 1; p < paragraphs.length; p++) {
-      if (paragraphs[p].length) return paragraphs[p][0];
+    return paragraphStarts[Math.min(paragraphStarts.length - 1, pi + 1)];
+  }
+
+  // Largest index in a sorted ascending list whose value is <= target.
+  function lastIndexAtMost(list, target) {
+    let lo = 0, hi = list.length - 1, ans = 0;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (list[mid] <= target) { ans = mid; lo = mid + 1; }
+      else hi = mid - 1;
     }
-    return cur;
-  }
-
-  function seekTo(idx, opts) {
-    opts = opts || {};
-    currentIdx = Math.max(0, Math.min(idx, tokens.length - 1));
-    manuallySeeked = true;
-    render(tokens[currentIdx]);
-    updateSeekUI();
-    if (state === STATE_PAUSED && opts.updateContext !== false) {
-      updateContextHighlight();
-    }
-  }
-
-  function seekToFraction(frac) {
-    if (!wordTokenIndices.length) return;
-    const ord = Math.round(frac * (wordTokenIndices.length - 1));
-    seekTo(ordinalToIdx(ord), { updateContext: false });
-  }
-
-  // ---------- Context view ----------
-
-  const contextViewEl      = document.getElementById("contextView");
-  const contextTextEl      = document.getElementById("contextText");
-  const contextTextInnerEl = document.getElementById("contextTextInner");
-  const resumeBtn          = document.getElementById("resumeBtn");
-
-  // ---------- Seek UI ----------
-
-  const seekbarEl     = document.getElementById("seekbar");
-  const seekFillEl    = document.getElementById("seekbarFill");
-  const seekSliderEl  = document.getElementById("seekSlider");
-  const seekReadoutEl = document.getElementById("seekReadout");
-  const prevBtns = ["prevPara", "prevSent", "prevWord"].map((id) => document.getElementById(id));
-  const nextBtns = ["nextWord", "nextSent", "nextPara"].map((id) => document.getElementById(id));
-
-  function updateSeekUI() {
-    const total = wordTokenIndices.length;
-    const ord = wordOrdinalAt(currentIdx);
-    const frac = total > 1 ? ord / (total - 1) : 0;
-
-    seekFillEl.style.width = (frac * 100) + "%";
-    const max = Math.max(0, total - 1);
-    if (+seekSliderEl.max !== max) seekSliderEl.max = max;
-    seekSliderEl.value = ord;
-
-    const pi = getParagraphIndex(currentIdx);
-    seekReadoutEl.textContent =
-      "word " + (total ? ord + 1 : 0).toLocaleString() + " / " + total.toLocaleString() +
-      "  ·  ¶ " + (pi + 1) + " / " + paragraphs.length +
-      "  ·  " + Math.round(frac * 100) + "%";
-
-    const atStart = ord <= 0;
-    const atEnd = ord >= max;
-    prevBtns.forEach((b) => { b.disabled = atStart; });
-    nextBtns.forEach((b) => { b.disabled = atEnd; });
-  }
-
-  function updateContextHighlight() {
-    const hIdx = highlightIdx();
-    const target = contextTextInnerEl.querySelector('.cw[data-idx="' + hIdx + '"]');
-    if (!target) { renderContext(); return; }
-    const prev = contextTextInnerEl.querySelector(".cw.current");
-    if (prev && prev !== target) prev.classList.remove("current");
-    target.classList.add("current");
-    target.scrollIntoView({ block: "nearest" });
-  }
-
-  // How far either side of the current paragraph we render in the reading view.
-  // Big enough to feel like a chapter you can scroll, small enough to stay snappy.
-  const CONTEXT_WINDOW = 100;
-
-  function highlightIdx() {
-    // If we paused on a paragraph-break token, jump highlight to the next word.
-    let i = currentIdx;
-    while (i < tokens.length && tokens[i] === PARAGRAPH_BREAK) i++;
-    return Math.min(i, tokens.length - 1);
+    return ans;
   }
 
   function getParagraphIndex(idx) {
@@ -951,146 +832,146 @@ This was invitation enough.
     return Math.max(0, tokenToPara[i] || 0);
   }
 
-  function renderContext() {
-    const hIdx = highlightIdx();
-    const paraIdx = getParagraphIndex(hIdx);
-
-    // Render a large window around the current paragraph so the paused view
-    // feels like a chapter you can read normally, not just a quote card.
-    const startPara = Math.max(0, paraIdx - CONTEXT_WINDOW);
-    const endPara   = Math.min(paragraphs.length - 1, paraIdx + CONTEXT_WINDOW);
-
-    contextTextInnerEl.innerHTML = "";
-    for (let pi = startPara; pi <= endPara; pi++) {
-      const pEl = document.createElement("p");
-      pEl.className = "context-para";
-      const wIndices = paragraphs[pi];
-      wIndices.forEach((wIdx, j) => {
-        const span = document.createElement("span");
-        span.className = "cw";
-        if (wIdx === hIdx) span.classList.add("current");
-        span.textContent = tokens[wIdx];
-        span.dataset.idx = wIdx;
-        pEl.appendChild(span);
-        if (j < wIndices.length - 1) {
-          pEl.appendChild(document.createTextNode(" "));
-        }
-      });
-      contextTextInnerEl.appendChild(pEl);
-    }
-
-    const cur = contextTextInnerEl.querySelector(".cw.current");
-    if (cur) cur.scrollIntoView({ block: "center" });
-    else contextTextEl.scrollTop = 0;
-  }
-
-  function selectWord(idx, spanEl) {
-    currentIdx = idx;
+  function seekTo(idx) {
+    currentIdx = Math.max(0, Math.min(idx, tokens.length - 1));
     manuallySeeked = true;
     render(tokens[currentIdx]);
-    const prev = contextTextInnerEl.querySelector(".cw.current");
-    if (prev && prev !== spanEl) prev.classList.remove("current");
-    spanEl.classList.add("current");
-    spanEl.classList.add("flash");
-    setTimeout(() => spanEl.classList.remove("flash"), 240);
     updateSeekUI();
+  }
+
+  function stepFn() {
+    if (granularity === "sentence")  return stepSentence;
+    if (granularity === "paragraph") return stepParagraph;
+    return stepWord;
+  }
+
+  function doStep(dir) {
+    if (state === STATE_PLAYING) pause();
+    seekTo(stepFn()(currentIdx, dir));
+  }
+
+  // ---------- Seek UI ----------
+
+  const seekSliderEl  = document.getElementById("seekSlider");
+  const seekReadoutEl = document.getElementById("seekReadout");
+  const stepPrevEl    = document.getElementById("stepPrev");
+  const stepNextEl    = document.getElementById("stepNext");
+  const playLabelEl   = document.getElementById("playLabel");
+  const grainBtns     = Array.from(document.querySelectorAll(".grain-btn"));
+
+  function unitList() {
+    if (granularity === "sentence")  return sentenceStarts;
+    if (granularity === "paragraph") return paragraphStarts;
+    return wordTokenIndices;
+  }
+
+  function unitIndexAt(idx) {
+    const list = unitList();
+    if (!list.length) return 0;
+    return lastIndexAtMost(list, currentWordIdx(idx));
+  }
+
+  function updateSeekUI() {
+    const total = wordTokenIndices.length;
+    const wOrd = wordOrdinalAt(currentIdx);
+    const frac = total > 1 ? wOrd / (total - 1) : 0;
+    const pi = getParagraphIndex(currentIdx);
+
+    seekReadoutEl.textContent =
+      "word " + (total ? wOrd + 1 : 0).toLocaleString() + " / " + total.toLocaleString() +
+      "   ·   ¶ " + (pi + 1) + " / " + paragraphs.length +
+      "   ·   " + Math.round(frac * 100) + "%";
+
+    const uMax = Math.max(0, unitList().length - 1);
+    if (+seekSliderEl.max !== uMax) seekSliderEl.max = uMax;
+    if (!sliderDragging) seekSliderEl.value = unitIndexAt(currentIdx);
+
+    stepPrevEl.disabled = wOrd <= 0;
+    stepNextEl.disabled = wOrd >= total - 1;
+
+    playLabelEl.textContent = (state === STATE_PLAYING) ? "Pause" : "Play";
   }
 
   // ---------- Input ----------
 
+  // Tap the word area (anywhere outside the controls) to play / pause.
   document.addEventListener("click", (e) => {
-    if (state !== STATE_PLAYING) return;
-    if (e.target.closest(".pickers")) return;
-    if (e.target.closest("#seekbar")) return;
-    pause();
+    if (e.target.closest(".controls")) return;
+    if (e.target.closest(".status-overlay")) return;
+    togglePlay();
   });
 
   document.addEventListener("keydown", (e) => {
-    if (e.code === "Space") {
-      e.preventDefault();
-      if (state === STATE_PLAYING) pause();
-      else if (state === STATE_PAUSED) resume();
-      return;
-    }
-    if (state !== STATE_PAUSED) return;
-    let fn = null, dir = 0;
-    if (e.code === "ArrowLeft")       { dir = -1; fn = e.shiftKey ? stepSentence : stepWord; }
-    else if (e.code === "ArrowRight") { dir = 1;  fn = e.shiftKey ? stepSentence : stepWord; }
-    else if (e.code === "ArrowUp")    { dir = -1; fn = stepParagraph; }
-    else if (e.code === "ArrowDown")  { dir = 1;  fn = stepParagraph; }
-    if (fn) {
-      e.preventDefault();
-      seekTo(fn(currentIdx, dir));
-    }
+    if (e.code === "Space") { e.preventDefault(); togglePlay(); return; }
+    if (e.target === seekSliderEl) return; // let the range input handle arrows
+    if (e.code === "ArrowLeft")       { e.preventDefault(); doStep(-1); }
+    else if (e.code === "ArrowRight") { e.preventDefault(); doStep(1); }
+    else if (e.code === "ArrowUp")    { e.preventDefault(); if (state === STATE_PLAYING) pause(); seekTo(stepParagraph(currentIdx, -1)); }
+    else if (e.code === "ArrowDown")  { e.preventDefault(); if (state === STATE_PLAYING) pause(); seekTo(stepParagraph(currentIdx, 1)); }
   });
 
-  resumeBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    resume();
-  });
-
-  contextTextEl.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const span = e.target.closest(".cw");
-    if (!span) return;
-    selectWord(parseInt(span.dataset.idx, 10), span);
-  });
-
-  // Slim progress bar: tap or drag to pause and scrub.
-  let seekDragging = false;
-  function fractionFromEvent(e) {
-    const rect = seekbarEl.getBoundingClientRect();
-    if (rect.width <= 0) return 0;
-    return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  // Position slider: grabbing it pauses; dragging scrubs by the current unit.
+  function sliderSeek() {
+    const list = unitList();
+    if (!list.length) return;
+    const v = Math.max(0, Math.min(parseInt(seekSliderEl.value, 10) || 0, list.length - 1));
+    seekTo(list[v]);
   }
-  seekbarEl.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  seekSliderEl.addEventListener("pointerdown", () => {
     if (state === STATE_PLAYING) pause();
-    if (state !== STATE_PAUSED) return;
-    seekDragging = true;
-    try { seekbarEl.setPointerCapture(e.pointerId); } catch (_) {}
-    seekToFraction(fractionFromEvent(e));
+    sliderDragging = true;
   });
-  seekbarEl.addEventListener("pointermove", (e) => {
-    if (seekDragging) seekToFraction(fractionFromEvent(e));
+  seekSliderEl.addEventListener("keydown", () => {
+    if (state === STATE_PLAYING) pause();
   });
-  function endSeekDrag(e) {
-    if (!seekDragging) return;
-    seekDragging = false;
-    try { seekbarEl.releasePointerCapture(e.pointerId); } catch (_) {}
-    if (state === STATE_PAUSED) renderContext();
-  }
-  seekbarEl.addEventListener("pointerup", endSeekDrag);
-  seekbarEl.addEventListener("pointercancel", endSeekDrag);
+  seekSliderEl.addEventListener("input", sliderSeek);
+  function endSliderDrag() { sliderDragging = false; }
+  seekSliderEl.addEventListener("change", endSliderDrag);
+  window.addEventListener("pointerup", endSliderDrag);
 
-  // Full slider: scrub live, re-center the context when released.
-  seekSliderEl.addEventListener("click", (e) => e.stopPropagation());
-  seekSliderEl.addEventListener("input", () => {
-    seekTo(ordinalToIdx(parseInt(seekSliderEl.value, 10) || 0), { updateContext: false });
-  });
-  seekSliderEl.addEventListener("change", () => {
-    if (state === STATE_PAUSED) renderContext();
-  });
-
-  // Step buttons.
-  function bindStep(id, fn, dir) {
-    document.getElementById(id).addEventListener("click", (e) => {
+  // Granularity selector.
+  grainBtns.forEach((btn) => {
+    btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (state !== STATE_PAUSED) return;
-      seekTo(fn(currentIdx, dir));
+      granularity = btn.dataset.unit;
+      grainBtns.forEach((b) => b.classList.toggle("is-active", b === btn));
+      updateSeekUI();
+    });
+  });
+
+  // Play / pause.
+  document.getElementById("playPause").addEventListener("click", (e) => {
+    e.stopPropagation();
+    togglePlay();
+  });
+
+  // Step buttons with press-and-hold to repeat (slide through quickly).
+  function bindHold(btn, dir) {
+    let delayTimer = null;
+    let repeatTimer = null;
+    function stop() {
+      if (delayTimer)  { clearTimeout(delayTimer);  delayTimer = null; }
+      if (repeatTimer) { clearInterval(repeatTimer); repeatTimer = null; }
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    }
+    btn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      doStep(dir);
+      window.addEventListener("pointerup", stop);
+      window.addEventListener("pointercancel", stop);
+      delayTimer = setTimeout(() => {
+        repeatTimer = setInterval(() => doStep(dir), 110);
+      }, 350);
     });
   }
-  bindStep("prevPara", stepParagraph, -1);
-  bindStep("prevSent", stepSentence, -1);
-  bindStep("prevWord", stepWord, -1);
-  bindStep("nextWord", stepWord, 1);
-  bindStep("nextSent", stepSentence, 1);
-  bindStep("nextPara", stepParagraph, 1);
+  bindHold(stepPrevEl, -1);
+  bindHold(stepNextEl, 1);
 
   // ---------- Picker factory ----------
 
-  const TICK_PX = 18;
+  const TICK_PX = 28;
 
   function createPicker(opts) {
     const { stripId, trackId, valueId, min, max, step, majorEvery, initial, onChange } = opts;
@@ -1149,13 +1030,15 @@ This was invitation enough.
       });
     }
 
+    function relayout() {
+      setEdgePadding();
+      scrollToValue(current, false);
+    }
+
     buildTrack();
     valueEl.textContent = current;
 
-    requestAnimationFrame(() => {
-      setEdgePadding();
-      scrollToValue(current, false);
-    });
+    requestAnimationFrame(relayout);
 
     stripEl.addEventListener("scroll", syncFromScroll, { passive: true });
 
@@ -1172,10 +1055,9 @@ This was invitation enough.
       scrollToValue(parseInt(tick.dataset.value, 10), true);
     });
 
-    window.addEventListener("resize", () => {
-      setEdgePadding();
-      scrollToValue(current, false);
-    });
+    window.addEventListener("resize", relayout);
+
+    return { relayout };
   }
 
   createPicker({
@@ -1185,11 +1067,18 @@ This was invitation enough.
     onChange: (v) => { currentWPM = v; },
   });
 
-  createPicker({
+  const lenPicker = createPicker({
     stripId: "lenStrip", trackId: "lenTrack", valueId: "lenValue",
     min: 0, max: 100, step: 5, majorEvery: 25,
     initial: lengthStrength,
     onChange: (v) => { lengthStrength = v; },
+  });
+
+  // The LENGTH picker starts inside a closed <details>, so it has no width to
+  // lay out against until the panel is opened. Re-center it on first open.
+  const settingsEl = document.getElementById("settings");
+  settingsEl.addEventListener("toggle", () => {
+    if (settingsEl.open) requestAnimationFrame(lenPicker.relayout);
   });
 
   // ---------- EPUB loading ----------
@@ -1252,7 +1141,7 @@ This was invitation enough.
     const buf = [];
     walkForText(root, buf);
     let text = buf.join("");
-    text = text.replace(/ /g, " ");
+    text = text.replace(/ /g, " ");
     text = text.replace(/[^\S\n]+/g, " ");
     text = text.replace(/ ?\n ?/g, "\n");
     text = text.replace(/\n{3,}/g, "\n\n");
@@ -1286,6 +1175,7 @@ This was invitation enough.
     const result = tokenize(text);
     tokens             = result.tokens;
     paragraphs         = result.paragraphs;
+    paragraphStarts    = result.paragraphStarts;
     tokenToPara        = result.tokenToPara;
     wordTokenIndices   = result.wordTokenIndices;
     tokenToWordOrdinal = result.tokenToWordOrdinal;
@@ -1298,7 +1188,6 @@ This was invitation enough.
       pendingTimer = null;
     }
     setState(STATE_PLAYING);
-    contextViewEl.setAttribute("aria-hidden", "true");
     play();
   }
 
