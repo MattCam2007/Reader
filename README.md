@@ -19,15 +19,16 @@ text, and you can load any `.epub` file to read your own books.
   semicolons, colons, sentence endings, and paragraph breaks.
 - **Ease-in on resume** — playback ramps from half speed back up to full over
   the first few words so you can re-orient.
-- **Tap / Space to pause**, which opens a full-screen reading view showing the
-  surrounding paragraphs with the current word highlighted.
-- **Tap any word** in the paused view to jump the reading position there.
-- **Playback tracker** — a slim progress bar is always visible while reading;
-  tap or drag it to pause and scrub. When paused it expands into a full seek
-  panel with a draggable position slider, a word/paragraph/percent readout, and
-  step buttons to move by **word**, **sentence**, or **paragraph** in either
-  direction. Arrow keys work too (`←/→` word, `Shift+←/→` sentence, `↑/↓`
-  paragraph).
+- **Tap / Space to play or pause** — the single word stays on screen the whole
+  time (it just dims while paused).
+- **Always-on playback tracker** — a big, thumb-friendly control panel lives
+  permanently below the word: a position **slider/knob**, a
+  word/paragraph/percent readout, large **step buttons** (press and hold to fly
+  through), and a prominent **play/pause** button.
+- **Slide by word, sentence, or paragraph** — pick the unit with the
+  granularity selector and the slider and step buttons move by that unit.
+  Grabbing the slider or a step button pauses automatically. Arrow keys work
+  too (`←/→` step by the selected unit, `↑/↓` by paragraph).
 - **EPUB support** — load a local `.epub` and the text is extracted from the
   whole book in reading order.
 - **Dark, mobile-friendly UI** with safe-area insets and touch-friendly
@@ -40,11 +41,11 @@ browser:
 
 1. Open `index.html` in any modern browser (or serve the folder and visit it).
 2. Reading starts automatically with the sample text.
-3. Use the bottom pickers to set **WPM** (reading speed) and **LENGTH**
-   (how aggressively long words are slowed down).
-4. **Tap the screen** or press **Space** to pause and see the surrounding text;
-   tap a word to move there, then press **Resume** (or **Space**) to continue.
-5. Tap **Open EPUB** to load your own `.epub` file.
+3. Set **WPM** (reading speed) with the picker below the word.
+4. **Tap the word** or press **Space** to pause/resume. While paused, use the
+   slider and step buttons to move by word, sentence, or paragraph.
+5. Open **Settings** to tune **LENGTH** (how aggressively long words are slowed
+   down) and to **Open EPUB** and load your own `.epub` file.
 
 If you prefer to run it from a local server:
 
@@ -55,22 +56,21 @@ python3 -m http.server
 
 ## Controls
 
-| Action            | Control                          |
-| ----------------- | -------------------------------- |
-| Pause / resume    | Tap the screen, or press `Space` |
-| Set reading speed | Scroll the **WPM** picker        |
-| Tune long-word pacing | Scroll the **LENGTH** picker |
-| Jump to a word    | Tap a word in the paused view    |
-| Scrub position    | Drag the progress bar / slider   |
-| Step by word      | `◀W` / `W▶` buttons, or `←` / `→` |
-| Step by sentence  | `◀S` / `S▶` buttons, or `Shift+←` / `Shift+→` |
-| Step by paragraph | `◀¶` / `¶▶` buttons, or `↑` / `↓` |
-| Load a book       | **Open EPUB** button             |
+| Action            | Control                                       |
+| ----------------- | --------------------------------------------- |
+| Play / pause      | Tap the word, the **play/pause** button, or `Space` |
+| Scrub position    | Drag the **slider/knob**                      |
+| Choose move unit  | **Word** / **Sentence** / **Paragraph** selector |
+| Step / fly        | `◀` / `▶` buttons (hold to repeat), or `←` / `→` |
+| Step by paragraph | `↑` / `↓`                                      |
+| Set reading speed | Scroll the **WPM** picker                     |
+| Tune long-word pacing | **Settings** → scroll the **LENGTH** picker |
+| Load a book       | **Settings** → **Open EPUB**                  |
 
 ## How it works
 
-- **Tokenizing** splits the text into words and tracks paragraph boundaries so
-  the paused "context" view can rebuild readable paragraphs.
+- **Tokenizing** splits the text into words and tracks word, sentence, and
+  paragraph boundaries so the tracker can slide and step by each unit.
 - **ORP** is chosen by word length, and the word is rendered in three pieces
   (before / ORP / after) so the focus letter always lands on the guide line.
 - **Timing** starts from the base WPM interval and multiplies it for word
