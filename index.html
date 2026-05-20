@@ -181,9 +181,10 @@
   .context-footer {
     flex: 0 0 auto;
     display: flex;
-    justify-content: center;
-    padding: 0.75rem 1rem 0.5rem;
-    background: linear-gradient(to top, #1a1a1a 70%, rgba(26, 26, 26, 0));
+    flex-direction: column;
+    align-items: center;
+    padding: 0.75rem 1rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(to top, #1a1a1a 78%, rgba(26, 26, 26, 0));
   }
 
   .resume-btn {
@@ -204,6 +205,131 @@
   .resume-btn:active {
     background: #c0392b;
     transform: translateY(1px);
+  }
+
+  /* ---------- Seek bar (slim, visible while reading) ---------- */
+
+  .seekbar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 22px;
+    cursor: pointer;
+    touch-action: none;
+    z-index: 3;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .seekbar::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.10);
+  }
+  .seekbar-fill {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 0%;
+    height: 4px;
+    background: #e74c3c;
+    pointer-events: none;
+    transition: width 120ms linear;
+  }
+  body.loading .seekbar,
+  body.error .seekbar {
+    display: none;
+  }
+
+  /* ---------- Seek panel (full controls, paused state) ---------- */
+
+  .seek-panel {
+    width: 100%;
+    max-width: 34rem;
+    margin: 0 auto 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .seek-readout {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    color: rgba(207, 207, 207, 0.85);
+    font-size: 0.8rem;
+    letter-spacing: 0.02em;
+  }
+
+  .seek-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 22px;
+    background: transparent;
+    cursor: pointer;
+  }
+  .seek-slider::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .seek-slider::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .seek-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin-top: -7px;
+    border-radius: 50%;
+    background: #e74c3c;
+    border: 2px solid #1a1a1a;
+    box-shadow: 0 2px 8px rgba(231, 76, 60, 0.5);
+  }
+  .seek-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #e74c3c;
+    border: 2px solid #1a1a1a;
+    box-shadow: 0 2px 8px rgba(231, 76, 60, 0.5);
+  }
+
+  .seek-steps {
+    display: flex;
+    justify-content: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .step-btn {
+    flex: 0 0 auto;
+    min-width: 3rem;
+    padding: 0.5rem 0.6rem;
+    background: rgba(255, 255, 255, 0.06);
+    color: #e8e8e8;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .step-btn:active {
+    background: rgba(255, 255, 255, 0.16);
+  }
+  .step-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
   }
 
   /* ---------- Status overlay (loading / error) ---------- */
@@ -405,6 +531,9 @@
         <div class="status-msg" id="statusMsg">Loading…</div>
         <button class="action-btn" id="statusRetryBtn" type="button" hidden>Choose another file</button>
       </div>
+      <div class="seekbar" id="seekbar" aria-hidden="true">
+        <div class="seekbar-fill" id="seekbarFill"></div>
+      </div>
     </div>
 
     <section class="context-view" id="contextView" aria-label="Reading context" aria-hidden="true">
@@ -412,6 +541,18 @@
         <div class="context-text-inner" id="contextTextInner"></div>
       </div>
       <div class="context-footer">
+        <div class="seek-panel">
+          <div class="seek-readout" id="seekReadout"></div>
+          <input class="seek-slider" id="seekSlider" type="range" min="0" max="0" value="0" step="1" aria-label="Seek by word">
+          <div class="seek-steps">
+            <button class="step-btn" id="prevPara" type="button" aria-label="Previous paragraph" title="Previous paragraph">◀¶</button>
+            <button class="step-btn" id="prevSent" type="button" aria-label="Previous sentence" title="Previous sentence">◀S</button>
+            <button class="step-btn" id="prevWord" type="button" aria-label="Previous word" title="Previous word">◀W</button>
+            <button class="step-btn" id="nextWord" type="button" aria-label="Next word" title="Next word">W▶</button>
+            <button class="step-btn" id="nextSent" type="button" aria-label="Next sentence" title="Next sentence">S▶</button>
+            <button class="step-btn" id="nextPara" type="button" aria-label="Next paragraph" title="Next paragraph">¶▶</button>
+          </div>
+        </div>
         <button class="resume-btn" id="resumeBtn" type="button">Resume</button>
       </div>
     </section>
@@ -484,24 +625,36 @@ This was invitation enough.
 
   function tokenize(text) {
     const tokens = [];
-    const paragraphs = [];   // each is an array of token indices
-    const tokenToPara = [];  // tokens[i] -> paragraph index, or -1 for breaks
+    const paragraphs = [];          // each is an array of token indices
+    const tokenToPara = [];         // tokens[i] -> paragraph index, or -1 for breaks
+    const wordTokenIndices = [];    // word ordinal -> token index (words only)
+    const tokenToWordOrdinal = [];  // tokens[i] -> word ordinal, or -1 for breaks
+    const sentenceStarts = [];      // token index of the first word of each sentence
     const paraTexts = text.split(/\n\n+/);
+    let sentenceOpen = false;
     paraTexts.forEach((para, pi) => {
       const indices = [];
       const words = para.trim().split(/\s+/).filter(Boolean);
       for (const w of words) {
+        const ti = tokens.length;
+        if (!sentenceOpen) { sentenceStarts.push(ti); sentenceOpen = true; }
         tokenToPara.push(pi);
-        indices.push(tokens.length);
+        tokenToWordOrdinal.push(wordTokenIndices.length);
+        wordTokenIndices.push(ti);
+        indices.push(ti);
         tokens.push(w);
+        if (endsSentence(w)) sentenceOpen = false;
       }
+      // A paragraph boundary always closes the current sentence.
+      sentenceOpen = false;
       paragraphs.push(indices);
       if (pi < paraTexts.length - 1) {
         tokenToPara.push(-1);
+        tokenToWordOrdinal.push(-1);
         tokens.push(PARAGRAPH_BREAK);
       }
     });
-    return { tokens, paragraphs, tokenToPara };
+    return { tokens, paragraphs, tokenToPara, wordTokenIndices, tokenToWordOrdinal, sentenceStarts };
   }
 
   function orpIndex(word) {
@@ -517,6 +670,12 @@ This was invitation enough.
   // so sentence endings inside dialog (e.g. `last?"`) still land.
   const TRAILING_CLOSERS = /[")'\]”’]+$/;
 
+  function endsSentence(token) {
+    const trimmed = token.replace(TRAILING_CLOSERS, "");
+    const last = trimmed.charAt(trimmed.length - 1);
+    return last === "." || last === "!" || last === "?";
+  }
+
   function lengthMultiplier(len) {
     const extra = Math.max(0, len - LEN_THRESHOLD);
     return 1 + extra * (lengthStrength / LEN_SCALE);
@@ -528,7 +687,7 @@ This was invitation enough.
     const trimmed = token.replace(TRAILING_CLOSERS, "");
     const last = trimmed.charAt(trimmed.length - 1);
     if (last === "," || last === ";" || last === ":") m = Math.max(m, 1.5);
-    if (last === "." || last === "!" || last === "?") m = Math.max(m, 2.2);
+    if (endsSentence(token)) m = Math.max(m, 2.2);
     return m;
   }
 
@@ -552,7 +711,7 @@ This was invitation enough.
     afterEl.textContent  = token.slice(i + 1);
   }
 
-  let { tokens, paragraphs, tokenToPara } = tokenize(textToRead);
+  let { tokens, paragraphs, tokenToPara, wordTokenIndices, tokenToWordOrdinal, sentenceStarts } = tokenize(textToRead);
 
   // ---------- Playback state machine ----------
 
@@ -561,10 +720,11 @@ This was invitation enough.
   const STATE_LOADING = "loading";
   const STATE_ERROR   = "error";
 
-  let currentIdx    = 0;     // always points at the token currently displayed
-  let pendingTimer  = null;  // single in-flight setTimeout cell
-  let state         = STATE_PLAYING;
-  let rampRemaining = 0;     // 5..1 during ease-in after a resume, 0 otherwise
+  let currentIdx     = 0;     // always points at the token currently displayed
+  let pendingTimer   = null;  // single in-flight setTimeout cell
+  let state          = STATE_PLAYING;
+  let rampRemaining  = 0;     // 5..1 during ease-in after a resume, 0 otherwise
+  let manuallySeeked = false; // true once the user steps/scrubs during a pause
 
   function setState(s) {
     state = s;
@@ -590,6 +750,7 @@ This was invitation enough.
 
     const tok = tokens[currentIdx];
     render(tok);
+    updateSeekUI();
 
     const baseMs = 60000 / currentWPM;
     let dur = baseMs * durationMultiplier(tok);
@@ -611,14 +772,21 @@ This was invitation enough.
       clearTimeout(pendingTimer);
       pendingTimer = null;
     }
+    manuallySeeked = false;
     setState(STATE_PAUSED);
     contextViewEl.setAttribute("aria-hidden", "false");
     renderContext();
+    updateSeekUI();
   }
 
   function resume() {
     if (state !== STATE_PAUSED) return;
-    currentIdx = rewindWords(currentIdx, 3);
+    // After a deliberate seek, resume from the exact spot; for a plain
+    // tap-to-pause, rewind a few words to help re-orient.
+    currentIdx = manuallySeeked
+      ? Math.min(currentIdx, tokens.length - 1)
+      : rewindWords(currentIdx, 3);
+    manuallySeeked = false;
     rampRemaining = 5;
     setState(STATE_PLAYING);
     contextViewEl.setAttribute("aria-hidden", "true");
@@ -635,12 +803,129 @@ This was invitation enough.
     return i;
   }
 
+  // ---------- Position navigation ----------
+
+  function wordOrdinalAt(idx) {
+    if (!wordTokenIndices.length) return 0;
+    let i = Math.max(0, Math.min(idx, tokens.length - 1));
+    if (tokenToWordOrdinal[i] >= 0) return tokenToWordOrdinal[i];
+    // Landed on a paragraph break: snap to the next word, else the previous.
+    let f = i;
+    while (f < tokens.length && tokenToWordOrdinal[f] < 0) f++;
+    if (f < tokens.length) return tokenToWordOrdinal[f];
+    while (i >= 0 && tokenToWordOrdinal[i] < 0) i--;
+    return i >= 0 ? tokenToWordOrdinal[i] : 0;
+  }
+
+  function ordinalToIdx(ord) {
+    if (!wordTokenIndices.length) return 0;
+    const o = Math.max(0, Math.min(ord, wordTokenIndices.length - 1));
+    return wordTokenIndices[o];
+  }
+
+  function currentWordIdx(from) {
+    return ordinalToIdx(wordOrdinalAt(from));
+  }
+
+  function stepWord(from, dir) {
+    return ordinalToIdx(wordOrdinalAt(from) + dir);
+  }
+
+  function stepSentence(from, dir) {
+    if (!sentenceStarts.length) return from;
+    const cur = currentWordIdx(from);
+    let si = 0;
+    for (let k = 0; k < sentenceStarts.length; k++) {
+      if (sentenceStarts[k] <= cur) si = k; else break;
+    }
+    if (dir < 0) {
+      // If mid-sentence, snap to the start of the current sentence first.
+      if (cur > sentenceStarts[si]) return sentenceStarts[si];
+      return sentenceStarts[Math.max(0, si - 1)];
+    }
+    return sentenceStarts[Math.min(sentenceStarts.length - 1, si + 1)];
+  }
+
+  function stepParagraph(from, dir) {
+    const cur = currentWordIdx(from);
+    const pi = getParagraphIndex(cur);
+    if (dir < 0) {
+      if (paragraphs[pi].length && cur > paragraphs[pi][0]) return paragraphs[pi][0];
+      for (let p = pi - 1; p >= 0; p--) {
+        if (paragraphs[p].length) return paragraphs[p][0];
+      }
+      return paragraphs[pi].length ? paragraphs[pi][0] : cur;
+    }
+    for (let p = pi + 1; p < paragraphs.length; p++) {
+      if (paragraphs[p].length) return paragraphs[p][0];
+    }
+    return cur;
+  }
+
+  function seekTo(idx, opts) {
+    opts = opts || {};
+    currentIdx = Math.max(0, Math.min(idx, tokens.length - 1));
+    manuallySeeked = true;
+    render(tokens[currentIdx]);
+    updateSeekUI();
+    if (state === STATE_PAUSED && opts.updateContext !== false) {
+      updateContextHighlight();
+    }
+  }
+
+  function seekToFraction(frac) {
+    if (!wordTokenIndices.length) return;
+    const ord = Math.round(frac * (wordTokenIndices.length - 1));
+    seekTo(ordinalToIdx(ord), { updateContext: false });
+  }
+
   // ---------- Context view ----------
 
   const contextViewEl      = document.getElementById("contextView");
   const contextTextEl      = document.getElementById("contextText");
   const contextTextInnerEl = document.getElementById("contextTextInner");
   const resumeBtn          = document.getElementById("resumeBtn");
+
+  // ---------- Seek UI ----------
+
+  const seekbarEl     = document.getElementById("seekbar");
+  const seekFillEl    = document.getElementById("seekbarFill");
+  const seekSliderEl  = document.getElementById("seekSlider");
+  const seekReadoutEl = document.getElementById("seekReadout");
+  const prevBtns = ["prevPara", "prevSent", "prevWord"].map((id) => document.getElementById(id));
+  const nextBtns = ["nextWord", "nextSent", "nextPara"].map((id) => document.getElementById(id));
+
+  function updateSeekUI() {
+    const total = wordTokenIndices.length;
+    const ord = wordOrdinalAt(currentIdx);
+    const frac = total > 1 ? ord / (total - 1) : 0;
+
+    seekFillEl.style.width = (frac * 100) + "%";
+    const max = Math.max(0, total - 1);
+    if (+seekSliderEl.max !== max) seekSliderEl.max = max;
+    seekSliderEl.value = ord;
+
+    const pi = getParagraphIndex(currentIdx);
+    seekReadoutEl.textContent =
+      "word " + (total ? ord + 1 : 0).toLocaleString() + " / " + total.toLocaleString() +
+      "  ·  ¶ " + (pi + 1) + " / " + paragraphs.length +
+      "  ·  " + Math.round(frac * 100) + "%";
+
+    const atStart = ord <= 0;
+    const atEnd = ord >= max;
+    prevBtns.forEach((b) => { b.disabled = atStart; });
+    nextBtns.forEach((b) => { b.disabled = atEnd; });
+  }
+
+  function updateContextHighlight() {
+    const hIdx = highlightIdx();
+    const target = contextTextInnerEl.querySelector('.cw[data-idx="' + hIdx + '"]');
+    if (!target) { renderContext(); return; }
+    const prev = contextTextInnerEl.querySelector(".cw.current");
+    if (prev && prev !== target) prev.classList.remove("current");
+    target.classList.add("current");
+    target.scrollIntoView({ block: "nearest" });
+  }
 
   // How far either side of the current paragraph we render in the reading view.
   // Big enough to feel like a chapter you can scroll, small enough to stay snappy.
@@ -701,11 +986,14 @@ This was invitation enough.
 
   function selectWord(idx, spanEl) {
     currentIdx = idx;
-    const prev = contextTextEl.querySelector(".cw.current");
+    manuallySeeked = true;
+    render(tokens[currentIdx]);
+    const prev = contextTextInnerEl.querySelector(".cw.current");
     if (prev && prev !== spanEl) prev.classList.remove("current");
     spanEl.classList.add("current");
     spanEl.classList.add("flash");
     setTimeout(() => spanEl.classList.remove("flash"), 240);
+    updateSeekUI();
   }
 
   // ---------- Input ----------
@@ -713,6 +1001,7 @@ This was invitation enough.
   document.addEventListener("click", (e) => {
     if (state !== STATE_PLAYING) return;
     if (e.target.closest(".pickers")) return;
+    if (e.target.closest("#seekbar")) return;
     pause();
   });
 
@@ -721,6 +1010,17 @@ This was invitation enough.
       e.preventDefault();
       if (state === STATE_PLAYING) pause();
       else if (state === STATE_PAUSED) resume();
+      return;
+    }
+    if (state !== STATE_PAUSED) return;
+    let fn = null, dir = 0;
+    if (e.code === "ArrowLeft")       { dir = -1; fn = e.shiftKey ? stepSentence : stepWord; }
+    else if (e.code === "ArrowRight") { dir = 1;  fn = e.shiftKey ? stepSentence : stepWord; }
+    else if (e.code === "ArrowUp")    { dir = -1; fn = stepParagraph; }
+    else if (e.code === "ArrowDown")  { dir = 1;  fn = stepParagraph; }
+    if (fn) {
+      e.preventDefault();
+      seekTo(fn(currentIdx, dir));
     }
   });
 
@@ -735,6 +1035,58 @@ This was invitation enough.
     if (!span) return;
     selectWord(parseInt(span.dataset.idx, 10), span);
   });
+
+  // Slim progress bar: tap or drag to pause and scrub.
+  let seekDragging = false;
+  function fractionFromEvent(e) {
+    const rect = seekbarEl.getBoundingClientRect();
+    if (rect.width <= 0) return 0;
+    return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  }
+  seekbarEl.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (state === STATE_PLAYING) pause();
+    if (state !== STATE_PAUSED) return;
+    seekDragging = true;
+    try { seekbarEl.setPointerCapture(e.pointerId); } catch (_) {}
+    seekToFraction(fractionFromEvent(e));
+  });
+  seekbarEl.addEventListener("pointermove", (e) => {
+    if (seekDragging) seekToFraction(fractionFromEvent(e));
+  });
+  function endSeekDrag(e) {
+    if (!seekDragging) return;
+    seekDragging = false;
+    try { seekbarEl.releasePointerCapture(e.pointerId); } catch (_) {}
+    if (state === STATE_PAUSED) renderContext();
+  }
+  seekbarEl.addEventListener("pointerup", endSeekDrag);
+  seekbarEl.addEventListener("pointercancel", endSeekDrag);
+
+  // Full slider: scrub live, re-center the context when released.
+  seekSliderEl.addEventListener("click", (e) => e.stopPropagation());
+  seekSliderEl.addEventListener("input", () => {
+    seekTo(ordinalToIdx(parseInt(seekSliderEl.value, 10) || 0), { updateContext: false });
+  });
+  seekSliderEl.addEventListener("change", () => {
+    if (state === STATE_PAUSED) renderContext();
+  });
+
+  // Step buttons.
+  function bindStep(id, fn, dir) {
+    document.getElementById(id).addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (state !== STATE_PAUSED) return;
+      seekTo(fn(currentIdx, dir));
+    });
+  }
+  bindStep("prevPara", stepParagraph, -1);
+  bindStep("prevSent", stepSentence, -1);
+  bindStep("prevWord", stepWord, -1);
+  bindStep("nextWord", stepWord, 1);
+  bindStep("nextSent", stepSentence, 1);
+  bindStep("nextPara", stepParagraph, 1);
 
   // ---------- Picker factory ----------
 
@@ -932,11 +1284,15 @@ This was invitation enough.
 
   function loadText(text) {
     const result = tokenize(text);
-    tokens      = result.tokens;
-    paragraphs  = result.paragraphs;
-    tokenToPara = result.tokenToPara;
-    currentIdx    = 0;
-    rampRemaining = 0;
+    tokens             = result.tokens;
+    paragraphs         = result.paragraphs;
+    tokenToPara        = result.tokenToPara;
+    wordTokenIndices   = result.wordTokenIndices;
+    tokenToWordOrdinal = result.tokenToWordOrdinal;
+    sentenceStarts     = result.sentenceStarts;
+    currentIdx     = 0;
+    rampRemaining  = 0;
+    manuallySeeked = false;
     if (pendingTimer !== null) {
       clearTimeout(pendingTimer);
       pendingTimer = null;

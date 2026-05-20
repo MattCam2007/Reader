@@ -22,6 +22,12 @@ text, and you can load any `.epub` file to read your own books.
 - **Tap / Space to pause**, which opens a full-screen reading view showing the
   surrounding paragraphs with the current word highlighted.
 - **Tap any word** in the paused view to jump the reading position there.
+- **Playback tracker** — a slim progress bar is always visible while reading;
+  tap or drag it to pause and scrub. When paused it expands into a full seek
+  panel with a draggable position slider, a word/paragraph/percent readout, and
+  step buttons to move by **word**, **sentence**, or **paragraph** in either
+  direction. Arrow keys work too (`←/→` word, `Shift+←/→` sentence, `↑/↓`
+  paragraph).
 - **EPUB support** — load a local `.epub` and the text is extracted from the
   whole book in reading order.
 - **Dark, mobile-friendly UI** with safe-area insets and touch-friendly
@@ -55,6 +61,10 @@ python3 -m http.server
 | Set reading speed | Scroll the **WPM** picker        |
 | Tune long-word pacing | Scroll the **LENGTH** picker |
 | Jump to a word    | Tap a word in the paused view    |
+| Scrub position    | Drag the progress bar / slider   |
+| Step by word      | `◀W` / `W▶` buttons, or `←` / `→` |
+| Step by sentence  | `◀S` / `S▶` buttons, or `Shift+←` / `Shift+→` |
+| Step by paragraph | `◀¶` / `¶▶` buttons, or `↑` / `↓` |
 | Load a book       | **Open EPUB** button             |
 
 ## How it works
