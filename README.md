@@ -21,10 +21,9 @@ text, and you can load any `.epub` file to read your own books.
   the first few words so you can re-orient.
 - **Tap / Space to play or pause** — the single word stays on screen the whole
   time (it just dims while paused).
-- **Always-on playback tracker** — a big, thumb-friendly control panel lives
-  permanently below the word: a position **slider/knob**, a
-  word/paragraph/percent readout, large **step buttons** (press and hold to fly
-  through), and a prominent **play/pause** button.
+- **Always-on playback tracker** — a control panel lives permanently below the
+  word: a position **slider/knob**, a word/paragraph/percent readout, **step
+  buttons** (press and hold to fly through), and a **play/pause** button.
 - **Slide by word, sentence, or paragraph** — pick the unit with the
   granularity selector and the slider and step buttons move by that unit.
   Grabbing the slider or a step button pauses automatically. Arrow keys work
