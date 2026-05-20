@@ -152,12 +152,12 @@
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     border-bottom: 1px solid var(--border);
-    padding: calc(env(safe-area-inset-top, 0px) + 0.7rem) 1rem 0.7rem;
+    padding: calc(env(safe-area-inset-top, 0px) + 0.95rem) 1rem 0.95rem;
     text-align: center;
     transition: opacity 220ms ease, transform 220ms ease;
   }
   .book-title {
-    font-size: 0.95rem;
+    font-size: 1.2rem;
     font-weight: 600;
     color: var(--fg);
     white-space: nowrap;
@@ -165,8 +165,8 @@
     text-overflow: ellipsis;
   }
   .book-sub {
-    margin-top: 0.15rem;
-    font-size: 0.7rem;
+    margin-top: 0.25rem;
+    font-size: 0.9rem;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
   }
@@ -190,11 +190,11 @@
   body.chrome-hidden .bottombar { opacity: 0; transform: translateY(100%); pointer-events: none; }
 
   .scrub {
-    padding: 0.7rem 1.25rem 0.15rem;
+    padding: 0.95rem 1.25rem 0.25rem;
   }
   .progress-label {
-    margin-top: 0.05rem;
-    font-size: 0.72rem;
+    margin-top: 0.3rem;
+    font-size: 0.92rem;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
     text-align: center;
@@ -209,13 +209,13 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.25rem;
-    min-height: 60px;
+    gap: 0.4rem;
+    min-height: 80px;
     background: transparent;
     border: 0;
     color: var(--fg);
     font: inherit;
-    font-size: 0.68rem;
+    font-size: 0.92rem;
     font-weight: 600;
     letter-spacing: 0.02em;
     cursor: pointer;
@@ -223,8 +223,8 @@
   }
   .tool:active { background: var(--border); }
   .tool svg {
-    width: 23px;
-    height: 23px;
+    width: 31px;
+    height: 31px;
     display: block;
     fill: none;
     stroke: currentColor;
@@ -239,9 +239,9 @@
     color: #fff;
     border: 0;
     font: inherit;
-    font-size: 0.9rem;
+    font-size: 1.05rem;
     font-weight: 600;
-    padding: 0.85rem 1.7rem;
+    padding: 1rem 2.1rem;
     border-radius: 999px;
     cursor: pointer;
   }
@@ -252,37 +252,37 @@
     -webkit-appearance: none;
     appearance: none;
     width: 100%;
-    height: 28px;
+    height: 36px;
     background: transparent;
     cursor: pointer;
   }
   input[type="range"].progress::-webkit-slider-runnable-track {
-    height: 4px;
+    height: 5px;
     border-radius: 3px;
     background: var(--border);
   }
   input[type="range"].progress::-moz-range-track {
-    height: 4px;
+    height: 5px;
     border-radius: 3px;
     background: var(--border);
   }
   input[type="range"].progress::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 26px;
-    height: 26px;
-    margin-top: -11px;
+    width: 32px;
+    height: 32px;
+    margin-top: -13.5px;
     border-radius: 50%;
     background: var(--accent);
-    box-shadow: 0 1px 5px var(--shadow);
+    box-shadow: 0 1px 6px var(--shadow);
   }
   input[type="range"].progress::-moz-range-thumb {
-    width: 26px;
-    height: 26px;
+    width: 32px;
+    height: 32px;
     border: 0;
     border-radius: 50%;
     background: var(--accent);
-    box-shadow: 0 1px 5px var(--shadow);
+    box-shadow: 0 1px 6px var(--shadow);
   }
 
   /* ---------- Drawers / sheets ---------- */
@@ -320,8 +320,8 @@
   body.show-toc .toc { transform: translateX(0); }
   .toc-head {
     flex: 0 0 auto;
-    padding: calc(env(safe-area-inset-top, 0px) + 0.9rem) 1rem 0.7rem;
-    font-size: 0.7rem;
+    padding: calc(env(safe-area-inset-top, 0px) + 1rem) 1.25rem 0.85rem;
+    font-size: 0.82rem;
     font-weight: 700;
     letter-spacing: 0.16em;
     text-transform: uppercase;
@@ -337,22 +337,22 @@
   .toc-item {
     display: block;
     width: 100%;
-    min-height: 54px;
+    min-height: 62px;
     text-align: left;
     background: transparent;
     border: 0;
     color: var(--fg);
     font: inherit;
-    font-size: 0.98rem;
+    font-size: 1.12rem;
     line-height: 1.35;
-    padding: 0.95rem 1.15rem;
+    padding: 1.15rem 1.25rem;
     cursor: pointer;
     border-bottom: 1px solid var(--border);
   }
   .toc-item:active { background: var(--border); }
-  .toc-item.depth-1 { padding-left: 2.1rem; font-size: 0.9rem; color: var(--muted); }
-  .toc-item.depth-2 { padding-left: 3.1rem; font-size: 0.86rem; color: var(--muted); }
-  .toc-empty { padding: 1rem; color: var(--muted); font-size: 0.85rem; }
+  .toc-item.depth-1 { padding-left: 2.25rem; font-size: 1.02rem; color: var(--muted); }
+  .toc-item.depth-2 { padding-left: 3.25rem; font-size: 0.96rem; color: var(--muted); }
+  .toc-empty { padding: 1.25rem; color: var(--muted); font-size: 1rem; }
 
   .settings {
     position: fixed;
@@ -385,12 +385,12 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 0.85rem 0;
+    padding: 1.05rem 0;
     border-bottom: 1px solid var(--border);
   }
   .settings-row:last-child { border-bottom: 0; }
   .settings-label {
-    font-size: 0.8rem;
+    font-size: 0.92rem;
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -398,7 +398,7 @@
   }
   .seg {
     display: flex;
-    gap: 0.45rem;
+    gap: 0.5rem;
     align-items: center;
   }
   .seg-btn {
@@ -406,11 +406,11 @@
     border: 1px solid var(--border);
     color: var(--fg);
     font: inherit;
-    font-size: 0.85rem;
+    font-size: 1rem;
     font-weight: 600;
-    padding: 0.6rem 1rem;
-    min-height: 44px;
-    min-width: 3rem;
+    padding: 0.8rem 1.3rem;
+    min-height: 54px;
+    min-width: 3.5rem;
     border-radius: 999px;
     cursor: pointer;
   }
@@ -421,9 +421,9 @@
     color: #fff;
   }
   .size-display {
-    font-size: 0.95rem;
+    font-size: 1.15rem;
     font-variant-numeric: tabular-nums;
-    min-width: 2.6rem;
+    min-width: 3rem;
     text-align: center;
     color: var(--fg);
   }
@@ -452,7 +452,7 @@
     pointer-events: auto;
   }
   .overlay-msg {
-    font-size: 1.02rem;
+    font-size: 1.15rem;
     color: var(--fg);
     line-height: 1.45;
     max-width: 28rem;
@@ -479,7 +479,7 @@
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    padding: 0 1.5rem calc(env(safe-area-inset-bottom, 0px) + 4.5rem);
+    padding: 0 1.5rem calc(env(safe-area-inset-bottom, 0px) + 5rem);
     pointer-events: none;
     opacity: 1;
     transition: opacity 400ms ease;
@@ -488,11 +488,11 @@
   .coach-card {
     background: rgba(0, 0, 0, 0.8);
     color: #fff;
-    padding: 0.9rem 1.15rem;
-    border-radius: 0.9rem;
-    font-size: 0.86rem;
-    line-height: 1.5;
-    max-width: 19rem;
+    padding: 1.15rem 1.4rem;
+    border-radius: 1rem;
+    font-size: 1.02rem;
+    line-height: 1.55;
+    max-width: 22rem;
     text-align: center;
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
   }
