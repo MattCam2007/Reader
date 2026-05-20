@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a1a1a">
+<title>Library</title>
+<style>
+  :root {
+    --bg: #1a1a1a;
+    --fg: #e8e8e8;
+    --muted: rgba(232, 232, 232, 0.55);
+    --faint: rgba(232, 232, 232, 0.32);
+    --chrome-bg: rgba(22, 22, 22, 0.92);
+    --panel-bg: #232323;
+    --card-bg: #262626;
+    --border: rgba(255, 255, 255, 0.12);
+    --accent: #e74c3c;
+    --shadow: rgba(0, 0, 0, 0.5);
+  }
+  body.theme-sepia {
+    --bg: #f4ecd8;
+    --fg: #5b4636;
+    --muted: rgba(91, 70, 54, 0.6);
+    --faint: rgba(91, 70, 54, 0.4);
+    --chrome-bg: rgba(244, 236, 216, 0.94);
+    --panel-bg: #efe6cf;
+    --card-bg: #ece2c9;
+    --border: rgba(91, 70, 54, 0.2);
+    --accent: #b5651d;
+    --shadow: rgba(91, 70, 54, 0.25);
+  }
+  body.theme-light {
+    --bg: #ffffff;
+    --fg: #1f1f1f;
+    --muted: rgba(0, 0, 0, 0.5);
+    --faint: rgba(0, 0, 0, 0.32);
+    --chrome-bg: rgba(255, 255, 255, 0.94);
+    --panel-bg: #f4f4f4;
+    --card-bg: #f0f0f0;
+    --border: rgba(0, 0, 0, 0.12);
+    --accent: #c0392b;
+    --shadow: rgba(0, 0, 0, 0.18);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--fg);
+    overscroll-behavior-y: none;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  body { display: flex; flex-direction: column; min-height: 100dvh; }
+
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  /* ---------- App bar ---------- */
+  .appbar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: calc(env(safe-area-inset-top, 0px) + 0.6rem) 0.8rem 0.6rem;
+    background: var(--chrome-bg);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border);
+  }
+  .crumbs {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  .crumbs::-webkit-scrollbar { display: none; }
+  .crumb {
+    background: transparent;
+    border: 0;
+    padding: 0.3rem 0.15rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--fg);
+    letter-spacing: -0.01em;
+  }
+  .crumb.parent { color: var(--muted); font-weight: 600; font-size: 1rem; }
+  .crumb-sep { color: var(--faint); font-size: 0.9rem; padding: 0 0.1rem; }
+
+  .icon-btn {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 50%;
+  }
+  .icon-btn:active { background: var(--border); }
+  .icon-btn svg {
+    width: 22px; height: 22px;
+    fill: none; stroke: currentColor; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+
+  .searchrow {
+    display: none;
+    padding: 0 0.8rem 0.6rem;
+    background: var(--chrome-bg);
+    position: sticky;
+    top: 0;
+    z-index: 29;
+    border-bottom: 1px solid var(--border);
+  }
+  body.searching .searchrow { display: block; }
+  .searchrow input {
+    width: 100%;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--fg);
+    font-size: 1rem;
+    padding: 0.65rem 1rem;
+    outline: none;
+  }
+  .searchrow input::placeholder { color: var(--faint); }
+
+  /* ---------- Scroll body ---------- */
+  .scroll {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 2rem);
+  }
+
+  .section { padding: 1.1rem 0 0.4rem; }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0 1rem 0.65rem;
+  }
+  .section-title {
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .section-count { font-size: 0.72rem; color: var(--faint); }
+
+  /* Horizontal rail */
+  .rail {
+    display: flex;
+    gap: 0.85rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 1rem 0.4rem;
+    scroll-snap-type: x proximity;
+  }
+  .rail::-webkit-scrollbar { display: none; }
+  .rail > * { scroll-snap-align: start; }
+  .rail .card { width: 38vw; max-width: 130px; }
+
+  /* Responsive grid */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+    gap: 1.1rem 0.85rem;
+    padding: 0.2rem 1rem 0.5rem;
+  }
+
+  /* ---------- Card (book) ---------- */
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    text-align: left;
+  }
+  .cover {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--card-bg);
+    box-shadow: 0 4px 14px var(--shadow);
+  }
+  .cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .card:active .cover { transform: translateY(1px); }
+
+  .cover-gen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 0.7rem 0.65rem;
+    color: #fff;
+  }
+  .cover-gen .cg-title {
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 600;
+    font-size: 0.92rem;
+    line-height: 1.2;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.35);
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .cover-gen .cg-author {
+    font-size: 0.66rem;
+    opacity: 0.85;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.35);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .progress-track {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 4px;
+    background: rgba(0,0,0,0.35);
+  }
+  .progress-fill { height: 100%; background: var(--accent); }
+
+  .card-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--fg);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .card-author {
+    font-size: 0.72rem;
+    color: var(--muted);
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ---------- Folder tile ---------- */
+  .folder { /* same column flow as card */ }
+  .folder-art {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--card-bg);
+    box-shadow: 0 4px 14px var(--shadow);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 2px;
+  }
+  .folder-art .tile { position: relative; overflow: hidden; background: var(--panel-bg); }
+  .folder-art .tile img { width: 100%; height: 100%; object-fit: cover; }
+  .folder-art .tile .mini { position: absolute; inset: 0; }
+  .folder-badge {
+    position: absolute;
+    right: 0.4rem; bottom: 0.4rem;
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    font-size: 0.66rem;
+    font-weight: 600;
+    padding: 0.12rem 0.45rem;
+    border-radius: 999px;
+    backdrop-filter: blur(4px);
+  }
+  .folder-tag {
+    position: absolute;
+    left: 0.4rem; top: 0.4rem;
+    display: flex; align-items: center; gap: 0.25rem;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.16rem 0.45rem;
+    border-radius: 999px;
+  }
+  .folder-tag svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; }
+
+  /* ---------- Empty state ---------- */
+  .empty {
+    padding: 4rem 1.5rem;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+
+  /* ---------- Detail sheet ---------- */
+  .backdrop {
+    position: fixed; inset: 0; z-index: 40;
+    background: rgba(0,0,0,0.5);
+    opacity: 0; pointer-events: none;
+    transition: opacity 200ms ease;
+  }
+  body.show-sheet .backdrop { opacity: 1; pointer-events: auto; }
+
+  .sheet {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 50;
+    margin: 0 auto;
+    max-width: 34rem;
+    max-height: 92vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: var(--panel-bg);
+    border-radius: 1.2rem 1.2rem 0 0;
+    box-shadow: 0 -10px 40px var(--shadow);
+    transform: translateY(102%);
+    transition: transform 260ms cubic-bezier(0.22,0.61,0.36,1);
+    padding: 0.5rem 1.2rem calc(env(safe-area-inset-bottom, 0px) + 1.4rem);
+  }
+  body.show-sheet .sheet { transform: translateY(0); }
+  @media (min-width: 640px) {
+    .sheet {
+      bottom: auto; top: 50%; left: 50%; right: auto;
+      transform: translate(-50%, calc(-50% + 16px)) scale(0.98);
+      border-radius: 1.2rem;
+      opacity: 0;
+      transition: transform 220ms ease, opacity 220ms ease;
+    }
+    body.show-sheet .sheet { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  }
+  .sheet::before {
+    content: "";
+    display: block;
+    width: 38px; height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    margin: 0.4rem auto 1rem;
+  }
+  @media (min-width: 640px) { .sheet::before { display: none; } }
+
+  .sheet-top { display: flex; gap: 1.1rem; }
+  .sheet-cover {
+    flex: 0 0 38%;
+    max-width: 150px;
+    aspect-ratio: 2 / 3;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 6px 20px var(--shadow);
+    position: relative;
+    background: var(--card-bg);
+  }
+  .sheet-cover img { width: 100%; height: 100%; object-fit: cover; }
+  .sheet-meta { flex: 1 1 auto; min-width: 0; }
+  .sheet-title { font-size: 1.25rem; font-weight: 700; line-height: 1.2; }
+  .sheet-author { margin-top: 0.25rem; font-size: 0.92rem; color: var(--muted); }
+  .sheet-sub { margin-top: 0.5rem; font-size: 0.8rem; color: var(--faint); }
+  .stars { margin-top: 0.55rem; font-size: 0.95rem; letter-spacing: 0.08em; color: var(--accent); }
+  .stars .off { color: var(--faint); }
+  .tags { margin-top: 0.6rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+  .tag {
+    font-size: 0.68rem;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.2rem 0.6rem;
+  }
+  .sheet-desc {
+    margin-top: 1rem;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 0.96rem;
+    line-height: 1.6;
+    color: var(--fg);
+  }
+  .sheet-path {
+    margin-top: 0.9rem;
+    font-size: 0.74rem;
+    color: var(--faint);
+  }
+  .sheet-progress {
+    margin-top: 0.9rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .sheet-actions {
+    margin-top: 1.2rem;
+    display: flex;
+    gap: 0.7rem;
+  }
+  .btn {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.85rem 1rem;
+    font-size: 0.92rem;
+    font-weight: 600;
+    background: transparent;
+    color: var(--fg);
+  }
+  .btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn:active { transform: translateY(1px); }
+</style>
+</head>
+<body>
+  <header class="appbar">
+    <nav class="crumbs" id="crumbs"></nav>
+    <button class="icon-btn" id="searchBtn" aria-label="Search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+    </button>
+    <button class="icon-btn" id="themeBtn" aria-label="Theme">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+  </header>
+
+  <div class="searchrow" id="searchRow">
+    <input type="search" id="searchInput" placeholder="Search title, author, tag…" autocomplete="off">
+  </div>
+
+  <main class="scroll" id="scroll"></main>
+
+  <div class="backdrop" id="backdrop"></div>
+  <section class="sheet" id="sheet" aria-label="Book details"></section>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------- Sample library (used until data/library.json exists) ----------
+  // Mirrors the shape scan.js will emit. cover:null => generated placeholder.
+  const SAMPLE = {
+    items: [
+      { id: "pp",  folders: ["Fiction","Jane Austen"], path: "books/Fiction/Jane Austen/pride-and-prejudice.epub",
+        title: "Pride and Prejudice", author: "Jane Austen", cover: null,
+        description: "A spirited comedy of manners following Elizabeth Bennet as she navigates issues of marriage, morality and misjudgement in Georgian England.",
+        series: null, tags: ["romance","classic"], rating: 5, addedAt: "2026-05-18", progress: 0.34 },
+      { id: "ss",  folders: ["Fiction","Jane Austen"], path: "books/Fiction/Jane Austen/sense-and-sensibility.epub",
+        title: "Sense and Sensibility", author: "Jane Austen", cover: null,
+        description: "The Dashwood sisters, sensible Elinor and romantic Marianne, weather love and loss after their father's death.",
+        series: null, tags: ["romance","classic"], rating: 4, addedAt: "2026-05-10" },
+      { id: "em",  folders: ["Fiction","Jane Austen"], path: "books/Fiction/Jane Austen/emma.epub",
+        title: "Emma", author: "Jane Austen", cover: null,
+        description: "A well-meaning but misguided young woman meddles in the romantic lives of her small village.",
+        series: null, tags: ["romance","classic"], rating: 4, addedAt: "2026-04-28" },
+      { id: "ttc", folders: ["Fiction","Charles Dickens"], path: "books/Fiction/Charles Dickens/a-tale-of-two-cities.epub",
+        title: "A Tale of Two Cities", author: "Charles Dickens", cover: null,
+        description: "London and Paris in the years of the French Revolution: sacrifice, resurrection and the best and worst of times.",
+        series: null, tags: ["historical","classic"], rating: 5, addedAt: "2026-05-01", progress: 0.82 },
+      { id: "ge",  folders: ["Fiction","Charles Dickens"], path: "books/Fiction/Charles Dickens/great-expectations.epub",
+        title: "Great Expectations", author: "Charles Dickens", cover: null,
+        description: "The orphan Pip rises from the marshes to London society, learning what his expectations truly cost.",
+        series: null, tags: ["coming-of-age","classic"], rating: 4, addedAt: "2026-03-15" },
+      { id: "fr",  folders: ["Science Fiction"], path: "books/Science Fiction/frankenstein.epub",
+        title: "Frankenstein", author: "Mary Shelley", cover: null,
+        description: "A young scientist creates a living being and is undone by it. The original tale of creation and consequence.",
+        series: null, tags: ["gothic","classic"], rating: 5, addedAt: "2026-05-19", progress: 0.12 },
+      { id: "tm",  folders: ["Science Fiction"], path: "books/Science Fiction/the-time-machine.epub",
+        title: "The Time Machine", author: "H. G. Wells", cover: null,
+        description: "A Victorian inventor travels to the year 802,701 and finds humanity split in two.",
+        series: null, tags: ["adventure"], rating: 4, addedAt: "2026-05-12" },
+      { id: "wow", folders: ["Science Fiction"], path: "books/Science Fiction/the-war-of-the-worlds.epub",
+        title: "The War of the Worlds", author: "H. G. Wells", cover: null,
+        description: "Martians invade the English countryside in one of the first and greatest alien-invasion stories.",
+        series: null, tags: ["adventure"], rating: 4, addedAt: "2026-02-20" },
+      { id: "med", folders: ["Philosophy"], path: "books/Philosophy/meditations.epub",
+        title: "Meditations", author: "Marcus Aurelius", cover: null,
+        description: "The private notes of a Roman emperor to himself: a foundational work of Stoic thought.",
+        series: null, tags: ["stoicism","non-fiction"], rating: 5, addedAt: "2026-04-02" },
+      { id: "bge", folders: ["Philosophy"], path: "books/Philosophy/beyond-good-and-evil.epub",
+        title: "Beyond Good and Evil", author: "Friedrich Nietzsche", cover: null,
+        description: "Nietzsche challenges the assumptions of past philosophers and the very idea of moral fact.",
+        series: null, tags: ["non-fiction"], rating: 4, addedAt: "2026-01-30" },
+      { id: "aow", folders: [], path: "books/the-art-of-war.epub",
+        title: "The Art of War", author: "Sun Tzu", cover: null,
+        description: "The ancient Chinese treatise on strategy, conflict and the wisdom of winning without fighting.",
+        series: null, tags: ["strategy","classic"], rating: 5, addedAt: "2026-05-05" },
+    ],
+  };
+
+  // ---------- DOM ----------
+  const scroll      = document.getElementById("scroll");
+  const crumbsEl    = document.getElementById("crumbs");
+  const searchBtn   = document.getElementById("searchBtn");
+  const themeBtn    = document.getElementById("themeBtn");
+  const searchRow   = document.getElementById("searchRow");
+  const searchInput = document.getElementById("searchInput");
+  const backdrop    = document.getElementById("backdrop");
+  const sheet       = document.getElementById("sheet");
+
+  // ---------- State ----------
+  let LIB = SAMPLE.items;
+  let path = [];        // current folder path, e.g. ["Fiction","Jane Austen"]
+  let query = "";
+  const THEMES = ["dark", "sepia", "light"];
+  let theme = "dark";
+
+  // ---------- Helpers ----------
+  function hueOf(s) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return h % 360;
+  }
+  function genCoverStyle(seed) {
+    const h = hueOf(seed);
+    return `background:linear-gradient(150deg, hsl(${h} 45% 38%), hsl(${(h + 38) % 360} 50% 24%));`;
+  }
+  function progressOf(item) {
+    try {
+      const raw = localStorage.getItem("reader:pos:" + item.id);
+      if (raw) { const f = JSON.parse(raw).f; if (typeof f === "number") return f; }
+    } catch (_) {}
+    return typeof item.progress === "number" ? item.progress : 0;
+  }
+  function startsWith(folders, prefix) {
+    if (folders.length < prefix.length) return false;
+    for (let i = 0; i < prefix.length; i++) if (folders[i] !== prefix[i]) return false;
+    return true;
+  }
+  function booksUnder(prefix) { return LIB.filter((b) => startsWith(b.folders, prefix)); }
+  function booksAt(prefix) {
+    return LIB.filter((b) => b.folders.length === prefix.length && startsWith(b.folders, prefix));
+  }
+  function subfoldersAt(prefix) {
+    const names = new Set();
+    LIB.forEach((b) => { if (b.folders.length > prefix.length && startsWith(b.folders, prefix)) names.add(b.folders[prefix.length]); });
+    return [...names].sort((a, b) => a.localeCompare(b));
+  }
+
+  // ---------- Element builders ----------
+  function coverEl(item, showProgress) {
+    const wrap = document.createElement("div");
+    wrap.className = "cover";
+    if (item.cover) {
+      const img = document.createElement("img");
+      img.src = item.cover; img.alt = ""; img.loading = "lazy";
+      wrap.appendChild(img);
+    } else {
+      const g = document.createElement("div");
+      g.className = "cover-gen";
+      g.setAttribute("style", genCoverStyle(item.title + item.author));
+      g.innerHTML = `<div class="cg-title">${esc(item.title)}</div><div class="cg-author">${esc(item.author || "")}</div>`;
+      wrap.appendChild(g);
+    }
+    if (showProgress) {
+      const f = progressOf(item);
+      if (f > 0.001 && f < 0.999) {
+        const t = document.createElement("div"); t.className = "progress-track";
+        const fl = document.createElement("div"); fl.className = "progress-fill";
+        fl.style.width = Math.round(f * 100) + "%";
+        t.appendChild(fl); wrap.appendChild(t);
+      }
+    }
+    return wrap;
+  }
+
+  function bookCard(item, showProgress) {
+    const c = document.createElement("button");
+    c.className = "card";
+    c.appendChild(coverEl(item, showProgress));
+    const t = document.createElement("div"); t.className = "card-title"; t.textContent = item.title;
+    const a = document.createElement("div"); a.className = "card-author"; a.textContent = item.author || "";
+    c.appendChild(t); c.appendChild(a);
+    c.addEventListener("click", () => openSheet(item));
+    return c;
+  }
+
+  function folderTile(name, prefix) {
+    const full = prefix.concat(name);
+    const inside = booksUnder(full);
+    const c = document.createElement("button");
+    c.className = "card folder";
+    const art = document.createElement("div"); art.className = "folder-art";
+    inside.slice(0, 4).forEach((b) => {
+      const tile = document.createElement("div"); tile.className = "tile";
+      if (b.cover) {
+        const img = document.createElement("img"); img.src = b.cover; img.alt = ""; img.loading = "lazy";
+        tile.appendChild(img);
+      } else {
+        const mini = document.createElement("div"); mini.className = "mini";
+        mini.setAttribute("style", genCoverStyle(b.title + b.author));
+        tile.appendChild(mini);
+      }
+      art.appendChild(tile);
+    });
+    for (let i = inside.length; i < 4; i++) {
+      const tile = document.createElement("div"); tile.className = "tile"; art.appendChild(tile);
+    }
+    const tag = document.createElement("div"); tag.className = "folder-tag";
+    tag.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
+    const badge = document.createElement("div"); badge.className = "folder-badge";
+    badge.textContent = inside.length + (inside.length === 1 ? " book" : " books");
+    art.appendChild(tag); art.appendChild(badge);
+    c.appendChild(art);
+    const t = document.createElement("div"); t.className = "card-title"; t.textContent = name;
+    c.appendChild(t);
+    c.addEventListener("click", () => { path = full; query = ""; body().classList.remove("searching"); render(); scroll.scrollTop = 0; });
+    return c;
+  }
+
+  function section(title, count) {
+    const s = document.createElement("section"); s.className = "section";
+    const h = document.createElement("div"); h.className = "section-head";
+    const ti = document.createElement("div"); ti.className = "section-title"; ti.textContent = title;
+    h.appendChild(ti);
+    if (count != null) { const c = document.createElement("div"); c.className = "section-count"; c.textContent = count; h.appendChild(c); }
+    s.appendChild(h);
+    return s;
+  }
+
+  function railOf(items, showProgress) {
+    const r = document.createElement("div"); r.className = "rail";
+    items.forEach((it) => r.appendChild(bookCard(it, showProgress)));
+    return r;
+  }
+  function gridEl() { const g = document.createElement("div"); g.className = "grid"; return g; }
+
+  // ---------- Render ----------
+  function render() {
+    renderCrumbs();
+    scroll.innerHTML = "";
+
+    if (query) { renderSearch(); return; }
+
+    const subs = subfoldersAt(path);
+    const here = booksAt(path);
+
+    if (path.length === 0) {
+      const cont = LIB.filter((b) => { const f = progressOf(b); return f > 0.001 && f < 0.999; })
+                      .sort((a, b) => progressOf(b) - progressOf(a));
+      if (cont.length) {
+        const s = section("Continue reading");
+        s.appendChild(railOf(cont, true));
+        scroll.appendChild(s);
+      }
+      const recent = [...LIB].sort((a, b) => (b.addedAt || "").localeCompare(a.addedAt || "")).slice(0, 10);
+      const sr = section("Recently added");
+      sr.appendChild(railOf(recent, true));
+      scroll.appendChild(sr);
+    }
+
+    if (subs.length || here.length) {
+      const s = section(path.length === 0 ? "Browse" : "In this shelf", (subs.length + here.length) + " items");
+      const g = gridEl();
+      subs.forEach((name) => g.appendChild(folderTile(name, path)));
+      here.forEach((b) => g.appendChild(bookCard(b, true)));
+      s.appendChild(g);
+      scroll.appendChild(s);
+    } else if (path.length > 0) {
+      const e = document.createElement("div"); e.className = "empty"; e.textContent = "This shelf is empty.";
+      scroll.appendChild(e);
+    }
+  }
+
+  function renderSearch() {
+    const q = query.toLowerCase();
+    const hits = LIB.filter((b) =>
+      (b.title || "").toLowerCase().includes(q) ||
+      (b.author || "").toLowerCase().includes(q) ||
+      (b.tags || []).some((t) => t.toLowerCase().includes(q)) ||
+      (b.folders || []).some((f) => f.toLowerCase().includes(q)));
+    const s = section("Results", hits.length + (hits.length === 1 ? " match" : " matches"));
+    if (!hits.length) {
+      const e = document.createElement("div"); e.className = "empty";
+      e.textContent = "No books match “" + query + "”.";
+      scroll.appendChild(e); return;
+    }
+    const g = gridEl();
+    hits.forEach((b) => g.appendChild(bookCard(b, true)));
+    s.appendChild(g);
+    scroll.appendChild(s);
+  }
+
+  function renderCrumbs() {
+    crumbsEl.innerHTML = "";
+    const root = document.createElement("button");
+    root.className = "crumb" + (path.length ? " parent" : "");
+    root.textContent = "Library";
+    root.addEventListener("click", () => { path = []; clearSearch(); render(); });
+    crumbsEl.appendChild(root);
+    path.forEach((name, i) => {
+      const sep = document.createElement("span"); sep.className = "crumb-sep"; sep.textContent = "›";
+      crumbsEl.appendChild(sep);
+      const b = document.createElement("button");
+      const last = i === path.length - 1;
+      b.className = "crumb" + (last ? "" : " parent");
+      b.textContent = name;
+      b.addEventListener("click", () => { path = path.slice(0, i + 1); clearSearch(); render(); });
+      crumbsEl.appendChild(b);
+    });
+  }
+
+  // ---------- Detail sheet ----------
+  function openSheet(item) {
+    const f = progressOf(item);
+    const pct = Math.round(f * 100);
+    const stars = item.rating
+      ? `<div class="stars">${"★".repeat(item.rating)}<span class="off">${"★".repeat(5 - item.rating)}</span></div>` : "";
+    const tags = (item.tags && item.tags.length)
+      ? `<div class="tags">${item.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : "";
+    const series = item.series ? `<div class="sheet-sub">${esc(item.series)}${item.seriesIndex ? " · Book " + item.seriesIndex : ""}</div>` : "";
+    const where = (item.folders && item.folders.length)
+      ? `<div class="sheet-path">In: ${item.folders.map(esc).join(" › ")}</div>` : "";
+    const prog = (f > 0.001 && f < 0.999) ? `<div class="sheet-progress">${pct}% read</div>` : "";
+
+    const coverInner = item.cover
+      ? `<img src="${esc(item.cover)}" alt="">`
+      : `<div class="cover-gen" style="${genCoverStyle(item.title + item.author)}"><div class="cg-title">${esc(item.title)}</div><div class="cg-author">${esc(item.author || "")}</div></div>`;
+
+    const params = "?src=" + encodeURIComponent(item.path) + "&id=" + encodeURIComponent(item.id) + "&title=" + encodeURIComponent(item.title);
+
+    sheet.innerHTML =
+      `<div class="sheet-top">
+         <div class="sheet-cover">${coverInner}</div>
+         <div class="sheet-meta">
+           <div class="sheet-title">${esc(item.title)}</div>
+           <div class="sheet-author">${esc(item.author || "Unknown author")}</div>
+           ${series}${stars}${tags}
+         </div>
+       </div>
+       ${item.description ? `<p class="sheet-desc">${esc(item.description)}</p>` : ""}
+       ${where}${prog}
+       <div class="sheet-actions">
+         <a class="btn primary" href="reader.html${params}">
+           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h7v15H4zM13 5h7v15h-7z"/></svg>
+           ${f > 0.001 ? "Continue" : "Read"}
+         </a>
+         <a class="btn" href="index.html${params}">
+           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+           Speed Read
+         </a>
+       </div>`;
+    body().classList.add("show-sheet");
+  }
+  function closeSheet() { body().classList.remove("show-sheet"); }
+
+  // ---------- Search toggle ----------
+  function clearSearch() { query = ""; searchInput.value = ""; body().classList.remove("searching"); }
+  searchBtn.addEventListener("click", () => {
+    const on = body().classList.toggle("searching");
+    if (on) { searchInput.focus(); } else { clearSearch(); render(); }
+  });
+  searchInput.addEventListener("input", () => { query = searchInput.value.trim(); render(); });
+
+  // ---------- Theme ----------
+  function applyTheme() {
+    document.body.classList.remove("theme-sepia", "theme-light");
+    if (theme === "sepia") document.body.classList.add("theme-sepia");
+    else if (theme === "light") document.body.classList.add("theme-light");
+    const tc = { dark: "#1a1a1a", sepia: "#f4ecd8", light: "#ffffff" }[theme];
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta && tc) meta.setAttribute("content", tc);
+    try { localStorage.setItem("library:theme", theme); } catch (_) {}
+  }
+  themeBtn.addEventListener("click", () => {
+    theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+    applyTheme();
+  });
+
+  // ---------- Misc wiring ----------
+  backdrop.addEventListener("click", closeSheet);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      if (body().classList.contains("show-sheet")) closeSheet();
+      else if (body().classList.contains("searching")) { clearSearch(); render(); }
+      else if (path.length) { path = path.slice(0, -1); render(); }
+    }
+  });
+
+  function body() { return document.body; }
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  // ---------- Init: load real manifest if present, else sample ----------
+  try { theme = localStorage.getItem("library:theme") || "dark"; } catch (_) {}
+  applyTheme();
+
+  fetch("data/library.json", { cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => { if (data && Array.isArray(data.items) && data.items.length) LIB = data.items; })
+    .catch(() => {})
+    .finally(render);
+})();
+</script>
+</body>
+</html>
