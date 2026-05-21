@@ -2098,6 +2098,23 @@
   }
 
   async function findCoverImage(book) {
+    // DEBUG: log what we have to work with
+    try {
+      const m = book.packaging && book.packaging.manifest;
+      const meta = book.packaging && book.packaging.metadata;
+      console.log("findCover: manifest keys:", m ? Object.keys(m).slice(0, 20) : "none");
+      console.log("findCover: metadata.cover:", meta && meta.cover);
+      if (m) {
+        Object.values(m).forEach(item => {
+          if (item.href && /image/i.test(item.type || "")) console.log("findCover: image item:", item.id, item.href, item.properties);
+        });
+      }
+      // Log archive paths
+      if (book.archive && book.archive.urlCache) {
+        const paths = Object.keys(book.archive.urlCache).filter(p => /\.(jpe?g|png|gif|webp|svg)/i.test(p));
+        console.log("findCover: image paths in archive:", paths.slice(0, 20));
+      }
+    } catch (e) { console.warn("findCover debug error:", e); }
     const tryBlob = async (path) => {
       try {
         if (book.archive && typeof book.archive.getBlob === "function") {
