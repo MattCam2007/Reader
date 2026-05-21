@@ -885,13 +885,6 @@
       </div>
     </div>
     <div class="settings-row">
-      <span class="settings-label">Weight</span>
-      <div class="seg" id="weightSeg">
-        <button class="seg-btn" data-weight="regular" type="button">Regular</button>
-        <button class="seg-btn" data-weight="medium" type="button">Medium</button>
-      </div>
-    </div>
-    <div class="settings-row">
       <span class="settings-label">Images</span>
       <div class="seg" id="imagesSeg">
         <button class="seg-btn" data-images="true" type="button">On</button>
@@ -933,13 +926,6 @@
       <div class="seg" id="alignSeg">
         <button class="seg-btn" data-align="justify" type="button">Justify</button>
         <button class="seg-btn" data-align="left" type="button">Left</button>
-      </div>
-    </div>
-    <div class="settings-row">
-      <span class="settings-label">Hyphens</span>
-      <div class="seg" id="hyphensSeg">
-        <button class="seg-btn" data-hyphens="true" type="button">On</button>
-        <button class="seg-btn" data-hyphens="false" type="button">Off</button>
       </div>
     </div>
     <div class="settings-row">
@@ -1056,14 +1042,12 @@
     else if (prefs.theme === "light") document.body.classList.add("theme-light");
     else if (prefs.theme === "oled") document.body.classList.add("theme-oled");
     content.style.fontFamily = FONT_MAP[prefs.font] || FONT_SERIF;
-    content.style.fontWeight = prefs.weight === "medium" ? "500" : "400";
     content.style.fontSize = prefs.size + "px";
     sizeDisplay.textContent = prefs.size;
     document.querySelectorAll("#themeSeg .seg-btn").forEach((b) =>
       b.classList.toggle("active", b.dataset.theme === prefs.theme));
     document.querySelectorAll("#fontSeg .seg-btn").forEach((b) =>
       b.classList.toggle("active", b.dataset.font === prefs.font));
-    document.querySelectorAll("#weightSeg .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.weight === prefs.weight));
     document.querySelectorAll("#imagesSeg .seg-btn").forEach((b) =>
       b.classList.toggle("active", b.dataset.images === String(prefs.images)));
     document.querySelectorAll("#notePopSeg .seg-btn").forEach((b) =>
@@ -1081,11 +1065,7 @@
     if (lhEl) lhEl.textContent = prefs.lineHeight.toFixed(1);
     // U16: alignment & hyphenation
     content.style.textAlign = prefs.align === "left" ? "left" : "justify";
-    const hyph = prefs.hyphens ? "auto" : "none";
-    content.style.hyphens = hyph;
-    content.style.webkitHyphens = hyph;
     document.querySelectorAll("#alignSeg .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.align === prefs.align));
-    document.querySelectorAll("#hyphensSeg .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.hyphens === String(prefs.hyphens)));
     // U11: selection toggle
     document.body.classList.toggle("selection-on", !!prefs.selection);
     document.querySelectorAll("#selectionSeg .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.sel === String(prefs.selection)));
@@ -2273,12 +2253,6 @@
     applyPrefs(); savePrefs();
     document.fonts.ready.then(() => paginate(true));
   });
-  document.getElementById("weightSeg").addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-weight]");
-    if (!btn) return;
-    prefs.weight = btn.dataset.weight;
-    applyPrefs(); savePrefs(); paginate(true);
-  });
   document.getElementById("imagesSeg").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-images]");
     if (!btn) return;
@@ -2317,12 +2291,6 @@
     const btn = e.target.closest("[data-align]");
     if (!btn) return;
     prefs.align = btn.dataset.align;
-    applyPrefs(); savePrefs(); paginate(true);
-  });
-  document.getElementById("hyphensSeg").addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-hyphens]");
-    if (!btn) return;
-    prefs.hyphens = btn.dataset.hyphens === "true";
     applyPrefs(); savePrefs(); paginate(true);
   });
   document.getElementById("selectionSeg").addEventListener("click", (e) => {
