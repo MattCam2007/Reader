@@ -140,6 +140,26 @@
     margin: 0.6em 0;
   }
 
+  /* ---------- Inline formatting (U6) ---------- */
+  .content em, .content i { font-style: italic; }
+  .content strong, .content b { font-weight: 700; }
+  .content sup { font-size: 0.75em; vertical-align: super; }
+  .content sub { font-size: 0.75em; vertical-align: sub; }
+  .content code {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.88em;
+    background: var(--border);
+    padding: 0.05em 0.25em;
+    border-radius: 3px;
+  }
+  .content a {
+    color: var(--accent);
+    text-decoration: none;
+    pointer-events: none; /* non-actionable until U7 enables link behavior */
+  }
+  .content small { font-size: 0.85em; }
+  .content u { text-decoration: underline; }
+
   /* ---------- Top header (info only) ---------- */
 
   .topbar {
@@ -704,7 +724,8 @@
       if (sec.href) { wrap.dataset.href = sec.href; sectionEls.set(sec.href, wrap); }
       sec.blocks.forEach((b) => {
         const el = document.createElement(b.type);
-        el.textContent = b.text;
+        if (b.frag) el.appendChild(b.frag);
+        else el.textContent = b.text;
         if (b.id) el.id = b.id;
         el.className = "blk blk-" + b.type;
         wrap.appendChild(el);
@@ -1018,8 +1039,38 @@
   }
 
   // ---------- EPUB text extraction ----------
+  const RICH_INLINE = true; // U6: set false to revert to plain-text extraction
   const SEL = "h1,h2,h3,h4,h5,h6,p,div,blockquote,li,pre,dd,dt";
   const SKIP_SEL = "script,style,nav,header,footer,aside,form,figure,figcaption";
+  const INLINE_TAGS = new Set(["b","strong","i","em","u","sup","sub","small","a","span","br","code"]);
+  const SAFE_ATTRS = { a: new Set(["href"]) }; // per-tag safe attributes; id is always kept
+
+  function sanitizeInline(srcNode) {
+    const frag = document.createDocumentFragment();
+    for (const child of srcNode.childNodes) {
+      if (child.nodeType === 3) { // Text
+        frag.appendChild(document.createTextNode(child.nodeValue));
+      } else if (child.nodeType === 1) { // Element
+        const tag = child.tagName.toLowerCase();
+        if (INLINE_TAGS.has(tag)) {
+          const el = document.createElement(tag);
+          if (child.id) el.id = child.id;
+          const allowed = SAFE_ATTRS[tag];
+          if (allowed) {
+            for (const attr of allowed) {
+              if (child.hasAttribute(attr)) el.setAttribute(attr, child.getAttribute(attr));
+            }
+          }
+          el.appendChild(sanitizeInline(child));
+          frag.appendChild(el);
+        } else {
+          // Unwrap: keep children, drop the tag
+          frag.appendChild(sanitizeInline(child));
+        }
+      }
+    }
+    return frag;
+  }
 
   function rootOf(docOrEl) {
     if (!docOrEl) return null;
@@ -1045,7 +1096,9 @@
       if (!text) return;
       let tag = el.tagName.toLowerCase();
       if (tag === "div" || tag === "dd" || tag === "dt") tag = "p";
-      out.push({ type: tag, text: text, id: el.id || "" });
+      const block = { type: tag, text: text, id: el.id || "" };
+      if (RICH_INLINE) block.frag = sanitizeInline(el);
+      out.push(block);
     });
     return out;
   }
