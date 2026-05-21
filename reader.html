@@ -1274,26 +1274,20 @@
       page = Math.max(0, Math.min(total - 1, Math.round(visFrac * (total - 1))));
       goTo(page, false);
 
-      // Progressive restore: un-hide chapters in batches so UI stays responsive
-      const BATCH = 5;
-      let idx = 0;
-      function restoreBatch() {
-        if (gen !== paginateGen) return; // cancelled by newer paginate call
-        const batch = hidden.slice(idx, idx + BATCH);
-        if (!batch.length) {
-          // All restored — final measurement
-          applyColumns();
-          measureTotal();
-          page = Math.max(0, Math.min(total - 1, Math.round(frac * (total - 1))));
-          goTo(page, false);
-          buildChapterIndex();
-          return;
-        }
-        batch.forEach(c => c.style.display = "");
-        idx += BATCH;
-        requestAnimationFrame(restoreBatch);
-      }
-      requestAnimationFrame(restoreBatch);
+      // Deferred: un-hide all chapters and do one final correction
+      requestAnimationFrame(() => {
+        if (gen !== paginateGen) return;
+        hidden.forEach(c => c.style.display = "");
+        // Measure without resetting transform (avoids visible flash)
+        void content.offsetWidth;
+        total = Math.max(1, Math.round(content.scrollWidth / stride));
+        progressEl.max = String(total - 1);
+        page = Math.max(0, Math.min(total - 1, Math.round(frac * (total - 1))));
+        content.style.transition = "none";
+        content.style.transform = "translate3d(" + (-(page * stride)) + "px,0,0)";
+        updateProgress();
+        buildChapterIndex();
+      });
       return;
     }
 
