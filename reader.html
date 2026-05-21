@@ -1265,7 +1265,7 @@
   // Fast repaginate for settings changes: detach distant chapters from the DOM
   // so the browser only reflows nearby text, then reattach and correct in background
   function paginateQuick() {
-    const T = performance.now;
+    const T = () => performance.now();
     const t0 = T();
     paginateGen++;
     const gen = paginateGen;
