@@ -160,6 +160,31 @@
   .content small { font-size: 0.85em; }
   .content u { text-decoration: underline; }
 
+  /* ---------- Images & figures (U5) ---------- */
+  .content .blk-figure {
+    margin: 0.8em 0;
+    text-align: center;
+    break-inside: avoid;
+    -webkit-column-break-inside: avoid;
+  }
+  .content .blk-figure img,
+  .content .blk-p img {
+    max-width: 100%;
+    max-height: 80vh;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto;
+  }
+  .content .blk-figcaption {
+    font-size: 0.85em;
+    color: var(--muted);
+    text-align: center;
+    text-indent: 0;
+    margin: 0.3em 0;
+  }
+  body.images-off .content img,
+  body.images-off .content .blk-figure { display: none; }
+
   /* ---------- Top header (info only) ---------- */
 
   .topbar {
@@ -581,6 +606,13 @@
         <button class="seg-btn" data-font="sans" type="button">Sans</button>
       </div>
     </div>
+    <div class="settings-row">
+      <span class="settings-label">Images</span>
+      <div class="seg" id="imagesSeg">
+        <button class="seg-btn" data-images="true" type="button">On</button>
+        <button class="seg-btn" data-images="false" type="button">Off</button>
+      </div>
+    </div>
   </section>
 
   <div class="overlay" id="overlay">
@@ -641,7 +673,8 @@
     wordCharStart: [],  // char offset of each word in doc.text
   };
 
-  let prefs = { v: 1, theme: "dark", font: "serif", size: 19 };
+  let prefs = { v: 1, theme: "dark", font: "serif", size: 19, images: true };
+  let blobUrls = []; // U5: track blob URLs for cleanup
 
   // ---------- Preferences ----------
   function loadPrefs() {
@@ -666,6 +699,9 @@
       b.classList.toggle("active", b.dataset.theme === prefs.theme));
     document.querySelectorAll("#fontSeg .seg-btn").forEach((b) =>
       b.classList.toggle("active", b.dataset.font === prefs.font));
+    document.querySelectorAll("#imagesSeg .seg-btn").forEach((b) =>
+      b.classList.toggle("active", b.dataset.images === String(prefs.images)));
+    document.body.classList.toggle("images-off", !prefs.images);
     const tc = { dark: "#1a1a1a", sepia: "#f4ecd8", light: "#ffffff" }[prefs.theme];
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta && tc) meta.setAttribute("content", tc);
@@ -713,6 +749,9 @@
 
   // ---------- Rendering ----------
   function renderBook(sections) {
+    // U5: revoke old blob URLs
+    blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (_) {} });
+    blobUrls = [];
     content.innerHTML = "";
     sectionEls.clear();
     headingToc = [];
@@ -723,11 +762,15 @@
       wrap.className = "chap";
       if (sec.href) { wrap.dataset.href = sec.href; sectionEls.set(sec.href, wrap); }
       sec.blocks.forEach((b) => {
-        const el = document.createElement(b.type);
+        const el = document.createElement(b.type === "figure" ? "div" : b.type);
         if (b.frag) el.appendChild(b.frag);
         else el.textContent = b.text;
         if (b.id) el.id = b.id;
         el.className = "blk blk-" + b.type;
+        // U5: add class to figcaptions inside figures
+        if (b.type === "figure") {
+          el.querySelectorAll("figcaption").forEach(fc => fc.className = "blk-figcaption");
+        }
         wrap.appendChild(el);
         if (b.type === "h1" || b.type === "h2") {
           headingToc.push({ label: b.text, el, depth: b.type === "h1" ? 0 : 1 });
@@ -1040,10 +1083,10 @@
 
   // ---------- EPUB text extraction ----------
   const RICH_INLINE = true; // U6: set false to revert to plain-text extraction
-  const SEL = "h1,h2,h3,h4,h5,h6,p,div,blockquote,li,pre,dd,dt";
-  const SKIP_SEL = "script,style,nav,header,footer,aside,form,figure,figcaption";
-  const INLINE_TAGS = new Set(["b","strong","i","em","u","sup","sub","small","a","span","br","code"]);
-  const SAFE_ATTRS = { a: new Set(["href"]) }; // per-tag safe attributes; id is always kept
+  const SEL = "h1,h2,h3,h4,h5,h6,p,div,blockquote,li,pre,dd,dt,figure,figcaption";
+  const SKIP_SEL = "script,style,nav,header,footer,aside,form";
+  const INLINE_TAGS = new Set(["b","strong","i","em","u","sup","sub","small","a","span","br","code","img"]);
+  const SAFE_ATTRS = { a: new Set(["href"]), img: new Set(["src","alt"]) }; // per-tag safe attributes; id is always kept
 
   function sanitizeInline(srcNode) {
     const frag = document.createDocumentFragment();
@@ -1085,36 +1128,68 @@
     return null;
   }
 
-  function blocksFromDoc(docOrEl) {
+  function blocksFromDoc(docOrEl, imgUrls) {
     const root = rootOf(docOrEl);
     if (!root || !root.querySelectorAll) return [];
     const out = [];
     root.querySelectorAll(SEL).forEach((el) => {
       if (el.closest && el.closest(SKIP_SEL)) return;
+      const tag0 = el.tagName.toLowerCase();
+      // figure: emit as a single block (don't require leaf check — may contain figcaption)
+      if (tag0 === "figure") {
+        const block = { type: "figure", text: "", id: el.id || "" };
+        if (RICH_INLINE) block.frag = sanitizeInline(el);
+        if (block.frag) collectImgSrcs(block.frag, imgUrls);
+        out.push(block);
+        return;
+      }
+      if (tag0 === "figcaption") return; // handled inside figure
       if (el.querySelector(SEL)) return; // keep only leaf blocks to avoid duplicate text
       const text = (el.textContent || "").replace(/\s+/g, " ").trim();
-      if (!text) return;
-      let tag = el.tagName.toLowerCase();
+      const hasImg = el.querySelector("img");
+      if (!text && !hasImg) return;
+      let tag = tag0;
       if (tag === "div" || tag === "dd" || tag === "dt") tag = "p";
       const block = { type: tag, text: text, id: el.id || "" };
-      if (RICH_INLINE) block.frag = sanitizeInline(el);
+      if (RICH_INLINE) {
+        block.frag = sanitizeInline(el);
+        collectImgSrcs(block.frag, imgUrls);
+      }
       out.push(block);
     });
     return out;
+  }
+
+  // Collect img src attributes that need blob URL resolution
+  function collectImgSrcs(frag, imgUrls) {
+    if (!imgUrls) return;
+    const imgs = frag.querySelectorAll ? frag.querySelectorAll("img") : [];
+    imgs.forEach(img => {
+      const src = img.getAttribute("src");
+      if (src) imgUrls.push({ img, src });
+    });
   }
 
   async function extractSections(book) {
     const items = (book.spine && book.spine.spineItems) || [];
     if (!items.length) throw new Error("This EPUB has no readable spine items.");
     const sections = [];
+    const allImgUrls = []; // U5: collect {img, src} pairs for resolution
     for (let i = 0; i < items.length; i++) {
       const section = items[i];
       overlayMsg.textContent = "Parsing… " + (i + 1) + " / " + items.length;
       try {
-        const doc = await section.load(book.load.bind(book));
-        const blocks = blocksFromDoc(doc);
+        const sectionDoc = await section.load(book.load.bind(book));
+        const imgUrls = [];
+        const blocks = blocksFromDoc(sectionDoc, imgUrls);
         if (blocks.length) {
           const base = (section.href || ("sec" + i)).split("/").pop().split("#")[0];
+          // Resolve relative img srcs against section href
+          const sectionDir = (section.href || "").replace(/[^/]*$/, "");
+          imgUrls.forEach(entry => {
+            entry.resolvedSrc = sectionDir + entry.src;
+          });
+          allImgUrls.push(...imgUrls);
           sections.push({ href: base, blocks: blocks });
         }
       } catch (err) {
@@ -1125,7 +1200,37 @@
         }
       }
     }
+    // U5: resolve image srcs to blob URLs via epub archive
+    if (allImgUrls.length && book.archive) {
+      await resolveImageUrls(allImgUrls, book);
+    }
     return sections;
+  }
+
+  // U5: resolve collected img srcs to blob URLs
+  async function resolveImageUrls(imgEntries, book) {
+    for (const entry of imgEntries) {
+      try {
+        let blob = null;
+        // Try epub.js archive methods
+        if (book.archive && typeof book.archive.getBlob === "function") {
+          blob = await book.archive.getBlob(entry.resolvedSrc);
+        } else if (book.archive && typeof book.archive.request === "function") {
+          const data = await book.archive.request(entry.resolvedSrc, "blob");
+          if (data instanceof Blob) blob = data;
+        }
+        if (blob && blob.size > 0) {
+          const url = URL.createObjectURL(blob);
+          blobUrls.push(url);
+          entry.img.setAttribute("src", url);
+        } else {
+          entry.img.removeAttribute("src");
+        }
+      } catch (err) {
+        console.warn("Image resolve failed:", entry.src, err);
+        entry.img.removeAttribute("src");
+      }
+    }
   }
 
   async function loadEpub(file) {
@@ -1275,6 +1380,12 @@
     const btn = e.target.closest("[data-font]");
     if (!btn) return;
     prefs.font = btn.dataset.font;
+    applyPrefs(); savePrefs(); paginate(true);
+  });
+  document.getElementById("imagesSeg").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-images]");
+    if (!btn) return;
+    prefs.images = btn.dataset.images === "true";
     applyPrefs(); savePrefs(); paginate(true);
   });
   document.getElementById("sizeDown").addEventListener("click", () => changeSize(-1));
