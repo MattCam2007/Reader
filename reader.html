@@ -1318,7 +1318,8 @@
     console.log("paginateQuick FAST: find=" + (t1-t0).toFixed(1) + "ms detach=" + (t2-t1).toFixed(1) + "ms setupCols=" + (t3-t2).toFixed(1) + "ms reflow=" + (t4-t3).toFixed(1) + "ms scrollW=" + (t5-t4).toFixed(1) + "ms goTo=" + (t6-t5).toFixed(1) + "ms TOTAL=" + (t6-t0).toFixed(1) + "ms");
 
     // Deferred: reattach all chapters, do one full correction
-    requestAnimationFrame(() => {
+    // setTimeout (not rAF) ensures the browser paints the fast result first
+    setTimeout(() => {
       if (gen !== paginateGen) return;
       const r0 = T();
       detached.forEach(d => {
