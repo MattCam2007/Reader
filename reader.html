@@ -2116,18 +2116,23 @@
       }
     } catch (e) { console.warn("findCover debug error:", e); }
     const tryBlob = async (path) => {
-      try {
-        if (book.archive && typeof book.archive.getBlob === "function") {
-          const b = await book.archive.getBlob(path);
-          if (b && b.size) return URL.createObjectURL(b);
-        }
-      } catch (_) {}
-      try {
-        if (book.archive && typeof book.archive.request === "function") {
-          const b = await book.archive.request(path, "blob");
-          if (b instanceof Blob && b.size) return URL.createObjectURL(b);
-        }
-      } catch (_) {}
+      const variants = [path];
+      if (!path.startsWith("/")) variants.push("/" + path);
+      else variants.push(path.slice(1));
+      for (const p of variants) {
+        try {
+          if (book.archive && typeof book.archive.getBlob === "function") {
+            const b = await book.archive.getBlob(p);
+            if (b && b.size) return URL.createObjectURL(b);
+          }
+        } catch (_) {}
+        try {
+          if (book.archive && typeof book.archive.request === "function") {
+            const b = await book.archive.request(p, "blob");
+            if (b instanceof Blob && b.size) return URL.createObjectURL(b);
+          }
+        } catch (_) {}
+      }
       return null;
     };
     // 1. EPUB3: manifest item with cover-image property
@@ -2151,7 +2156,15 @@
         if (url) return url;
       }
     } catch (_) {}
-    // 3. Filename fallback: common cover image names
+    // 3. Manifest item keyed/id'd as "cover" with an image type
+    try {
+      const manifest = book.packaging && book.packaging.manifest;
+      if (manifest && manifest.cover && manifest.cover.href) {
+        const url = await tryBlob(manifest.cover.href);
+        if (url) return url;
+      }
+    } catch (_) {}
+    // 4. Filename fallback: common cover image names
     const names = ["cover.jpeg", "cover.jpg", "cover.png", "images/cover.jpeg", "images/cover.jpg", "images/cover.png", "OEBPS/cover.jpeg", "OEBPS/cover.jpg", "OEBPS/cover.png", "OEBPS/images/cover.jpeg", "OEBPS/images/cover.jpg", "OEBPS/images/cover.png"];
     for (const name of names) {
       const url = await tryBlob(name);
