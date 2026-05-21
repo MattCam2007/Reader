@@ -1279,7 +1279,9 @@
   }
 
   function goTo(p, animate) {
+    const prevPage = page;
     page = Math.max(0, Math.min(total - 1, p));
+    if (animate) console.log("goTo:", prevPage, "→", page, "stride:", stride, "tx:", -(page * stride));
     const anim = animate ? (prefs.pageAnim || "slide") : "none";
     if (anim === "fade") {
       content.style.transition = "opacity 140ms ease";
