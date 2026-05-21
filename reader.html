@@ -1879,7 +1879,7 @@
 
   // ---------- EPUB text extraction ----------
   const RICH_INLINE = true; // U6: set false to revert to plain-text extraction
-  const SEL = "h1,h2,h3,h4,h5,h6,p,div,blockquote,li,pre,dd,dt,figure,figcaption,table";
+  const SEL = "h1,h2,h3,h4,h5,h6,p,div,blockquote,li,pre,dd,dt,figure,figcaption,table,img";
   const SKIP_SEL = "script,style,nav,header,footer,aside,form";
   const INLINE_TAGS = new Set(["b","strong","i","em","u","sup","sub","small","a","span","br","code","img","table","thead","tbody","tfoot","tr","th","td","caption"]);
   const SAFE_ATTRS = { a: new Set(["href"]), img: new Set(["src","alt"]), td: new Set(["colspan","rowspan"]), th: new Set(["colspan","rowspan","scope"]) }; // per-tag safe attributes; id is always kept
@@ -1899,6 +1899,12 @@
             for (const attr of allowed) {
               if (child.hasAttribute(attr)) el.setAttribute(attr, child.getAttribute(attr));
             }
+          }
+          // Suppress img src to prevent 404s; collectImgSrcs will
+          // stash the original and resolveImageUrls will set blob URLs
+          if (tag === "img" && el.hasAttribute("src")) {
+            el.dataset.origSrc = el.getAttribute("src");
+            el.removeAttribute("src");
           }
           el.appendChild(sanitizeInline(child));
           frag.appendChild(el);
@@ -1932,6 +1938,24 @@
       if (el.closest && el.closest(SKIP_SEL)) return;
       const tag0 = el.tagName.toLowerCase();
       // U8: table — emit as a single wrapped block
+      // Bare <img> (e.g. cover image not wrapped in figure/p)
+      if (tag0 === "img") {
+        // Skip if already inside a block we'll process
+        if (el.closest && el.closest("p,div,figure,li,blockquote,pre,dd,dt,table")) return;
+        const block = { type: "figure", text: "", id: el.id || "" };
+        if (RICH_INLINE) {
+          block.frag = document.createDocumentFragment();
+          const clone = document.createElement("img");
+          const src = el.getAttribute("src");
+          if (src) { clone.dataset.origSrc = src; }
+          const alt = el.getAttribute("alt");
+          if (alt) clone.setAttribute("alt", alt);
+          block.frag.appendChild(clone);
+          collectImgSrcs(block.frag, imgUrls);
+        }
+        out.push(block);
+        return;
+      }
       if (tag0 === "table") {
         const block = { type: "table-wrap", text: (el.textContent || "").replace(/\s+/g, " ").trim(), id: el.id || "" };
         if (RICH_INLINE) block.frag = sanitizeInline(el);
@@ -1963,12 +1987,12 @@
     return out;
   }
 
-  // Collect img src attributes that need blob URL resolution
+  // Collect img elements that need blob URL resolution
   function collectImgSrcs(frag, imgUrls) {
     if (!imgUrls) return;
     const imgs = frag.querySelectorAll ? frag.querySelectorAll("img") : [];
     imgs.forEach(img => {
-      const src = img.getAttribute("src");
+      const src = img.dataset.origSrc || img.getAttribute("src");
       if (src) imgUrls.push({ img, src });
     });
   }
