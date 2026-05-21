@@ -1278,10 +1278,13 @@
     viewport.scrollTop += rect.top - viewport.getBoundingClientRect().top - 20;
   }
 
+  let animating = false;
   function goTo(p, animate) {
+    if (animate && animating) return;
     page = Math.max(0, Math.min(total - 1, p));
     const anim = animate ? (prefs.pageAnim || "slide") : "none";
     if (anim === "fade") {
+      animating = true;
       content.style.transition = "opacity 140ms ease";
       content.style.opacity = "0";
       setTimeout(() => {
@@ -1289,10 +1292,13 @@
         content.style.transform = "translate3d(" + (-(page * stride)) + "px,0,0)";
         content.style.transition = "opacity 140ms ease";
         content.style.opacity = "1";
+        setTimeout(() => { animating = false; }, 150);
       }, 150);
     } else if (anim === "slide") {
+      animating = true;
       content.style.transition = "transform 240ms cubic-bezier(0.22,0.61,0.36,1)";
       content.style.transform = "translate3d(" + (-(page * stride)) + "px,0,0)";
+      setTimeout(() => { animating = false; }, 250);
     } else {
       content.style.transition = "none";
       content.style.transform = "translate3d(" + (-(page * stride)) + "px,0,0)";
