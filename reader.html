@@ -1196,11 +1196,11 @@
   let docModelBuilt = false;
   function isScrollMode() { return prefs.layout === "scroll"; }
 
-  function paginate(keepFraction) {
+  function paginate(keepFraction, fractionOnly) {
     // Capture position before re-layout: prefer word locator, fall back to fraction
     let savedLoc = null;
     const frac = (keepFraction && total > 1) ? page / (total - 1) : 0;
-    if (keepFraction && docModelBuilt && doc.words.length) {
+    if (keepFraction && !fractionOnly && docModelBuilt && doc.words.length) {
       savedLoc = currentLocator();
     }
 
@@ -1247,7 +1247,8 @@
 
     if (isScrollMode()) {
       // Restore scroll position from locator
-      buildChapterIndex();
+      if (fractionOnly) setTimeout(buildChapterIndex, 0);
+      else buildChapterIndex();
       if (savedLoc && doc.words.length) {
         const wi = resolveLocator(savedLoc);
         if (wi >= 0) scrollToWord(wi);
@@ -1266,8 +1267,9 @@
     } else {
       page = Math.max(0, Math.min(total - 1, Math.round(frac * (total - 1))));
     }
-    buildChapterIndex();
     goTo(page, false);
+    if (fractionOnly) setTimeout(buildChapterIndex, 0);
+    else buildChapterIndex();
   }
 
   // U19: scroll to a specific word in scroll mode
@@ -2355,13 +2357,13 @@
     if (!btn) return;
     prefs.font = btn.dataset.font;
     applyPrefs(); savePrefs();
-    document.fonts.ready.then(() => paginate(true));
+    document.fonts.ready.then(() => paginate(true, true));
   });
   document.getElementById("imagesSeg").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-images]");
     if (!btn) return;
     prefs.images = btn.dataset.images === "true";
-    applyPrefs(); savePrefs(); paginate(true);
+    applyPrefs(); savePrefs(); paginate(true, true);
   });
   document.getElementById("notePopSeg").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-notepop]");
@@ -2374,13 +2376,13 @@
     const btn = e.target.closest("[data-margin]");
     if (!btn) return;
     prefs.margin = btn.dataset.margin;
-    applyPrefs(); savePrefs(); paginate(true);
+    applyPrefs(); savePrefs(); paginate(true, true);
   });
   document.getElementById("paraSeg").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-para]");
     if (!btn) return;
     prefs.paraSpacing = btn.dataset.para;
-    applyPrefs(); savePrefs(); paginate(true);
+    applyPrefs(); savePrefs(); paginate(true, true);
   });
   document.getElementById("lineHeightDown").addEventListener("click", () => changeLineHeight(-0.1));
   document.getElementById("lineHeightUp").addEventListener("click", () => changeLineHeight(0.1));
@@ -2388,14 +2390,14 @@
     const next = Math.round(Math.max(1.0, Math.min(2.4, prefs.lineHeight + dir)) * 10) / 10;
     if (next === prefs.lineHeight) return;
     prefs.lineHeight = next;
-    applyPrefs(); savePrefs(); paginate(true);
+    applyPrefs(); savePrefs(); paginate(true, true);
   }
   // U16: alignment & hyphenation
   document.getElementById("alignSeg").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-align]");
     if (!btn) return;
     prefs.align = btn.dataset.align;
-    applyPrefs(); savePrefs(); paginate(true);
+    applyPrefs(); savePrefs(); paginate(true, true);
   });
   document.getElementById("selectionSeg").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-sel]");
@@ -2414,13 +2416,13 @@
     const btn = e.target.closest("[data-layout]");
     if (!btn) return;
     prefs.layout = btn.dataset.layout;
-    applyPrefs(); savePrefs(); paginate(true);
+    applyPrefs(); savePrefs(); paginate(true, true);
   });
   document.getElementById("columnsSeg").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-cols]");
     if (!btn) return;
     prefs.columns = btn.dataset.cols;
-    applyPrefs(); savePrefs(); paginate(true);
+    applyPrefs(); savePrefs(); paginate(true, true);
   });
   document.getElementById("sizeDown").addEventListener("click", () => changeSize(-1));
   document.getElementById("sizeUp").addEventListener("click", () => changeSize(1));
@@ -2428,7 +2430,7 @@
     const next = Math.max(MIN_SIZE, Math.min(MAX_SIZE, prefs.size + dir * 2));
     if (next === prefs.size) return;
     prefs.size = next;
-    applyPrefs(); savePrefs(); paginate(true);
+    applyPrefs(); savePrefs(); paginate(true, true);
   }
 
   let resizeTimer = null;
