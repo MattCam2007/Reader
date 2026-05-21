@@ -2526,7 +2526,7 @@
   let resizeTimer = null;
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => paginate(true), 150);
+    resizeTimer = setTimeout(() => paginateQuick(), 150);
   });
 
   // U19: scroll mode progress tracking
