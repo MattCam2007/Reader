@@ -1054,6 +1054,7 @@
     try { localStorage.setItem("reader:prefs", JSON.stringify(prefs)); } catch (_) {}
   }
   function applyPrefs() {
+    const _ap0 = performance.now();
     document.body.classList.remove("theme-sepia", "theme-light", "theme-oled");
     if (prefs.theme === "sepia") document.body.classList.add("theme-sepia");
     else if (prefs.theme === "light") document.body.classList.add("theme-light");
@@ -1104,6 +1105,7 @@
     if (brSlider) brSlider.value = String(Math.round((prefs.brightness || 1) * 100));
     const wmSlider = document.getElementById("warmthSlider");
     if (wmSlider) wmSlider.value = String(Math.round((prefs.warmth || 0) * 100));
+    console.log("applyPrefs: " + (performance.now() - _ap0).toFixed(1) + "ms");
   }
 
   // ---------- Position persistence ----------
@@ -1263,11 +1265,14 @@
   // Fast repaginate for settings changes: detach distant chapters from the DOM
   // so the browser only reflows nearby text, then reattach and correct in background
   function paginateQuick() {
+    const T = performance.now;
+    const t0 = T();
     paginateGen++;
     const gen = paginateGen;
     const frac = total > 1 ? page / (total - 1) : 0;
 
     if (isScrollMode() || !docModelBuilt || doc.words.length === 0) {
+      console.log("paginateQuick: FALLBACK to paginate()");
       paginate(true);
       return;
     }
@@ -1277,6 +1282,7 @@
     const curSec = doc.words[estWordIdx].section;
     const firstSec = Math.max(0, curSec - 1);
     const lastSec = Math.min(doc.sections.length - 1, curSec + 1);
+    const t1 = T();
 
     // Detach distant chapters from DOM entirely (not display:none)
     const chaps = Array.from(content.children);
@@ -1289,11 +1295,16 @@
         detached.push({ el: c, marker: marker });
       }
     });
+    const t2 = T();
+    console.log("paginateQuick: chaps=" + chaps.length + " detached=" + detached.length + " kept=" + (chaps.length - detached.length) + " sections=" + firstSec + "-" + lastSec);
 
     // Fast reflow with only nearby chapters
     setupColumns();
+    const t3 = T();
     void content.offsetWidth;
+    const t4 = T();
     const quickTotal = Math.max(1, Math.round(content.scrollWidth / stride));
+    const t5 = T();
 
     // Position within the visible chapters
     const visStart = doc.sections[firstSec].wordStart;
@@ -1302,15 +1313,21 @@
     page = Math.max(0, Math.min(quickTotal - 1, Math.round(visFrac * (quickTotal - 1))));
     total = quickTotal;
     goTo(page, false);
+    const t6 = T();
+
+    console.log("paginateQuick FAST: find=" + (t1-t0).toFixed(1) + "ms detach=" + (t2-t1).toFixed(1) + "ms setupCols=" + (t3-t2).toFixed(1) + "ms reflow=" + (t4-t3).toFixed(1) + "ms scrollW=" + (t5-t4).toFixed(1) + "ms goTo=" + (t6-t5).toFixed(1) + "ms TOTAL=" + (t6-t0).toFixed(1) + "ms");
 
     // Deferred: reattach all chapters, do one full correction
     requestAnimationFrame(() => {
       if (gen !== paginateGen) return;
+      const r0 = T();
       detached.forEach(d => {
         d.marker.parentNode.insertBefore(d.el, d.marker);
         d.marker.parentNode.removeChild(d.marker);
       });
+      const r1 = T();
       void content.offsetWidth;
+      const r2 = T();
       total = Math.max(1, Math.round(content.scrollWidth / stride));
       progressEl.max = String(total - 1);
       page = Math.max(0, Math.min(total - 1, Math.round(frac * (total - 1))));
@@ -1318,7 +1335,10 @@
       content.style.transform = "translate3d(" + (-(page * stride)) + "px,0,0)";
       updateProgress();
       savePos();
+      const r3 = T();
       buildChapterIndex();
+      const r4 = T();
+      console.log("paginateQuick DEFERRED: reattach=" + (r1-r0).toFixed(1) + "ms reflow=" + (r2-r1).toFixed(1) + "ms position=" + (r3-r2).toFixed(1) + "ms chapIdx=" + (r4-r3).toFixed(1) + "ms TOTAL=" + (r4-r0).toFixed(1) + "ms");
     });
   }
 
