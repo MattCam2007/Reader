@@ -407,6 +407,25 @@
     mix-blend-mode: multiply;
   }
 
+  /* ---------- Scroll mode (U19) ---------- */
+  body.layout-scroll .viewport {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  body.layout-scroll .content {
+    height: auto;
+    column-fill: initial;
+    column-width: initial;
+    column-gap: initial;
+    column-count: initial;
+    transform: none !important;
+    will-change: auto;
+    max-width: 42em;
+    margin: 0 auto;
+    padding-bottom: 4rem;
+  }
+  body.layout-scroll .scrub { display: none; }
+
   /* ---------- Page animation (U23) ---------- */
   .content.anim-fade {
     transition: opacity 180ms ease !important;
@@ -935,6 +954,21 @@
         <button class="seg-btn" data-anim="none" type="button">None</button>
       </div>
     </div>
+    <div class="settings-row">
+      <span class="settings-label">Layout</span>
+      <div class="seg" id="layoutSeg">
+        <button class="seg-btn" data-layout="paginated" type="button">Paged</button>
+        <button class="seg-btn" data-layout="scroll" type="button">Scroll</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">Columns</span>
+      <div class="seg" id="columnsSeg">
+        <button class="seg-btn" data-cols="auto" type="button">Auto</button>
+        <button class="seg-btn" data-cols="1" type="button">1</button>
+        <button class="seg-btn" data-cols="2" type="button">2</button>
+      </div>
+    </div>
   </section>
 
   <div class="overlay" id="overlay">
@@ -998,7 +1032,7 @@
     wordCharStart: [],  // char offset of each word in doc.text
   };
 
-  let prefs = { v: 1, theme: "dark", font: "serif", size: 19, weight: "regular", images: true, notePopovers: true, lineHeight: 1.62, margin: "normal", paraSpacing: "indent", align: "justify", hyphens: true, selection: true, brightness: 1, warmth: 0, pageAnim: "slide" };
+  let prefs = { v: 1, theme: "dark", font: "serif", size: 19, weight: "regular", images: true, notePopovers: true, lineHeight: 1.62, margin: "normal", paraSpacing: "indent", align: "justify", hyphens: true, selection: true, brightness: 1, warmth: 0, pageAnim: "slide", layout: "paginated", columns: "auto" };
   let blobUrls = []; // U5: track blob URLs for cleanup
 
   // ---------- Preferences ----------
@@ -1054,6 +1088,10 @@
     document.querySelectorAll("#selectionSeg .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.sel === String(prefs.selection)));
     // U23: page animation toggle
     document.querySelectorAll("#pageAnimSeg .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.anim === prefs.pageAnim));
+    // U19: layout mode + columns
+    document.body.classList.toggle("layout-scroll", prefs.layout === "scroll");
+    document.querySelectorAll("#layoutSeg .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.layout === prefs.layout));
+    document.querySelectorAll("#columnsSeg .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.cols === prefs.columns));
     const tc = { dark: "#1a1a1a", sepia: "#f4ecd8", light: "#ffffff", oled: "#000000" }[prefs.theme];
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta && tc) meta.setAttribute("content", tc);
@@ -1074,7 +1112,13 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       if (!bookId) return;
-      const f = total > 1 ? page / (total - 1) : 0;
+      let f;
+      if (isScrollMode()) {
+        const sh = viewport.scrollHeight - viewport.clientHeight;
+        f = sh > 0 ? viewport.scrollTop / sh : 0;
+      } else {
+        f = total > 1 ? page / (total - 1) : 0;
+      }
       // Always write fraction for library back-compat
       try { localStorage.setItem("reader:pos:" + bookId, JSON.stringify({ f })); } catch (_) {}
       // Write word-level locator if model is available
@@ -1094,7 +1138,8 @@
         const loc = JSON.parse(raw);
         const wi = resolveLocator(loc);
         if (wi >= 0) {
-          goTo(pageOfWord(wi), false);
+          if (isScrollMode()) { scrollToWord(wi); }
+          else { goTo(pageOfWord(wi), false); }
           return;
         }
       }
@@ -1105,7 +1150,12 @@
       const raw = localStorage.getItem("reader:pos:" + bookId);
       if (raw) f = JSON.parse(raw).f || 0;
     } catch (_) {}
-    goTo(Math.round(f * (total - 1)), false);
+    if (isScrollMode()) {
+      const sh = viewport.scrollHeight - viewport.clientHeight;
+      viewport.scrollTop = Math.round(f * sh);
+    } else {
+      goTo(Math.round(f * (total - 1)), false);
+    }
   }
 
   // ---------- Rendering ----------
@@ -1144,6 +1194,8 @@
 
   // ---------- Pagination ----------
   let docModelBuilt = false;
+  function isScrollMode() { return prefs.layout === "scroll"; }
+
   function paginate(keepFraction) {
     // Capture position before re-layout: prefer word locator, fall back to fraction
     let savedLoc = null;
@@ -1152,20 +1204,55 @@
       savedLoc = currentLocator();
     }
 
-    content.style.transition = "none";
-    content.style.transform = "translate3d(0,0,0)";
-    const colW = content.clientWidth;
-    content.style.columnWidth = colW + "px";
-    content.style.columnGap = COLUMN_GAP + "px";
-    stride = colW + COLUMN_GAP;
-    void content.offsetWidth; // force reflow before measuring
-    total = Math.max(1, Math.round(content.scrollWidth / stride));
-    progressEl.max = String(total - 1);
+    if (isScrollMode()) {
+      // Scroll mode: no columns, no transform
+      content.style.columnWidth = "";
+      content.style.columnGap = "";
+      content.style.columnCount = "";
+      content.style.transition = "none";
+      content.style.transform = "none";
+      total = 1;
+      page = 0;
+      progressEl.max = "0";
+    } else {
+      content.style.transition = "none";
+      content.style.transform = "translate3d(0,0,0)";
+      const vpW = content.clientWidth;
+      // U19a: two-column support
+      let cols = 1;
+      if (prefs.columns === "2" || (prefs.columns === "auto" && vpW > 700)) {
+        cols = 2;
+      }
+      const colW = cols === 2 ? Math.floor((vpW - COLUMN_GAP) / 2) : vpW;
+      if (cols === 2) {
+        content.style.columnCount = "2";
+        content.style.columnWidth = "";
+      } else {
+        content.style.columnCount = "";
+        content.style.columnWidth = vpW + "px";
+      }
+      content.style.columnGap = COLUMN_GAP + "px";
+      // stride = full viewport width (both columns + gap = one "page")
+      stride = vpW + COLUMN_GAP;
+      void content.offsetWidth; // force reflow before measuring
+      total = Math.max(1, Math.round(content.scrollWidth / stride));
+      progressEl.max = String(total - 1);
+    }
 
     // Build model on first paginate; re-paginates only re-measure geometry
     if (!docModelBuilt) {
       buildDocModel();
       docModelBuilt = true;
+    }
+
+    if (isScrollMode()) {
+      // Restore scroll position from locator
+      buildChapterIndex();
+      if (savedLoc && doc.words.length) {
+        const wi = resolveLocator(savedLoc);
+        if (wi >= 0) scrollToWord(wi);
+      }
+      return;
     }
 
     // Restore position: prefer locator, fall back to fraction
@@ -1181,6 +1268,14 @@
     }
     buildChapterIndex();
     goTo(page, false);
+  }
+
+  // U19: scroll to a specific word in scroll mode
+  function scrollToWord(wi) {
+    const range = wordRange(wi);
+    if (!range) return;
+    const rect = range.getBoundingClientRect();
+    viewport.scrollTop += rect.top - viewport.getBoundingClientRect().top - 20;
   }
 
   function goTo(p, animate) {
@@ -1209,6 +1304,16 @@
   function prev() { if (page > 0) goTo(page - 1, true); }
 
   function updateProgress() {
+    if (isScrollMode()) {
+      const sh = viewport.scrollHeight - viewport.clientHeight;
+      const pct = sh > 0 ? Math.round((viewport.scrollTop / sh) * 100) : 100;
+      progressLabel.textContent = pct + "% read";
+      if (bookSubEl) {
+        const ch = currentChapterLabel();
+        bookSubEl.textContent = ch ? ch + " · " + pct + "%" : pct + "%";
+      }
+      return;
+    }
     progressEl.value = String(page);
     const pct = total > 1 ? Math.round((page / (total - 1)) * 100) : 100;
     progressLabel.textContent = "Page " + (page + 1) + " of " + total;
@@ -1357,12 +1462,34 @@
   }
 
   function currentLocator() {
+    if (isScrollMode()) {
+      // Find word nearest viewport top
+      const vpTop = viewport.getBoundingClientRect().top;
+      let best = 0, bestDist = Infinity;
+      for (let i = 0; i < doc.words.length; i += Math.max(1, Math.floor(doc.words.length / 200))) {
+        const r = wordRange(i);
+        if (!r) continue;
+        const d = Math.abs(r.getBoundingClientRect().top - vpTop);
+        if (d < bestDist) { bestDist = d; best = i; }
+      }
+      // Refine around best
+      const lo = Math.max(0, best - 50), hi = Math.min(doc.words.length - 1, best + 50);
+      for (let i = lo; i <= hi; i++) {
+        const r = wordRange(i);
+        if (!r) continue;
+        const d = Math.abs(r.getBoundingClientRect().top - vpTop);
+        if (d < bestDist) { bestDist = d; best = i; }
+      }
+      return toLocator(best);
+    }
     return toLocator(wordAtPageStart(page));
   }
 
   function goToLocator(loc) {
     const wi = resolveLocator(loc);
-    if (wi >= 0) goTo(pageOfWord(wi), false);
+    if (wi < 0) return;
+    if (isScrollMode()) { scrollToWord(wi); }
+    else { goTo(pageOfWord(wi), false); }
   }
 
   // --- Speed-reader bridge (dormant) ---
@@ -1964,7 +2091,7 @@
 
   viewport.addEventListener("touchstart", (e) => {
     dismissCoach();
-    if (e.touches.length !== 1 || total <= 1) return;
+    if (isScrollMode() || e.touches.length !== 1 || total <= 1) return;
     const t = e.touches[0];
     startX = t.clientX; startY = t.clientY; startT = Date.now();
     baseTx = -(page * stride);
@@ -2024,6 +2151,8 @@
       closePanels();
       return;
     }
+    // U19: in scroll mode, taps only toggle chrome
+    if (isScrollMode()) { toggleChrome(); return; }
     const w = viewport.clientWidth;
     if (x < w * 0.3) prev();
     else if (x > w * 0.7) next();
@@ -2145,6 +2274,18 @@
     prefs.pageAnim = btn.dataset.anim;
     applyPrefs(); savePrefs();
   });
+  document.getElementById("layoutSeg").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-layout]");
+    if (!btn) return;
+    prefs.layout = btn.dataset.layout;
+    applyPrefs(); savePrefs(); paginate(true);
+  });
+  document.getElementById("columnsSeg").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-cols]");
+    if (!btn) return;
+    prefs.columns = btn.dataset.cols;
+    applyPrefs(); savePrefs(); paginate(true);
+  });
   document.getElementById("sizeDown").addEventListener("click", () => changeSize(-1));
   document.getElementById("sizeUp").addEventListener("click", () => changeSize(1));
   function changeSize(dir) {
@@ -2159,6 +2300,15 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => paginate(true), 150);
   });
+
+  // U19: scroll mode progress tracking
+  let scrollSaveTimer = null;
+  viewport.addEventListener("scroll", () => {
+    if (!isScrollMode()) return;
+    updateProgress();
+    clearTimeout(scrollSaveTimer);
+    scrollSaveTimer = setTimeout(savePos, 500);
+  }, { passive: true });
 
   // ---------- Sample book ----------
   const SAMPLE_TEXT = `It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife.
