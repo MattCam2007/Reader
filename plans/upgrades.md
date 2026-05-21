@@ -46,8 +46,7 @@ content model with stable word addressing.
 
 ## 2. Guiding principles & conventions
 
-1. **One unit = one branch = one PR.** Branch from fresh `master`
-   (`git fetch origin master && git pull`), name `claude/<unit-id>`.
+1. I handle all branch management. The environment you are running in does not have git privilages. you tell me when the code is ready to commit/pr/etc
 2. **Single file, no build step.** Anything that needs a binary asset
    (fonts) is self‑hosted/bundled, never CDN‑only, so offline still works.
 3. **Every UX‑changing behavior is behind a setting**, persisted in
