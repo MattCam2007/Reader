@@ -2447,8 +2447,7 @@
     const btn = e.target.closest("[data-font]");
     if (!btn) return;
     prefs.font = btn.dataset.font;
-    applyPrefs(); savePrefs();
-    document.fonts.ready.then(() => paginateQuick());
+    applyPrefs(); savePrefs(); paginateQuick();
   });
   document.getElementById("imagesSeg").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-images]");
