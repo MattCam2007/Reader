@@ -2200,7 +2200,6 @@
       // Attempt to find and prepend a cover image as the first page
       const coverUrl = await findCoverImage(book);
       if (coverUrl) {
-        blobUrls.push(coverUrl);
         const img = document.createElement("img");
         img.src = coverUrl;
         const frag = document.createDocumentFragment();
@@ -2214,6 +2213,7 @@
       bookTitleEl.textContent = title;
 
       renderBook(sections);
+      if (coverUrl) blobUrls.push(coverUrl);
       clearOverlay();
       requestAnimationFrame(() => {
         paginate(false);
