@@ -1281,7 +1281,12 @@
   function goTo(p, animate) {
     const prevPage = page;
     page = Math.max(0, Math.min(total - 1, p));
-    if (animate) console.log("goTo:", prevPage, "→", page, "stride:", stride, "tx:", -(page * stride));
+    if (animate) {
+      const cs = getComputedStyle(content).transform;
+      const m = cs.match(/matrix\(([^)]+)\)/);
+      const curTx = m ? parseFloat(m[1].split(",")[4]) : "none";
+      console.log("goTo:", prevPage, "→", page, "stride:", stride, "tx:", -(page * stride), "fromTx:", curTx, "expectedFrom:", -(prevPage * stride), "cols:", prefs.columns, "vpW:", content.clientWidth);
+    }
     const anim = animate ? (prefs.pageAnim || "slide") : "none";
     if (anim === "fade") {
       content.style.transition = "opacity 140ms ease";

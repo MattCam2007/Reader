@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(ls -d /workspace/Reader/.claude/worktrees/*/)",
+      "Bash(git -C /workspace/Reader log --oneline -10)",
+      "Bash(sed -n '/<script>/,/<\\\\/script>/p' reader.html | sed '1d;$d' > /tmp/reader_check.js && node --check /tmp/reader_check.js 2>&1)"
+    ]
+  }
+}
