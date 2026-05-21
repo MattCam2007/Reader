@@ -1331,7 +1331,8 @@
       const r2 = T();
       total = Math.max(1, Math.round(content.scrollWidth / stride));
       progressEl.max = String(total - 1);
-      page = Math.max(0, Math.min(total - 1, Math.round(frac * (total - 1))));
+      // Use the same anchor word to land on the same content as the fast path
+      page = pageOfWord(estWordIdx);
       content.style.transition = "none";
       content.style.transform = "translate3d(" + (-(page * stride)) + "px,0,0)";
       updateProgress();
