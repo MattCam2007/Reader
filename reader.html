@@ -8,6 +8,22 @@
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
 <style>
+  /* U17: OpenDyslexic - served from fonts/ dir when available */
+  @font-face {
+    font-family: 'OpenDyslexic';
+    src: url('fonts/OpenDyslexic-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'OpenDyslexic';
+    src: url('fonts/OpenDyslexic-Bold.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
+
   :root {
     --bg: #1a1a1a;
     --fg: #e8e8e8;
@@ -40,6 +56,17 @@
     --border: rgba(0, 0, 0, 0.12);
     --accent: #c0392b;
     --shadow: rgba(0, 0, 0, 0.18);
+  }
+  body.theme-oled {
+    --bg: #000000;
+    --fg: #cfcfcf;
+    --content-fg: #bfbfbf;
+    --muted: rgba(207, 207, 207, 0.5);
+    --chrome-bg: rgba(0, 0, 0, 0.94);
+    --panel-bg: #0a0a0a;
+    --border: rgba(255, 255, 255, 0.1);
+    --accent: #e74c3c;
+    --shadow: rgba(0, 0, 0, 0.7);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -254,6 +281,135 @@
     border: none;
     padding: 0;
     cursor: pointer;
+  }
+
+  /* ---------- Text selection (U11) ---------- */
+  body.selection-on .content {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  .sel-bar {
+    position: fixed;
+    z-index: 47;
+    display: flex;
+    gap: 0.2rem;
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 0.6rem;
+    box-shadow: 0 4px 16px var(--shadow);
+    padding: 0.3rem;
+  }
+  .sel-bar button {
+    background: none;
+    border: none;
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 0.5rem 0.7rem;
+    border-radius: 0.4rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .sel-bar button:active { background: var(--border); }
+
+  /* ---------- Search (U12) ---------- */
+  .search-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(88vw, 24rem);
+    z-index: 50;
+    background: var(--panel-bg);
+    border-left: 1px solid var(--border);
+    box-shadow: 0 0 40px var(--shadow);
+    transform: translateX(102%);
+    transition: transform 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    display: flex;
+    flex-direction: column;
+  }
+  body.show-search .search-panel { transform: translateX(0); }
+  body.show-search .backdrop { opacity: 1; pointer-events: auto; }
+  .search-head {
+    flex: 0 0 auto;
+    padding: calc(env(safe-area-inset-top, 0px) + 0.7rem) 0.8rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .search-input {
+    width: 100%;
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    padding: 0.6rem 0.8rem;
+    font: inherit;
+    font-size: 0.95rem;
+    outline: none;
+  }
+  .search-input:focus { border-color: var(--accent); }
+  .search-results {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0.3rem 0;
+  }
+  .search-result {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    padding: 0.7rem 0.9rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+  }
+  .search-result:active { background: var(--border); }
+  .search-result mark {
+    background: rgba(231, 76, 60, 0.3);
+    color: inherit;
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+  .search-empty {
+    padding: 1.2rem;
+    color: var(--muted);
+    font-size: 0.88rem;
+    text-align: center;
+  }
+  ::highlight(search-results) {
+    background-color: rgba(231, 76, 60, 0.3);
+    color: inherit;
+  }
+
+  /* ---------- Comfort overlay (U18) ---------- */
+  .comfort-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 29;
+    pointer-events: none;
+  }
+  .comfort-dim {
+    position: absolute;
+    inset: 0;
+    background: #000;
+    opacity: 0;
+  }
+  .comfort-warm {
+    position: absolute;
+    inset: 0;
+    background: #ff8c00;
+    opacity: 0;
+    mix-blend-mode: multiply;
+  }
+
+  /* ---------- Page animation (U23) ---------- */
+  .content.anim-fade {
+    transition: opacity 180ms ease !important;
   }
 
   /* ---------- Top header (info only) ---------- */
@@ -616,6 +772,10 @@
 </style>
 </head>
 <body class="chrome-hidden">
+  <div class="comfort-overlay" id="comfortOverlay">
+    <div class="comfort-dim" id="comfortDim"></div>
+    <div class="comfort-warm" id="comfortWarm"></div>
+  </div>
   <div class="viewport" id="viewport">
     <div class="content" id="content"></div>
   </div>
@@ -639,6 +799,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="10" cy="8" r="2.6"/><circle cx="15" cy="16" r="2.6"/></svg>
         <span>Display</span>
       </button>
+      <button class="tool" id="searchBtn" type="button" aria-label="Search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+        <span>Search</span>
+      </button>
       <button class="tool" id="openBtn" type="button" aria-label="Open EPUB">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6c-1.8-1.3-4.6-1.6-7-0.8v12c2.4-0.8 5.2-0.5 7 0.8 1.8-1.3 4.6-1.6 7-0.8V5.2c-2.4-0.8-5.2-0.5-7 0.8z"/><line x1="12" y1="6" x2="12" y2="18.8"/></svg>
         <span>Open</span>
@@ -653,6 +817,13 @@
     <div class="toc-list" id="tocList"></div>
   </nav>
 
+  <div class="search-panel" id="searchPanel">
+    <div class="search-head">
+      <input class="search-input" id="searchInput" type="search" placeholder="Search in book…" autocomplete="off">
+    </div>
+    <div class="search-results" id="searchResults"></div>
+  </div>
+
   <section class="settings" id="settings" aria-label="Display settings">
     <div class="settings-row">
       <span class="settings-label">Theme</span>
@@ -660,6 +831,19 @@
         <button class="seg-btn" data-theme="dark" type="button">Dark</button>
         <button class="seg-btn" data-theme="sepia" type="button">Sepia</button>
         <button class="seg-btn" data-theme="light" type="button">Light</button>
+        <button class="seg-btn" data-theme="oled" type="button">OLED</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">Brightness</span>
+      <div class="seg" style="flex:1">
+        <input type="range" id="brightnessSlider" min="30" max="100" value="100" style="width:100%;accent-color:var(--accent)">
+      </div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">Warmth</span>
+      <div class="seg" style="flex:1">
+        <input type="range" id="warmthSlider" min="0" max="100" value="0" style="width:100%;accent-color:var(--accent)">
       </div>
     </div>
     <div class="settings-row">
@@ -675,6 +859,14 @@
       <div class="seg" id="fontSeg">
         <button class="seg-btn" data-font="serif" type="button">Serif</button>
         <button class="seg-btn" data-font="sans" type="button">Sans</button>
+        <button class="seg-btn" data-font="dyslexic" type="button">Dyslexic</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">Weight</span>
+      <div class="seg" id="weightSeg">
+        <button class="seg-btn" data-weight="regular" type="button">Regular</button>
+        <button class="seg-btn" data-weight="medium" type="button">Medium</button>
       </div>
     </div>
     <div class="settings-row">
@@ -728,6 +920,21 @@
         <button class="seg-btn" data-hyphens="false" type="button">Off</button>
       </div>
     </div>
+    <div class="settings-row">
+      <span class="settings-label">Selection</span>
+      <div class="seg" id="selectionSeg">
+        <button class="seg-btn" data-sel="true" type="button">On</button>
+        <button class="seg-btn" data-sel="false" type="button">Off</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">Page turn</span>
+      <div class="seg" id="pageAnimSeg">
+        <button class="seg-btn" data-anim="slide" type="button">Slide</button>
+        <button class="seg-btn" data-anim="fade" type="button">Fade</button>
+        <button class="seg-btn" data-anim="none" type="button">None</button>
+      </div>
+    </div>
   </section>
 
   <div class="overlay" id="overlay">
@@ -748,6 +955,8 @@
 
   const FONT_SERIF = 'Georgia, "Iowan Old Style", "Palatino Linotype", Cambria, "Times New Roman", serif';
   const FONT_SANS  = 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  const FONT_DYSLEXIC = '"OpenDyslexic", "Comic Sans MS", cursive';
+  const FONT_MAP = { serif: FONT_SERIF, sans: FONT_SANS, dyslexic: FONT_DYSLEXIC };
   const COLUMN_GAP = 40;
   const MIN_SIZE = 14, MAX_SIZE = 30;
 
@@ -778,6 +987,7 @@
   let bookId = "sample";
   const sectionEls = new Map();   // section href base -> wrapper element
   let headingToc = [];            // fallback TOC built from headings
+  let chapterIndex = []; // [{label, page}] sorted by page, rebuilt on paginate
 
   // Document model (built by buildDocModel after render+paginate)
   const doc = {
@@ -788,7 +998,7 @@
     wordCharStart: [],  // char offset of each word in doc.text
   };
 
-  let prefs = { v: 1, theme: "dark", font: "serif", size: 19, images: true, notePopovers: true, lineHeight: 1.62, margin: "normal", paraSpacing: "indent", align: "justify", hyphens: true };
+  let prefs = { v: 1, theme: "dark", font: "serif", size: 19, weight: "regular", images: true, notePopovers: true, lineHeight: 1.62, margin: "normal", paraSpacing: "indent", align: "justify", hyphens: true, selection: true, brightness: 1, warmth: 0, pageAnim: "slide" };
   let blobUrls = []; // U5: track blob URLs for cleanup
 
   // ---------- Preferences ----------
@@ -804,16 +1014,19 @@
     try { localStorage.setItem("reader:prefs", JSON.stringify(prefs)); } catch (_) {}
   }
   function applyPrefs() {
-    document.body.classList.remove("theme-sepia", "theme-light");
+    document.body.classList.remove("theme-sepia", "theme-light", "theme-oled");
     if (prefs.theme === "sepia") document.body.classList.add("theme-sepia");
     else if (prefs.theme === "light") document.body.classList.add("theme-light");
-    content.style.fontFamily = prefs.font === "sans" ? FONT_SANS : FONT_SERIF;
+    else if (prefs.theme === "oled") document.body.classList.add("theme-oled");
+    content.style.fontFamily = FONT_MAP[prefs.font] || FONT_SERIF;
+    content.style.fontWeight = prefs.weight === "medium" ? "500" : "400";
     content.style.fontSize = prefs.size + "px";
     sizeDisplay.textContent = prefs.size;
     document.querySelectorAll("#themeSeg .seg-btn").forEach((b) =>
       b.classList.toggle("active", b.dataset.theme === prefs.theme));
     document.querySelectorAll("#fontSeg .seg-btn").forEach((b) =>
       b.classList.toggle("active", b.dataset.font === prefs.font));
+    document.querySelectorAll("#weightSeg .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.weight === prefs.weight));
     document.querySelectorAll("#imagesSeg .seg-btn").forEach((b) =>
       b.classList.toggle("active", b.dataset.images === String(prefs.images)));
     document.querySelectorAll("#notePopSeg .seg-btn").forEach((b) =>
@@ -836,9 +1049,23 @@
     content.style.webkitHyphens = hyph;
     document.querySelectorAll("#alignSeg .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.align === prefs.align));
     document.querySelectorAll("#hyphensSeg .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.hyphens === String(prefs.hyphens)));
-    const tc = { dark: "#1a1a1a", sepia: "#f4ecd8", light: "#ffffff" }[prefs.theme];
+    // U11: selection toggle
+    document.body.classList.toggle("selection-on", !!prefs.selection);
+    document.querySelectorAll("#selectionSeg .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.sel === String(prefs.selection)));
+    // U23: page animation toggle
+    document.querySelectorAll("#pageAnimSeg .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.anim === prefs.pageAnim));
+    const tc = { dark: "#1a1a1a", sepia: "#f4ecd8", light: "#ffffff", oled: "#000000" }[prefs.theme];
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta && tc) meta.setAttribute("content", tc);
+    // U18: comfort overlay
+    const dimEl = document.getElementById("comfortDim");
+    const warmEl = document.getElementById("comfortWarm");
+    if (dimEl) dimEl.style.opacity = String(1 - (prefs.brightness || 1));
+    if (warmEl) warmEl.style.opacity = String(prefs.warmth || 0);
+    const brSlider = document.getElementById("brightnessSlider");
+    if (brSlider) brSlider.value = String(Math.round((prefs.brightness || 1) * 100));
+    const wmSlider = document.getElementById("warmthSlider");
+    if (wmSlider) wmSlider.value = String(Math.round((prefs.warmth || 0) * 100));
   }
 
   // ---------- Position persistence ----------
@@ -952,15 +1179,29 @@
     } else {
       page = Math.max(0, Math.min(total - 1, Math.round(frac * (total - 1))));
     }
+    buildChapterIndex();
     goTo(page, false);
   }
 
   function goTo(p, animate) {
     page = Math.max(0, Math.min(total - 1, p));
-    content.style.transition = animate
-      ? "transform 240ms cubic-bezier(0.22,0.61,0.36,1)"
-      : "none";
-    content.style.transform = "translate3d(" + (-(page * stride)) + "px,0,0)";
+    const anim = animate ? (prefs.pageAnim || "slide") : "none";
+    if (anim === "fade") {
+      content.style.transition = "opacity 140ms ease";
+      content.style.opacity = "0";
+      setTimeout(() => {
+        content.style.transition = "none";
+        content.style.transform = "translate3d(" + (-(page * stride)) + "px,0,0)";
+        content.style.transition = "opacity 140ms ease";
+        content.style.opacity = "1";
+      }, 150);
+    } else if (anim === "slide") {
+      content.style.transition = "transform 240ms cubic-bezier(0.22,0.61,0.36,1)";
+      content.style.transform = "translate3d(" + (-(page * stride)) + "px,0,0)";
+    } else {
+      content.style.transition = "none";
+      content.style.transform = "translate3d(" + (-(page * stride)) + "px,0,0)";
+    }
     updateProgress();
     savePos();
   }
@@ -971,7 +1212,10 @@
     progressEl.value = String(page);
     const pct = total > 1 ? Math.round((page / (total - 1)) * 100) : 100;
     progressLabel.textContent = "Page " + (page + 1) + " of " + total;
-    if (bookSubEl) bookSubEl.textContent = pct + "%";
+    if (bookSubEl) {
+      const ch = currentChapterLabel();
+      bookSubEl.textContent = ch ? ch + " · " + pct + "%" : pct + "%";
+    }
   }
 
   function pageOfElement(el) {
@@ -1134,6 +1378,197 @@
     }).flat();
   }
 
+  // ---------- Search (U12) ----------
+  function openSearch() {
+    closePanels();
+    document.body.classList.add("show-search");
+    document.body.classList.remove("chrome-hidden");
+    const input = document.getElementById("searchInput");
+    if (input) { input.value = ""; input.focus(); }
+    document.getElementById("searchResults").innerHTML = "";
+  }
+
+  function closeSearch() {
+    document.body.classList.remove("show-search");
+    clearSearchHighlights();
+  }
+
+  function runSearch(query) {
+    const resultsEl = document.getElementById("searchResults");
+    resultsEl.innerHTML = "";
+    clearSearchHighlights();
+    if (!query || query.length < 2 || !doc.text) {
+      if (query && query.length >= 2) {
+        resultsEl.innerHTML = '<div class="search-empty">No results</div>';
+      }
+      return;
+    }
+    const lower = doc.text.toLowerCase();
+    const q = query.toLowerCase();
+    const hits = [];
+    let pos = 0;
+    while ((pos = lower.indexOf(q, pos)) !== -1 && hits.length < 200) {
+      hits.push(pos);
+      pos += q.length;
+    }
+    if (!hits.length) {
+      resultsEl.innerHTML = '<div class="search-empty">No results</div>';
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    hits.forEach((charOff) => {
+      // Find the word index nearest this char offset
+      let wi = 0;
+      for (let j = 0; j < doc.wordCharStart.length; j++) {
+        if (doc.wordCharStart[j] <= charOff) wi = j;
+        else break;
+      }
+      // Build snippet: ±40 chars around the hit
+      const snippetStart = Math.max(0, charOff - 40);
+      const snippetEnd = Math.min(doc.text.length, charOff + query.length + 40);
+      const before = (snippetStart > 0 ? "\u2026" : "") + doc.text.slice(snippetStart, charOff);
+      const match = doc.text.slice(charOff, charOff + query.length);
+      const after = doc.text.slice(charOff + query.length, snippetEnd) + (snippetEnd < doc.text.length ? "\u2026" : "");
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "search-result";
+      btn.appendChild(document.createTextNode(before));
+      const mark = document.createElement("mark");
+      mark.textContent = match;
+      btn.appendChild(mark);
+      btn.appendChild(document.createTextNode(after));
+      btn.addEventListener("click", () => {
+        const loc = toLocator(wi);
+        if (loc) goToLocator(loc);
+        closeSearch();
+      });
+      frag.appendChild(btn);
+    });
+    resultsEl.appendChild(frag);
+    highlightSearchHits(hits, query.length);
+  }
+
+  let searchHighlightRanges = [];
+  function highlightSearchHits(charOffsets, len) {
+    clearSearchHighlights();
+    if (typeof CSS !== "undefined" && CSS.highlights) {
+      const ranges = [];
+      charOffsets.forEach(charOff => {
+        let wi = 0;
+        for (let j = 0; j < doc.wordCharStart.length; j++) {
+          if (doc.wordCharStart[j] <= charOff) wi = j;
+          else break;
+        }
+        const r = wordRange(wi);
+        if (r) ranges.push(r);
+      });
+      if (ranges.length) {
+        try {
+          const hl = new Highlight(...ranges);
+          CSS.highlights.set("search-results", hl);
+          searchHighlightRanges = ranges;
+        } catch (_) {}
+      }
+    }
+  }
+
+  function clearSearchHighlights() {
+    if (typeof CSS !== "undefined" && CSS.highlights) {
+      try { CSS.highlights.delete("search-results"); } catch (_) {}
+    }
+    searchHighlightRanges = [];
+  }
+
+  // ---------- Live chapter title (U20) ----------
+  function buildChapterIndex() {
+    chapterIndex = [];
+    if (headingToc.length) {
+      headingToc.forEach(h => {
+        chapterIndex.push({ label: h.label, page: pageOfElement(h.el) });
+      });
+    }
+    if (!chapterIndex.length) {
+      sectionEls.forEach((el, href) => {
+        const firstHeading = el.querySelector(".blk-h1, .blk-h2, .blk-h3");
+        const label = firstHeading ? firstHeading.textContent.trim() : href;
+        chapterIndex.push({ label, page: pageOfElement(el) });
+      });
+    }
+    chapterIndex.sort((a, b) => a.page - b.page);
+  }
+
+  function currentChapterLabel() {
+    if (!chapterIndex.length) return "";
+    let label = chapterIndex[0].label;
+    for (let i = chapterIndex.length - 1; i >= 0; i--) {
+      if (chapterIndex[i].page <= page) {
+        label = chapterIndex[i].label;
+        break;
+      }
+    }
+    return label;
+  }
+
+  // ---------- Text selection (U11) ----------
+  let selBar = null;
+
+  function showSelBar() {
+    dismissSelBar();
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    if (!rect.width && !rect.height) return;
+
+    selBar = document.createElement("div");
+    selBar.className = "sel-bar";
+
+    const copyBtn = document.createElement("button");
+    copyBtn.textContent = "Copy";
+    copyBtn.type = "button";
+    copyBtn.addEventListener("click", () => {
+      try { navigator.clipboard.writeText(sel.toString()); } catch (_) {
+        document.execCommand("copy");
+      }
+      dismissSelBar();
+    });
+    selBar.appendChild(copyBtn);
+
+    const defineBtn = document.createElement("button");
+    defineBtn.textContent = "Define";
+    defineBtn.type = "button";
+    defineBtn.addEventListener("click", () => {
+      const text = sel.toString().trim().split(/\s+/)[0];
+      if (text) window.open("https://en.wiktionary.org/wiki/" + encodeURIComponent(text), "_blank");
+      dismissSelBar();
+    });
+    selBar.appendChild(defineBtn);
+
+    document.body.appendChild(selBar);
+
+    const barRect = selBar.getBoundingClientRect();
+    let top = rect.top - barRect.height - 6;
+    let left = rect.left + rect.width / 2 - barRect.width / 2;
+    if (top < 4) top = rect.bottom + 6;
+    if (left < 4) left = 4;
+    if (left + barRect.width > window.innerWidth - 4) left = window.innerWidth - barRect.width - 4;
+    selBar.style.top = top + "px";
+    selBar.style.left = left + "px";
+  }
+
+  function dismissSelBar() {
+    if (selBar) { selBar.remove(); selBar = null; }
+  }
+
+  document.addEventListener("selectionchange", () => {
+    if (!prefs.selection) return;
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) { dismissSelBar(); return; }
+    clearTimeout(dismissSelBar._t);
+    dismissSelBar._t = setTimeout(showSelBar, 200);
+  });
+
   // ---------- Chrome / drawers ----------
   function toggleChrome() { document.body.classList.toggle("chrome-hidden"); }
   function dismissCoach() {
@@ -1142,7 +1577,7 @@
       try { localStorage.setItem("reader:hinted", "1"); } catch (_) {}
     }
   }
-  function closePanels() { document.body.classList.remove("show-toc", "show-settings"); }
+  function closePanels() { document.body.classList.remove("show-toc", "show-settings", "show-search"); clearSearchHighlights(); }
   function openTOC() { closePanels(); document.body.classList.add("show-toc"); document.body.classList.remove("chrome-hidden"); }
   function openSettings() { closePanels(); document.body.classList.add("show-settings"); }
 
@@ -1579,6 +2014,9 @@
   });
 
   function handleTap(x) {
+    // U11: don't page-turn if text is selected
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed) { dismissSelBar(); sel.removeAllRanges(); return; }
     // U7: dismiss popover on tap, don't page-turn
     if (activePopover) { dismissNotePopover(); return; }
     if (!document.body.classList.contains("chrome-hidden") &&
@@ -1603,6 +2041,10 @@
   content.addEventListener("click", handleContentClick);
 
   // ---------- Wiring ----------
+  document.getElementById("searchBtn").addEventListener("click", openSearch);
+  document.getElementById("searchInput").addEventListener("input", (e) => {
+    runSearch(e.target.value.trim());
+  });
   tocBtn.addEventListener("click", openTOC);
   settingsBtn.addEventListener("click", openSettings);
   backdrop.addEventListener("click", closePanels);
@@ -1623,10 +2065,25 @@
     prefs.theme = btn.dataset.theme;
     applyPrefs(); savePrefs();
   });
+  document.getElementById("brightnessSlider").addEventListener("input", (e) => {
+    prefs.brightness = parseInt(e.target.value, 10) / 100;
+    applyPrefs(); savePrefs();
+  });
+  document.getElementById("warmthSlider").addEventListener("input", (e) => {
+    prefs.warmth = parseInt(e.target.value, 10) / 100;
+    applyPrefs(); savePrefs();
+  });
   document.getElementById("fontSeg").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-font]");
     if (!btn) return;
     prefs.font = btn.dataset.font;
+    applyPrefs(); savePrefs();
+    document.fonts.ready.then(() => paginate(true));
+  });
+  document.getElementById("weightSeg").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-weight]");
+    if (!btn) return;
+    prefs.weight = btn.dataset.weight;
     applyPrefs(); savePrefs(); paginate(true);
   });
   document.getElementById("imagesSeg").addEventListener("click", (e) => {
@@ -1674,6 +2131,19 @@
     if (!btn) return;
     prefs.hyphens = btn.dataset.hyphens === "true";
     applyPrefs(); savePrefs(); paginate(true);
+  });
+  document.getElementById("selectionSeg").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-sel]");
+    if (!btn) return;
+    prefs.selection = btn.dataset.sel === "true";
+    if (!prefs.selection) { dismissSelBar(); const s = window.getSelection(); if (s) s.removeAllRanges(); }
+    applyPrefs(); savePrefs();
+  });
+  document.getElementById("pageAnimSeg").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-anim]");
+    if (!btn) return;
+    prefs.pageAnim = btn.dataset.anim;
+    applyPrefs(); savePrefs();
   });
   document.getElementById("sizeDown").addEventListener("click", () => changeSize(-1));
   document.getElementById("sizeUp").addEventListener("click", () => changeSize(1));
@@ -1794,6 +2264,17 @@ This was invitation enough.
   // ---------- Init ----------
   loadPrefs();
   applyPrefs();
+  // U23: respect prefers-reduced-motion
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  if (reduceMotion.matches && !localStorage.getItem("reader:prefs")) {
+    prefs.pageAnim = "none";
+  }
+  reduceMotion.addEventListener("change", (e) => {
+    if (e.matches && prefs.pageAnim === "slide") {
+      prefs.pageAnim = "none";
+      applyPrefs(); savePrefs();
+    }
+  });
   let hinted = false;
   try { hinted = localStorage.getItem("reader:hinted") === "1"; } catch (_) {}
   if (hinted) coachEl.classList.add("hide");
