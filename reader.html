@@ -2036,21 +2036,44 @@
 
   // U5: resolve collected img srcs to blob URLs
   async function resolveImageUrls(imgEntries, book) {
+    // Build a lookup of all files in the archive for fallback matching
+    let archiveFiles = null;
+    try {
+      if (book.archive && book.archive.zip) {
+        archiveFiles = Object.keys(book.archive.zip.files || {});
+      }
+    } catch (_) {}
+
     for (const entry of imgEntries) {
       try {
         let blob = null;
-        // Try epub.js archive methods
-        if (book.archive && typeof book.archive.getBlob === "function") {
-          blob = await book.archive.getBlob(entry.resolvedSrc);
-        } else if (book.archive && typeof book.archive.request === "function") {
-          const data = await book.archive.request(entry.resolvedSrc, "blob");
-          if (data instanceof Blob) blob = data;
+        const pathsToTry = [entry.resolvedSrc];
+        // Fallback: try the bare filename against all archive paths
+        if (archiveFiles) {
+          const basename = entry.src.split("/").pop().toLowerCase();
+          archiveFiles.forEach(f => {
+            if (f.toLowerCase().endsWith("/" + basename) || f.toLowerCase() === basename) {
+              if (pathsToTry.indexOf(f) < 0) pathsToTry.push(f);
+            }
+          });
+        }
+        for (const tryPath of pathsToTry) {
+          if (blob && blob.size > 0) break;
+          try {
+            if (book.archive && typeof book.archive.getBlob === "function") {
+              blob = await book.archive.getBlob(tryPath);
+            } else if (book.archive && typeof book.archive.request === "function") {
+              const data = await book.archive.request(tryPath, "blob");
+              if (data instanceof Blob) blob = data;
+            }
+          } catch (_) {}
         }
         if (blob && blob.size > 0) {
           const url = URL.createObjectURL(blob);
           blobUrls.push(url);
           entry.img.setAttribute("src", url);
         } else {
+          console.warn("Image not found in archive:", entry.src, "tried:", pathsToTry);
           entry.img.removeAttribute("src");
         }
       } catch (err) {
