@@ -60,18 +60,20 @@
   /* ---------- Reading surface ---------- */
 
   .viewport {
+    --reading-margin: clamp(1.25rem, 6vw, 3rem);
     position: fixed;
     inset: 0;
     overflow: hidden;
     background: var(--bg);
     padding-top: calc(env(safe-area-inset-top, 0px) + 1.2rem);
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.4rem);
-    padding-left: clamp(1.25rem, 6vw, 3rem);
-    padding-right: clamp(1.25rem, 6vw, 3rem);
+    padding-left: var(--reading-margin);
+    padding-right: var(--reading-margin);
     z-index: 1;
   }
 
   .content {
+    --reading-line-height: 1.62;
     height: 100%;
     column-fill: auto;
     column-gap: 40px;
@@ -79,7 +81,7 @@
     will-change: transform;
     font-family: Georgia, "Iowan Old Style", "Palatino Linotype", Cambria, "Times New Roman", serif;
     font-size: 19px;
-    line-height: 1.62;
+    line-height: var(--reading-line-height);
     color: var(--content-fg);
     text-align: justify;
     hyphens: auto;
@@ -91,6 +93,7 @@
     margin: 0;
     text-indent: 1.3em;
   }
+  .content.para-spaced .blk-p { text-indent: 0; margin-bottom: 0.8em; }
   .content .chap > .blk-p:first-child,
   .content .blk-h1 + .blk-p,
   .content .blk-h2 + .blk-p,
@@ -184,6 +187,40 @@
   }
   body.images-off .content img,
   body.images-off .content .blk-figure { display: none; }
+
+  /* ---------- Tables (U8) ---------- */
+  .content .blk-table-wrap {
+    margin: 0.8em 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-height: 80vh;
+    overflow-y: auto;
+    break-inside: avoid;
+    -webkit-column-break-inside: avoid;
+  }
+  .content table {
+    border-collapse: collapse;
+    font-size: 0.9em;
+    line-height: 1.4;
+    text-indent: 0;
+    text-align: left;
+  }
+  .content th, .content td {
+    padding: 0.35em 0.65em;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .content th {
+    font-weight: 700;
+    background: var(--border);
+  }
+  .content caption {
+    font-size: 0.85em;
+    color: var(--muted);
+    text-align: center;
+    padding: 0.3em 0;
+    caption-side: bottom;
+  }
 
   /* ---------- Footnote popover (U7) ---------- */
   .note-popover-backdrop {
@@ -654,6 +691,43 @@
         <button class="seg-btn" data-notepop="false" type="button">Off</button>
       </div>
     </div>
+    <div class="settings-row">
+      <span class="settings-label">Line spacing</span>
+      <div class="seg">
+        <button class="seg-btn" id="lineHeightDown" type="button">&minus;</button>
+        <span class="size-display" id="lineHeightDisplay">1.6</span>
+        <button class="seg-btn" id="lineHeightUp" type="button">+</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">Margins</span>
+      <div class="seg" id="marginSeg">
+        <button class="seg-btn" data-margin="narrow" type="button">Narrow</button>
+        <button class="seg-btn" data-margin="normal" type="button">Normal</button>
+        <button class="seg-btn" data-margin="wide" type="button">Wide</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">Paragraphs</span>
+      <div class="seg" id="paraSeg">
+        <button class="seg-btn" data-para="indent" type="button">Indented</button>
+        <button class="seg-btn" data-para="spaced" type="button">Spaced</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">Alignment</span>
+      <div class="seg" id="alignSeg">
+        <button class="seg-btn" data-align="justify" type="button">Justify</button>
+        <button class="seg-btn" data-align="left" type="button">Left</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">Hyphens</span>
+      <div class="seg" id="hyphensSeg">
+        <button class="seg-btn" data-hyphens="true" type="button">On</button>
+        <button class="seg-btn" data-hyphens="false" type="button">Off</button>
+      </div>
+    </div>
   </section>
 
   <div class="overlay" id="overlay">
@@ -714,7 +788,7 @@
     wordCharStart: [],  // char offset of each word in doc.text
   };
 
-  let prefs = { v: 1, theme: "dark", font: "serif", size: 19, images: true, notePopovers: true };
+  let prefs = { v: 1, theme: "dark", font: "serif", size: 19, images: true, notePopovers: true, lineHeight: 1.62, margin: "normal", paraSpacing: "indent", align: "justify", hyphens: true };
   let blobUrls = []; // U5: track blob URLs for cleanup
 
   // ---------- Preferences ----------
@@ -745,6 +819,23 @@
     document.querySelectorAll("#notePopSeg .seg-btn").forEach((b) =>
       b.classList.toggle("active", b.dataset.notepop === String(prefs.notePopovers)));
     document.body.classList.toggle("images-off", !prefs.images);
+    // U15: spacing
+    content.style.setProperty("--reading-line-height", String(prefs.lineHeight));
+    const margins = { narrow: "1rem", normal: "clamp(1.25rem, 6vw, 3rem)", wide: "clamp(2rem, 10vw, 5rem)" };
+    viewport.style.paddingLeft = margins[prefs.margin] || margins.normal;
+    viewport.style.paddingRight = margins[prefs.margin] || margins.normal;
+    content.classList.toggle("para-spaced", prefs.paraSpacing === "spaced");
+    document.querySelectorAll("#marginSeg .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.margin === prefs.margin));
+    document.querySelectorAll("#paraSeg .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.para === prefs.paraSpacing));
+    const lhEl = document.getElementById("lineHeightDisplay");
+    if (lhEl) lhEl.textContent = prefs.lineHeight.toFixed(1);
+    // U16: alignment & hyphenation
+    content.style.textAlign = prefs.align === "left" ? "left" : "justify";
+    const hyph = prefs.hyphens ? "auto" : "none";
+    content.style.hyphens = hyph;
+    content.style.webkitHyphens = hyph;
+    document.querySelectorAll("#alignSeg .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.align === prefs.align));
+    document.querySelectorAll("#hyphensSeg .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.hyphens === String(prefs.hyphens)));
     const tc = { dark: "#1a1a1a", sepia: "#f4ecd8", light: "#ffffff" }[prefs.theme];
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta && tc) meta.setAttribute("content", tc);
@@ -805,7 +896,7 @@
       wrap.className = "chap";
       if (sec.href) { wrap.dataset.href = sec.href; sectionEls.set(sec.href, wrap); }
       sec.blocks.forEach((b) => {
-        const el = document.createElement(b.type === "figure" ? "div" : b.type);
+        const el = document.createElement((b.type === "figure" || b.type === "table-wrap") ? "div" : b.type);
         if (b.frag) el.appendChild(b.frag);
         else el.textContent = b.text;
         if (b.id) el.id = b.id;
@@ -1226,10 +1317,10 @@
 
   // ---------- EPUB text extraction ----------
   const RICH_INLINE = true; // U6: set false to revert to plain-text extraction
-  const SEL = "h1,h2,h3,h4,h5,h6,p,div,blockquote,li,pre,dd,dt,figure,figcaption";
+  const SEL = "h1,h2,h3,h4,h5,h6,p,div,blockquote,li,pre,dd,dt,figure,figcaption,table";
   const SKIP_SEL = "script,style,nav,header,footer,aside,form";
-  const INLINE_TAGS = new Set(["b","strong","i","em","u","sup","sub","small","a","span","br","code","img"]);
-  const SAFE_ATTRS = { a: new Set(["href"]), img: new Set(["src","alt"]) }; // per-tag safe attributes; id is always kept
+  const INLINE_TAGS = new Set(["b","strong","i","em","u","sup","sub","small","a","span","br","code","img","table","thead","tbody","tfoot","tr","th","td","caption"]);
+  const SAFE_ATTRS = { a: new Set(["href"]), img: new Set(["src","alt"]), td: new Set(["colspan","rowspan"]), th: new Set(["colspan","rowspan","scope"]) }; // per-tag safe attributes; id is always kept
 
   function sanitizeInline(srcNode) {
     const frag = document.createDocumentFragment();
@@ -1278,6 +1369,13 @@
     root.querySelectorAll(SEL).forEach((el) => {
       if (el.closest && el.closest(SKIP_SEL)) return;
       const tag0 = el.tagName.toLowerCase();
+      // U8: table — emit as a single wrapped block
+      if (tag0 === "table") {
+        const block = { type: "table-wrap", text: (el.textContent || "").replace(/\s+/g, " ").trim(), id: el.id || "" };
+        if (RICH_INLINE) block.frag = sanitizeInline(el);
+        out.push(block);
+        return;
+      }
       // figure: emit as a single block (don't require leaf check — may contain figcaption)
       if (tag0 === "figure") {
         const block = { type: "figure", text: "", id: el.id || "" };
@@ -1542,6 +1640,40 @@
     if (!btn) return;
     prefs.notePopovers = btn.dataset.notepop === "true";
     applyPrefs(); savePrefs();
+  });
+  // U15: spacing controls
+  document.getElementById("marginSeg").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-margin]");
+    if (!btn) return;
+    prefs.margin = btn.dataset.margin;
+    applyPrefs(); savePrefs(); paginate(true);
+  });
+  document.getElementById("paraSeg").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-para]");
+    if (!btn) return;
+    prefs.paraSpacing = btn.dataset.para;
+    applyPrefs(); savePrefs(); paginate(true);
+  });
+  document.getElementById("lineHeightDown").addEventListener("click", () => changeLineHeight(-0.1));
+  document.getElementById("lineHeightUp").addEventListener("click", () => changeLineHeight(0.1));
+  function changeLineHeight(dir) {
+    const next = Math.round(Math.max(1.0, Math.min(2.4, prefs.lineHeight + dir)) * 10) / 10;
+    if (next === prefs.lineHeight) return;
+    prefs.lineHeight = next;
+    applyPrefs(); savePrefs(); paginate(true);
+  }
+  // U16: alignment & hyphenation
+  document.getElementById("alignSeg").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-align]");
+    if (!btn) return;
+    prefs.align = btn.dataset.align;
+    applyPrefs(); savePrefs(); paginate(true);
+  });
+  document.getElementById("hyphensSeg").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-hyphens]");
+    if (!btn) return;
+    prefs.hyphens = btn.dataset.hyphens === "true";
+    applyPrefs(); savePrefs(); paginate(true);
   });
   document.getElementById("sizeDown").addEventListener("click", () => changeSize(-1));
   document.getElementById("sizeUp").addEventListener("click", () => changeSize(1));
