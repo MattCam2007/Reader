@@ -155,7 +155,7 @@
   .content a {
     color: var(--accent);
     text-decoration: none;
-    pointer-events: none; /* non-actionable until U7 enables link behavior */
+    pointer-events: auto;
   }
   .content small { font-size: 0.85em; }
   .content u { text-decoration: underline; }
@@ -184,6 +184,40 @@
   }
   body.images-off .content img,
   body.images-off .content .blk-figure { display: none; }
+
+  /* ---------- Footnote popover (U7) ---------- */
+  .note-popover-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    background: rgba(0, 0, 0, 0.3);
+  }
+  .note-popover {
+    position: fixed;
+    z-index: 46;
+    background: var(--panel-bg);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    box-shadow: 0 8px 30px var(--shadow);
+    padding: 0.9rem 1.1rem;
+    max-width: min(88vw, 26rem);
+    max-height: 40vh;
+    overflow-y: auto;
+    font-size: 0.92rem;
+    line-height: 1.55;
+  }
+  .note-popover .note-close {
+    display: block;
+    margin-top: 0.6rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--accent);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
 
   /* ---------- Top header (info only) ---------- */
 
@@ -613,6 +647,13 @@
         <button class="seg-btn" data-images="false" type="button">Off</button>
       </div>
     </div>
+    <div class="settings-row">
+      <span class="settings-label">Note popovers</span>
+      <div class="seg" id="notePopSeg">
+        <button class="seg-btn" data-notepop="true" type="button">On</button>
+        <button class="seg-btn" data-notepop="false" type="button">Off</button>
+      </div>
+    </div>
   </section>
 
   <div class="overlay" id="overlay">
@@ -673,7 +714,7 @@
     wordCharStart: [],  // char offset of each word in doc.text
   };
 
-  let prefs = { v: 1, theme: "dark", font: "serif", size: 19, images: true };
+  let prefs = { v: 1, theme: "dark", font: "serif", size: 19, images: true, notePopovers: true };
   let blobUrls = []; // U5: track blob URLs for cleanup
 
   // ---------- Preferences ----------
@@ -701,6 +742,8 @@
       b.classList.toggle("active", b.dataset.font === prefs.font));
     document.querySelectorAll("#imagesSeg .seg-btn").forEach((b) =>
       b.classList.toggle("active", b.dataset.images === String(prefs.images)));
+    document.querySelectorAll("#notePopSeg .seg-btn").forEach((b) =>
+      b.classList.toggle("active", b.dataset.notepop === String(prefs.notePopovers)));
     document.body.classList.toggle("images-off", !prefs.images);
     const tc = { dark: "#1a1a1a", sepia: "#f4ecd8", light: "#ffffff" }[prefs.theme];
     const meta = document.querySelector('meta[name="theme-color"]');
@@ -1011,6 +1054,106 @@
   function closePanels() { document.body.classList.remove("show-toc", "show-settings"); }
   function openTOC() { closePanels(); document.body.classList.add("show-toc"); document.body.classList.remove("chrome-hidden"); }
   function openSettings() { closePanels(); document.body.classList.add("show-settings"); }
+
+  // ---------- Footnote popovers (U7) ----------
+  let activePopover = null;
+
+  function isNoteRef(anchor) {
+    if (!anchor || anchor.tagName !== "A") return false;
+    const href = anchor.getAttribute("href") || "";
+    if (!href.startsWith("#") && !href.includes("#")) return false;
+    // Check epub:type or common note-ref patterns
+    const epubType = anchor.getAttribute("epub:type") || anchor.getAttribute("data-epub-type") || "";
+    if (epubType.includes("noteref")) return true;
+    // Heuristic: link to a fragment whose target looks like a note (short text, or in a notes section)
+    return href.includes("#");
+  }
+
+  function findNoteTarget(anchor) {
+    const href = anchor.getAttribute("href") || "";
+    const hashIdx = href.indexOf("#");
+    if (hashIdx < 0) return null;
+    const frag = href.slice(hashIdx + 1);
+    if (!frag) return null;
+    try {
+      return content.querySelector("#" + CSS.escape(frag));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function showNotePopover(anchor, target) {
+    dismissNotePopover();
+    const text = (target.textContent || "").trim();
+    if (!text) return;
+
+    // Position near the anchor
+    const rect = anchor.getBoundingClientRect();
+    const vpW = window.innerWidth;
+    const vpH = window.innerHeight;
+
+    const backdropEl = document.createElement("div");
+    backdropEl.className = "note-popover-backdrop";
+    backdropEl.addEventListener("click", dismissNotePopover);
+
+    const pop = document.createElement("div");
+    pop.className = "note-popover";
+    pop.textContent = text;
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "note-close";
+    closeBtn.textContent = "Dismiss";
+    closeBtn.type = "button";
+    closeBtn.addEventListener("click", dismissNotePopover);
+    pop.appendChild(closeBtn);
+
+    document.body.appendChild(backdropEl);
+    document.body.appendChild(pop);
+
+    // Compute position after adding to DOM so we can measure
+    const popRect = pop.getBoundingClientRect();
+    let top = rect.bottom + 8;
+    let left = Math.max(8, rect.left - popRect.width / 2 + rect.width / 2);
+    // Keep within viewport
+    if (left + popRect.width > vpW - 8) left = vpW - popRect.width - 8;
+    if (left < 8) left = 8;
+    if (top + popRect.height > vpH - 8) top = rect.top - popRect.height - 8;
+    if (top < 8) top = 8;
+
+    pop.style.top = top + "px";
+    pop.style.left = left + "px";
+
+    activePopover = { backdrop: backdropEl, popover: pop };
+  }
+
+  function dismissNotePopover() {
+    if (!activePopover) return;
+    activePopover.backdrop.remove();
+    activePopover.popover.remove();
+    activePopover = null;
+  }
+
+  function handleContentClick(e) {
+    const anchor = e.target.closest("a[href]");
+    if (!anchor || !content.contains(anchor)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!prefs.notePopovers) {
+      // Jump to target instead
+      const target = findNoteTarget(anchor);
+      if (target) goTo(pageOfElement(target), true);
+      return;
+    }
+    if (isNoteRef(anchor)) {
+      const target = findNoteTarget(anchor);
+      if (target) {
+        showNotePopover(anchor, target);
+        return;
+      }
+    }
+    // For non-note internal links, jump to target
+    const target = findNoteTarget(anchor);
+    if (target) goTo(pageOfElement(target), true);
+  }
 
   // ---------- Table of contents ----------
   function buildTOC(epubToc) {
@@ -1338,6 +1481,8 @@
   });
 
   function handleTap(x) {
+    // U7: dismiss popover on tap, don't page-turn
+    if (activePopover) { dismissNotePopover(); return; }
     if (!document.body.classList.contains("chrome-hidden") &&
         (document.body.classList.contains("show-toc") || document.body.classList.contains("show-settings"))) {
       closePanels();
@@ -1350,10 +1495,14 @@
   }
 
   document.addEventListener("keydown", (e) => {
+    if (activePopover && e.key === "Escape") { dismissNotePopover(); return; }
     if (e.key === "ArrowRight" || e.key === "PageDown" || e.code === "Space") { e.preventDefault(); next(); }
     else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); prev(); }
     else if (e.key === "Escape") closePanels();
   });
+
+  // U7: intercept link clicks in content
+  content.addEventListener("click", handleContentClick);
 
   // ---------- Wiring ----------
   tocBtn.addEventListener("click", openTOC);
@@ -1387,6 +1536,12 @@
     if (!btn) return;
     prefs.images = btn.dataset.images === "true";
     applyPrefs(); savePrefs(); paginate(true);
+  });
+  document.getElementById("notePopSeg").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-notepop]");
+    if (!btn) return;
+    prefs.notePopovers = btn.dataset.notepop === "true";
+    applyPrefs(); savePrefs();
   });
   document.getElementById("sizeDown").addEventListener("click", () => changeSize(-1));
   document.getElementById("sizeUp").addEventListener("click", () => changeSize(1));
