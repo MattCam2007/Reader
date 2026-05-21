@@ -1232,7 +1232,6 @@
         content.style.columnWidth = vpW + "px";
       }
       content.style.columnGap = COLUMN_GAP + "px";
-      content.style.columnRule = "2px solid red"; // DEBUG: show column boundaries
       // stride = full viewport width (both columns + gap = one "page")
       stride = vpW + COLUMN_GAP;
       void content.offsetWidth; // force reflow before measuring
@@ -1280,15 +1279,7 @@
   }
 
   function goTo(p, animate) {
-    const prevPage = page;
     page = Math.max(0, Math.min(total - 1, p));
-    if (animate) {
-      const cs = getComputedStyle(content).transform;
-      const m = cs.match(/matrix\(([^)]+)\)/);
-      const curTx = m ? parseFloat(m[1].split(",")[4]) : "none";
-      const ccs = getComputedStyle(content);
-      console.log("goTo:", prevPage, "→", page, "stride:", stride, "tx:", -(page * stride), "fromTx:", curTx, "scrollW:", content.scrollWidth, "total:", total, "computedColW:", ccs.columnWidth, "computedColCount:", ccs.columnCount);
-    }
     const anim = animate ? (prefs.pageAnim || "slide") : "none";
     if (anim === "fade") {
       content.style.transition = "opacity 140ms ease";
@@ -1333,12 +1324,7 @@
   }
 
   function pageOfElement(el) {
-    const prevT = content.style.transform, prevTr = content.style.transition;
-    content.style.transition = "none";
-    content.style.transform = "translate3d(0,0,0)";
     const x = el.getBoundingClientRect().left - content.getBoundingClientRect().left;
-    content.style.transform = prevT;
-    content.style.transition = prevTr;
     return Math.max(0, Math.min(total - 1, Math.round(x / stride)));
   }
 
@@ -1441,14 +1427,7 @@
   function pageOfWord(i) {
     const range = wordRange(i);
     if (!range) return 0;
-    // Temporarily reset transform to measure true position
-    const prevT = content.style.transform;
-    const prevTr = content.style.transition;
-    content.style.transition = "none";
-    content.style.transform = "translate3d(0,0,0)";
     const x = range.getBoundingClientRect().left - content.getBoundingClientRect().left;
-    content.style.transform = prevT;
-    content.style.transition = prevTr;
     return Math.max(0, Math.min(total - 1, Math.floor(x / stride)));
   }
 
