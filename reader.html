@@ -1232,6 +1232,7 @@
         content.style.columnWidth = vpW + "px";
       }
       content.style.columnGap = COLUMN_GAP + "px";
+      content.style.columnRule = "2px solid red"; // DEBUG: show column boundaries
       // stride = full viewport width (both columns + gap = one "page")
       stride = vpW + COLUMN_GAP;
       void content.offsetWidth; // force reflow before measuring
@@ -1285,7 +1286,8 @@
       const cs = getComputedStyle(content).transform;
       const m = cs.match(/matrix\(([^)]+)\)/);
       const curTx = m ? parseFloat(m[1].split(",")[4]) : "none";
-      console.log("goTo:", prevPage, "→", page, "stride:", stride, "tx:", -(page * stride), "fromTx:", curTx, "expectedFrom:", -(prevPage * stride), "cols:", prefs.columns, "vpW:", content.clientWidth);
+      const ccs = getComputedStyle(content);
+      console.log("goTo:", prevPage, "→", page, "stride:", stride, "tx:", -(page * stride), "fromTx:", curTx, "scrollW:", content.scrollWidth, "total:", total, "computedColW:", ccs.columnWidth, "computedColCount:", ccs.columnCount);
     }
     const anim = animate ? (prefs.pageAnim || "slide") : "none";
     if (anim === "fade") {
