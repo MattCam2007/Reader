@@ -1194,10 +1194,35 @@
 
   // ---------- Pagination ----------
   let docModelBuilt = false;
+  let paginateGen = 0; // cancels in-progress progressive restores
   function isScrollMode() { return prefs.layout === "scroll"; }
 
+  function applyColumns() {
+    content.style.transition = "none";
+    content.style.transform = "translate3d(0,0,0)";
+    const vpW = content.clientWidth;
+    let cols = 1;
+    if (prefs.columns === "2" || (prefs.columns === "auto" && vpW > 700)) cols = 2;
+    if (cols === 2) {
+      content.style.columnCount = "2";
+      content.style.columnWidth = "";
+    } else {
+      content.style.columnCount = "";
+      content.style.columnWidth = vpW + "px";
+    }
+    content.style.columnGap = COLUMN_GAP + "px";
+    stride = vpW + COLUMN_GAP;
+  }
+
+  function measureTotal() {
+    void content.offsetWidth;
+    total = Math.max(1, Math.round(content.scrollWidth / stride));
+    progressEl.max = String(total - 1);
+  }
+
   function paginate(keepFraction, fractionOnly) {
-    // Capture position before re-layout: prefer word locator, fall back to fraction
+    paginateGen++;
+    const gen = paginateGen;
     let savedLoc = null;
     const frac = (keepFraction && total > 1) ? page / (total - 1) : 0;
     if (keepFraction && !fractionOnly && docModelBuilt && doc.words.length) {
@@ -1205,7 +1230,6 @@
     }
 
     if (isScrollMode()) {
-      // Scroll mode: no columns, no transform
       content.style.columnWidth = "";
       content.style.columnGap = "";
       content.style.columnCount = "";
@@ -1214,41 +1238,8 @@
       total = 1;
       page = 0;
       progressEl.max = "0";
-    } else {
-      content.style.transition = "none";
-      content.style.transform = "translate3d(0,0,0)";
-      const vpW = content.clientWidth;
-      // U19a: two-column support
-      let cols = 1;
-      if (prefs.columns === "2" || (prefs.columns === "auto" && vpW > 700)) {
-        cols = 2;
-      }
-      const colW = cols === 2 ? Math.floor((vpW - COLUMN_GAP) / 2) : vpW;
-      if (cols === 2) {
-        content.style.columnCount = "2";
-        content.style.columnWidth = "";
-      } else {
-        content.style.columnCount = "";
-        content.style.columnWidth = vpW + "px";
-      }
-      content.style.columnGap = COLUMN_GAP + "px";
-      // stride = full viewport width (both columns + gap = one "page")
-      stride = vpW + COLUMN_GAP;
-      void content.offsetWidth; // force reflow before measuring
-      total = Math.max(1, Math.round(content.scrollWidth / stride));
-      progressEl.max = String(total - 1);
-    }
-
-    // Build model on first paginate; re-paginates only re-measure geometry
-    if (!docModelBuilt) {
-      buildDocModel();
-      docModelBuilt = true;
-    }
-
-    if (isScrollMode()) {
-      // Restore scroll position from locator
-      if (fractionOnly) setTimeout(buildChapterIndex, 0);
-      else buildChapterIndex();
+      if (!docModelBuilt) { buildDocModel(); docModelBuilt = true; }
+      buildChapterIndex();
       if (savedLoc && doc.words.length) {
         const wi = resolveLocator(savedLoc);
         if (wi >= 0) scrollToWord(wi);
@@ -1256,7 +1247,60 @@
       return;
     }
 
-    // Restore position: prefer locator, fall back to fraction
+    // Fast path: hide off-screen chapters so reflow only processes nearby text
+    const chaps = content.querySelectorAll(".chap");
+    const canFast = fractionOnly && docModelBuilt && doc.words.length > 0 && chaps.length > 3;
+    let hidden = [];
+
+    if (canFast) {
+      const estWordIdx = Math.min(Math.round(frac * (doc.words.length - 1)), doc.words.length - 1);
+      const curSec = doc.words[estWordIdx].section;
+      // Estimate fraction within the visible chapters
+      const firstSec = Math.max(0, curSec - 1);
+      const lastSec = Math.min(doc.sections.length - 1, curSec + 1);
+      const visStart = doc.sections[firstSec].wordStart;
+      const visEnd = doc.sections[lastSec].wordEnd;
+      const visFrac = visEnd > visStart ? (estWordIdx - visStart) / (visEnd - visStart) : 0;
+
+      chaps.forEach((c, i) => {
+        if (i < firstSec || i > lastSec) {
+          c.style.display = "none";
+          hidden.push(c);
+        }
+      });
+
+      applyColumns();
+      measureTotal();
+      page = Math.max(0, Math.min(total - 1, Math.round(visFrac * (total - 1))));
+      goTo(page, false);
+
+      // Progressive restore: un-hide chapters in batches so UI stays responsive
+      const BATCH = 5;
+      let idx = 0;
+      function restoreBatch() {
+        if (gen !== paginateGen) return; // cancelled by newer paginate call
+        const batch = hidden.slice(idx, idx + BATCH);
+        if (!batch.length) {
+          // All restored — final measurement
+          applyColumns();
+          measureTotal();
+          page = Math.max(0, Math.min(total - 1, Math.round(frac * (total - 1))));
+          goTo(page, false);
+          buildChapterIndex();
+          return;
+        }
+        batch.forEach(c => c.style.display = "");
+        idx += BATCH;
+        requestAnimationFrame(restoreBatch);
+      }
+      requestAnimationFrame(restoreBatch);
+      return;
+    }
+
+    // Full path: measure everything synchronously
+    applyColumns();
+    measureTotal();
+    if (!docModelBuilt) { buildDocModel(); docModelBuilt = true; }
     if (savedLoc && doc.words.length) {
       const wi = resolveLocator(savedLoc);
       if (wi >= 0) {
@@ -1268,8 +1312,7 @@
       page = Math.max(0, Math.min(total - 1, Math.round(frac * (total - 1))));
     }
     goTo(page, false);
-    if (fractionOnly) setTimeout(buildChapterIndex, 0);
-    else buildChapterIndex();
+    buildChapterIndex();
   }
 
   // U19: scroll to a specific word in scroll mode
@@ -2357,13 +2400,13 @@
     if (!btn) return;
     prefs.font = btn.dataset.font;
     applyPrefs(); savePrefs();
-    document.fonts.ready.then(() => requestAnimationFrame(() => paginate(true, true)));
+    document.fonts.ready.then(() => paginate(true, true));
   });
   document.getElementById("imagesSeg").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-images]");
     if (!btn) return;
     prefs.images = btn.dataset.images === "true";
-    applyPrefs(); savePrefs(); requestAnimationFrame(() => paginate(true, true));
+    applyPrefs(); savePrefs(); paginate(true, true);
   });
   document.getElementById("notePopSeg").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-notepop]");
@@ -2376,13 +2419,13 @@
     const btn = e.target.closest("[data-margin]");
     if (!btn) return;
     prefs.margin = btn.dataset.margin;
-    applyPrefs(); savePrefs(); requestAnimationFrame(() => paginate(true, true));
+    applyPrefs(); savePrefs(); paginate(true, true);
   });
   document.getElementById("paraSeg").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-para]");
     if (!btn) return;
     prefs.paraSpacing = btn.dataset.para;
-    applyPrefs(); savePrefs(); requestAnimationFrame(() => paginate(true, true));
+    applyPrefs(); savePrefs(); paginate(true, true);
   });
   document.getElementById("lineHeightDown").addEventListener("click", () => changeLineHeight(-0.1));
   document.getElementById("lineHeightUp").addEventListener("click", () => changeLineHeight(0.1));
@@ -2390,14 +2433,14 @@
     const next = Math.round(Math.max(1.0, Math.min(2.4, prefs.lineHeight + dir)) * 10) / 10;
     if (next === prefs.lineHeight) return;
     prefs.lineHeight = next;
-    applyPrefs(); savePrefs(); requestAnimationFrame(() => paginate(true, true));
+    applyPrefs(); savePrefs(); paginate(true, true);
   }
   // U16: alignment & hyphenation
   document.getElementById("alignSeg").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-align]");
     if (!btn) return;
     prefs.align = btn.dataset.align;
-    applyPrefs(); savePrefs(); requestAnimationFrame(() => paginate(true, true));
+    applyPrefs(); savePrefs(); paginate(true, true);
   });
   document.getElementById("selectionSeg").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-sel]");
@@ -2416,13 +2459,13 @@
     const btn = e.target.closest("[data-layout]");
     if (!btn) return;
     prefs.layout = btn.dataset.layout;
-    applyPrefs(); savePrefs(); requestAnimationFrame(() => paginate(true, true));
+    applyPrefs(); savePrefs(); paginate(true, true);
   });
   document.getElementById("columnsSeg").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-cols]");
     if (!btn) return;
     prefs.columns = btn.dataset.cols;
-    applyPrefs(); savePrefs(); requestAnimationFrame(() => paginate(true, true));
+    applyPrefs(); savePrefs(); paginate(true, true);
   });
   document.getElementById("sizeDown").addEventListener("click", () => changeSize(-1));
   document.getElementById("sizeUp").addEventListener("click", () => changeSize(1));
@@ -2430,7 +2473,7 @@
     const next = Math.max(MIN_SIZE, Math.min(MAX_SIZE, prefs.size + dir * 2));
     if (next === prefs.size) return;
     prefs.size = next;
-    applyPrefs(); savePrefs(); requestAnimationFrame(() => paginate(true, true));
+    applyPrefs(); savePrefs(); paginate(true, true);
   }
 
   let resizeTimer = null;
