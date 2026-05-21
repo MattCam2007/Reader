@@ -190,6 +190,23 @@
   .content small { font-size: 0.85em; }
   .content u { text-decoration: underline; }
 
+  /* ---------- Cover page ---------- */
+  .content #cover {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    break-after: column;
+    -webkit-column-break-after: always;
+  }
+  .content #cover img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
   /* ---------- Images & figures (U5) ---------- */
   .content .blk-figure {
     margin: 0.8em 0;
@@ -2080,6 +2097,52 @@
     }
   }
 
+  async function findCoverImage(book) {
+    const tryBlob = async (path) => {
+      try {
+        if (book.archive && typeof book.archive.getBlob === "function") {
+          const b = await book.archive.getBlob(path);
+          if (b && b.size) return URL.createObjectURL(b);
+        }
+      } catch (_) {}
+      try {
+        if (book.archive && typeof book.archive.request === "function") {
+          const b = await book.archive.request(path, "blob");
+          if (b instanceof Blob && b.size) return URL.createObjectURL(b);
+        }
+      } catch (_) {}
+      return null;
+    };
+    // 1. EPUB3: manifest item with cover-image property
+    try {
+      const manifest = book.packaging && book.packaging.manifest;
+      if (manifest) {
+        for (const item of Object.values(manifest)) {
+          if (item.properties && item.properties.indexOf("cover-image") >= 0 && item.href) {
+            const url = await tryBlob(item.href);
+            if (url) return url;
+          }
+        }
+      }
+    } catch (_) {}
+    // 2. EPUB2: <meta name="cover" content="id"/> pointing to manifest item
+    try {
+      const meta = book.packaging && book.packaging.metadata;
+      const manifest = book.packaging && book.packaging.manifest;
+      if (meta && meta.cover && manifest && manifest[meta.cover]) {
+        const url = await tryBlob(manifest[meta.cover].href);
+        if (url) return url;
+      }
+    } catch (_) {}
+    // 3. Filename fallback: common cover image names
+    const names = ["cover.jpeg", "cover.jpg", "cover.png", "images/cover.jpeg", "images/cover.jpg", "images/cover.png", "OEBPS/cover.jpeg", "OEBPS/cover.jpg", "OEBPS/cover.png", "OEBPS/images/cover.jpeg", "OEBPS/images/cover.jpg", "OEBPS/images/cover.png"];
+    for (const name of names) {
+      const url = await tryBlob(name);
+      if (url) return url;
+    }
+    return null;
+  }
+
   async function loadEpub(file) {
     showLoading("Loading " + file.name + "…");
     closePanels();
@@ -2102,6 +2165,17 @@
       const chars = sections.reduce((n, s) => n + s.blocks.reduce((m, b) => m + b.text.length, 0), 0);
       if (chars < 32) {
         throw new Error("No readable text found (this EPUB may be image-only or DRM-protected).");
+      }
+
+      // Attempt to find and prepend a cover image as the first page
+      const coverUrl = await findCoverImage(book);
+      if (coverUrl) {
+        blobUrls.push(coverUrl);
+        const img = document.createElement("img");
+        img.src = coverUrl;
+        const frag = document.createDocumentFragment();
+        frag.appendChild(img);
+        sections.unshift({ href: "__cover__", blocks: [{ type: "figure", text: "", id: "cover", frag }] });
       }
 
       const meta = (book.packaging && book.packaging.metadata) || {};
