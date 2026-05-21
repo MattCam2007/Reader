@@ -1197,6 +1197,7 @@
   // ---------- Pagination ----------
   let docModelBuilt = false;
   let paginateGen = 0;
+  let pendingDetached = []; // chapters detached by paginateQuick awaiting reattach
   function isScrollMode() { return prefs.layout === "scroll"; }
 
   function setupColumns() {
@@ -1269,6 +1270,18 @@
     const t0 = T();
     paginateGen++;
     const gen = paginateGen;
+
+    // Reattach any chapters left detached by a cancelled previous call
+    if (pendingDetached.length) {
+      pendingDetached.forEach(d => {
+        if (d.marker.parentNode) {
+          d.marker.parentNode.insertBefore(d.el, d.marker);
+          d.marker.parentNode.removeChild(d.marker);
+        }
+      });
+      pendingDetached = [];
+    }
+
     const frac = total > 1 ? page / (total - 1) : 0;
 
     if (isScrollMode() || !docModelBuilt || doc.words.length === 0) {
@@ -1315,6 +1328,7 @@
     goTo(page, false);
     const t6 = T();
 
+    pendingDetached = detached;
     console.log("paginateQuick FAST: find=" + (t1-t0).toFixed(1) + "ms detach=" + (t2-t1).toFixed(1) + "ms setupCols=" + (t3-t2).toFixed(1) + "ms reflow=" + (t4-t3).toFixed(1) + "ms scrollW=" + (t5-t4).toFixed(1) + "ms goTo=" + (t6-t5).toFixed(1) + "ms TOTAL=" + (t6-t0).toFixed(1) + "ms");
 
     // Deferred: reattach all chapters, do one full correction
@@ -1324,10 +1338,13 @@
       const r0 = T();
       // Hide content during reflow so reattach doesn't cause a visible flicker
       content.style.visibility = "hidden";
-      detached.forEach(d => {
-        d.marker.parentNode.insertBefore(d.el, d.marker);
-        d.marker.parentNode.removeChild(d.marker);
+      pendingDetached.forEach(d => {
+        if (d.marker.parentNode) {
+          d.marker.parentNode.insertBefore(d.el, d.marker);
+          d.marker.parentNode.removeChild(d.marker);
+        }
       });
+      pendingDetached = [];
       const r1 = T();
       void content.offsetWidth;
       const r2 = T();
