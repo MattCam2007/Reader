@@ -1971,7 +1971,9 @@
         return;
       }
       if (tag0 === "figcaption") return; // handled inside figure
-      if (el.querySelector(SEL)) return; // keep only leaf blocks to avoid duplicate text
+      // Keep only leaf blocks — but img doesn't count as a nested block
+      const nestedBlock = el.querySelector(SEL.replace(",img", ""));
+      if (nestedBlock) return;
       const text = (el.textContent || "").replace(/\s+/g, " ").trim();
       const hasImg = el.querySelector("img");
       if (!text && !hasImg) return;
