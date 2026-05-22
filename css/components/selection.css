@@ -1,0 +1,36 @@
+/* Selection bar, search highlights */
+
+body.selection-on .reader-content {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.reader-sel-bar {
+  position: fixed;
+  z-index: 47;
+  display: flex;
+  gap: 0.2rem;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  box-shadow: 0 4px 16px var(--shadow);
+  padding: 0.3rem;
+}
+.reader-sel-bar button {
+  background: none;
+  border: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.reader-sel-bar button:active { background: var(--border); }
+
+::highlight(search-results) {
+  background-color: rgba(231, 76, 60, 0.3);
+  color: inherit;
+}

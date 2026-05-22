@@ -1,0 +1,79 @@
+/* Shared CSS custom properties, themes, and reset */
+
+@font-face {
+  font-family: 'OpenDyslexic';
+  src: url('../fonts/OpenDyslexic-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'OpenDyslexic';
+  src: url('../fonts/OpenDyslexic-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --bg: #1a1a1a;
+  --fg: #e8e8e8;
+  --content-fg: #d9d9d9;
+  --muted: rgba(232, 232, 232, 0.5);
+  --chrome-bg: rgba(22, 22, 22, 0.92);
+  --panel-bg: #232323;
+  --border: rgba(255, 255, 255, 0.12);
+  --accent: #e74c3c;
+  --shadow: rgba(0, 0, 0, 0.5);
+}
+
+body.theme-sepia {
+  --bg: #f4ecd8;
+  --fg: #5b4636;
+  --content-fg: #5b4636;
+  --muted: rgba(91, 70, 54, 0.6);
+  --chrome-bg: rgba(244, 236, 216, 0.94);
+  --panel-bg: #efe6cf;
+  --border: rgba(91, 70, 54, 0.2);
+  --accent: #b5651d;
+  --shadow: rgba(91, 70, 54, 0.25);
+}
+
+body.theme-light {
+  --bg: #ffffff;
+  --fg: #1f1f1f;
+  --content-fg: #262626;
+  --muted: rgba(0, 0, 0, 0.45);
+  --chrome-bg: rgba(255, 255, 255, 0.94);
+  --panel-bg: #f4f4f4;
+  --border: rgba(0, 0, 0, 0.12);
+  --accent: #c0392b;
+  --shadow: rgba(0, 0, 0, 0.18);
+}
+
+body.theme-oled {
+  --bg: #000000;
+  --fg: #cfcfcf;
+  --content-fg: #bfbfbf;
+  --muted: rgba(207, 207, 207, 0.5);
+  --chrome-bg: rgba(0, 0, 0, 0.94);
+  --panel-bg: #0a0a0a;
+  --border: rgba(255, 255, 255, 0.1);
+  --accent: #e74c3c;
+  --shadow: rgba(0, 0, 0, 0.7);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  overscroll-behavior: none;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}

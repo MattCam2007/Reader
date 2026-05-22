@@ -1,0 +1,8 @@
+/* Paginated reader - imports all component styles */
+@import url('tokens.css');
+@import url('components/content.css');
+@import url('components/chrome.css');
+@import url('components/drawers.css');
+@import url('components/controls.css');
+@import url('components/overlay.css');
+@import url('components/selection.css');
