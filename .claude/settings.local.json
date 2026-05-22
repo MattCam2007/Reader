@@ -4,7 +4,16 @@
       "Bash(git add:*)",
       "Bash(ls -d /workspace/Reader/.claude/worktrees/*/)",
       "Bash(git -C /workspace/Reader log --oneline -10)",
-      "Bash(sed -n '/<script>/,/<\\\\/script>/p' reader.html | sed '1d;$d' > /tmp/reader_check.js && node --check /tmp/reader_check.js 2>&1)"
+      "Bash(sed -n '/<script>/,/<\\\\/script>/p' reader.html | sed '1d;$d' > /tmp/reader_check.js && node --check /tmp/reader_check.js 2>&1)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:www.cssscript.com)",
+      "WebFetch(domain:portalzine.de)",
+      "WebFetch(domain:www.jsdelivr.com)",
+      "WebFetch(domain:cdn.jsdelivr.net)",
+      "WebFetch(domain:app.unpkg.com)",
+      "Bash(git revert:*)"
     ]
   }
 }
