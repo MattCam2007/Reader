@@ -3,6 +3,9 @@ import { toLocator, resolveLocator, exportTokens } from '../model/locator.js';
 import { blocksFromDoc, sanitizeInline } from '../epub/extractor.js';
 import { EventBus } from '../core/events.js';
 import { FONT_MAP, SETTINGS, DEFAULT_PREFS } from '../core/constants.js';
+import { PrefsManager } from '../core/prefs.js';
+import { buildDocModel } from '../model/doc-model.js';
+import { buildChapterIndex } from '../reader/chapters.js';
 
 export function runSelftest(state) {
   const results = [];
@@ -80,6 +83,142 @@ export function runSelftest(state) {
   assert("extractor", "blocksFromDoc returns blocks", blocks.length >= 2);
   assert("extractor", "blocksFromDoc has h1", blocks.some(b => b.type === "h1"));
   assert("extractor", "blocksFromDoc has p", blocks.some(b => b.type === "p"));
+
+  // --- core/prefs ---
+  {
+    const prefs = new PrefsManager();
+    assert("prefs", "defaults match DEFAULT_PREFS shape",
+      Object.keys(DEFAULT_PREFS).every(k => k in prefs.data));
+    assert("prefs", "default theme is string", typeof prefs.data.theme === "string");
+    assert("prefs", "default size is number", typeof prefs.data.size === "number");
+
+    // get() returns correct values
+    assert("prefs", "get() returns default theme", prefs.get("theme") === DEFAULT_PREFS.theme);
+    assert("prefs", "get() returns default size", prefs.get("size") === DEFAULT_PREFS.size);
+
+    // set() updates data AND emits events
+    let emittedKey = null, emittedValue = null;
+    prefs.on("theme", (val) => { emittedValue = val; });
+    prefs.on("change", (key, val) => { emittedKey = key; });
+    prefs.set("theme", "sepia");
+    assert("prefs", "set() updates data", prefs.data.theme === "sepia");
+    assert("prefs", "set() emits key event", emittedValue === "sepia");
+    assert("prefs", "set() emits change event", emittedKey === "theme");
+    assert("prefs", "get() reflects set()", prefs.get("theme") === "sepia");
+  }
+
+  // --- core/events: off() and multiple listeners ---
+  {
+    const bus2 = new EventBus();
+
+    // off() unsubscribes
+    let offCount = 0;
+    const offFn = () => { offCount++; };
+    bus2.on("evt", offFn);
+    bus2.emit("evt");
+    assert("events", "listener fires before off()", offCount === 1);
+    bus2.off("evt", offFn);
+    bus2.emit("evt");
+    assert("events", "off() prevents further calls", offCount === 1);
+
+    // Multiple listeners on same event
+    let countA = 0, countB = 0;
+    bus2.on("multi", () => { countA++; });
+    bus2.on("multi", () => { countB++; });
+    bus2.emit("multi");
+    assert("events", "multiple listeners both fire", countA === 1 && countB === 1);
+
+    // on() returns unsubscribe function
+    let countC = 0;
+    const unsub = bus2.on("unsub-test", () => { countC++; });
+    bus2.emit("unsub-test");
+    assert("events", "on() return unsub — listener fires", countC === 1);
+    unsub();
+    bus2.emit("unsub-test");
+    assert("events", "on() return unsub — unsubscribed", countC === 1);
+  }
+
+  // --- model/doc-model: buildDocModel ---
+  {
+    const testContent = document.createElement("div");
+    testContent.innerHTML =
+      '<div class="chap" data-href="ch1">' +
+        '<div class="blk">Hello world</div>' +
+        '<div class="blk">Second block here</div>' +
+      '</div>' +
+      '<div class="chap" data-href="ch2">' +
+        '<div class="blk">Chapter two text</div>' +
+      '</div>';
+
+    const testState = {
+      sectionBlockStart: [],
+      doc: { words: [], blocks: [], sections: [], text: "", wordCharStart: [] },
+    };
+    buildDocModel(testState, testContent);
+
+    assert("doc-model-build", "sections count = 2", testState.doc.sections.length === 2);
+    assert("doc-model-build", "blocks count = 3", testState.doc.blocks.length === 3);
+    assert("doc-model-build", "words populated (8 words expected)", testState.doc.words.length === 8);
+    assert("doc-model-build", "sectionBlockStart length matches sections",
+      testState.sectionBlockStart.length === testState.doc.sections.length);
+    assert("doc-model-build", "text is non-empty string", testState.doc.text.length > 0);
+    assert("doc-model-build", "wordCharStart aligned with words",
+      testState.doc.wordCharStart.length === testState.doc.words.length);
+
+    // Verify word entry shape
+    if (testState.doc.words.length > 0) {
+      const w = testState.doc.words[0];
+      assert("doc-model-build", "word has 'node' property", "node" in w);
+      assert("doc-model-build", "word has 'start' property", "start" in w);
+      assert("doc-model-build", "word has 'end' property", "end" in w);
+      assert("doc-model-build", "word.node is a Text node", w.node.nodeType === Node.TEXT_NODE);
+      assert("doc-model-build", "word.start is number", typeof w.start === "number");
+      assert("doc-model-build", "word.end > word.start", w.end > w.start);
+    }
+  }
+
+  // --- reader/chapters: buildChapterIndex ---
+  {
+    // Build a minimal content + state that buildChapterIndex can work with
+    const chapContent = document.createElement("div");
+    chapContent.innerHTML =
+      '<div class="chap" data-href="ch1"><div class="blk blk-h1">Chapter One</div></div>' +
+      '<div class="chap" data-href="ch2"><div class="blk blk-h2">Chapter Two</div></div>';
+    // Temporarily add to DOM so geometry can compute (pageOfElement needs layout)
+    chapContent.style.cssText = "position:absolute;left:-9999px;top:0;";
+    document.body.appendChild(chapContent);
+
+    const chapState = {
+      headingToc: [],
+      chapterIndex: [],
+      sectionEls: new Map(),
+      isScrollMode: false,
+      page: 0,
+      total: 1,
+    };
+    // Populate sectionEls from .chap elements
+    chapContent.querySelectorAll(".chap").forEach(el => {
+      chapState.sectionEls.set(el.dataset.href, el);
+    });
+
+    try {
+      buildChapterIndex(chapState, chapContent);
+      assert("chapters", "chapterIndex is an array", Array.isArray(chapState.chapterIndex));
+      assert("chapters", "chapterIndex has entries", chapState.chapterIndex.length > 0);
+      if (chapState.chapterIndex.length > 0) {
+        const entry = chapState.chapterIndex[0];
+        assert("chapters", "entry has 'label' property", "label" in entry);
+        assert("chapters", "entry has 'page' property", "page" in entry);
+        assert("chapters", "label is a string", typeof entry.label === "string");
+        assert("chapters", "page is a number", typeof entry.page === "number");
+      }
+    } catch (e) {
+      assert("chapters", "buildChapterIndex runs without error", false);
+      console.warn("chapters:selftest", e);
+    } finally {
+      document.body.removeChild(chapContent);
+    }
+  }
 
   // --- Report ---
   console.log("=== Reader Selftest ===");

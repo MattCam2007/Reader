@@ -87,13 +87,19 @@ export class InputHandler {
         this.callbacks.dismissNotePopover();
         return;
       }
+      // Don't capture navigation keys when an input/textarea has focus
+      const tag = document.activeElement && document.activeElement.tagName;
+      const inInput = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
       if (e.key === "ArrowRight" || e.key === "PageDown" || e.code === "Space") {
+        if (inInput) return;
         e.preventDefault();
         this.pagination.next();
       } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
+        if (inInput) return;
         e.preventDefault();
         this.pagination.prev();
       } else if (e.key === "Escape") {
+        this.callbacks.dismissCoach();
         this.callbacks.closePanels();
       }
     });

@@ -63,6 +63,31 @@ body.theme-oled {
   --shadow: rgba(0, 0, 0, 0.7);
 }
 
+/* Auto light/dark based on OS preference (before JS sets an explicit theme class) */
+@media (prefers-color-scheme: light) {
+  body:not(.theme-sepia):not(.theme-light):not(.theme-oled):not(.theme-dark) {
+    --bg: #ffffff;
+    --fg: #1f1f1f;
+    --content-fg: #262626;
+    --muted: rgba(0, 0, 0, 0.45);
+    --chrome-bg: rgba(255, 255, 255, 0.94);
+    --panel-bg: #f4f4f4;
+    --border: rgba(0, 0, 0, 0.12);
+    --accent: #c0392b;
+    --shadow: rgba(0, 0, 0, 0.18);
+  }
+}
+
+/* Reduced motion: disable transitions and animations */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {

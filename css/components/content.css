@@ -249,6 +249,6 @@ body.layout-scroll .reader-content {
 body.layout-scroll .reader-scrub { display: none; }
 
 /* Page animation */
-.reader-content.anim-fade {
-  transition: opacity 180ms ease !important;
+body:not(.layout-scroll) .reader-content.anim-fade {
+  transition: opacity 180ms ease;
 }

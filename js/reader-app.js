@@ -1,4 +1,4 @@
-import { FONT_MAP, FONT_SERIF, MARGINS, THEME_COLORS, SETTINGS, RESIZE_DEBOUNCE_MS, SAVE_DEBOUNCE_MS } from './core/constants.js';
+import { FONT_MAP, FONT_SERIF, THEME_COLORS, SETTINGS, RESIZE_DEBOUNCE_MS, SAVE_DEBOUNCE_MS, MIN_SIZE, MAX_SIZE } from './core/constants.js';
 import { PrefsManager } from './core/prefs.js';
 import { ReaderState } from './core/state.js';
 import { StorageManager } from './core/storage.js';
@@ -99,6 +99,8 @@ const focusTraps = {
 };
 
 // ---------- Panels ----------
+let _lastPanelTrigger = null;
+
 function updateAriaExpanded() {
   els.tocBtn.setAttribute("aria-expanded", String(document.body.classList.contains("show-toc")));
   els.settingsBtn.setAttribute("aria-expanded", String(document.body.classList.contains("show-settings")));
@@ -109,27 +111,37 @@ function closePanels() {
   document.body.classList.remove("show-toc", "show-settings", "show-search");
   search.clearHighlights();
   updateAriaExpanded();
+  if (_lastPanelTrigger) {
+    _lastPanelTrigger.focus();
+    _lastPanelTrigger = null;
+  }
 }
 
 function openTOC() {
+  _lastPanelTrigger = els.tocBtn;
   closePanels();
+  _lastPanelTrigger = els.tocBtn;
   document.body.classList.add("show-toc");
   document.body.classList.remove("chrome-hidden");
   updateAriaExpanded();
-  // Focus first item in TOC for keyboard users
   const firstItem = els.tocListEl.querySelector("button");
   if (firstItem) firstItem.focus();
 }
 
 function openSettings() {
+  _lastPanelTrigger = els.settingsBtn;
   closePanels();
+  _lastPanelTrigger = els.settingsBtn;
   document.body.classList.add("show-settings");
   updateAriaExpanded();
+  const first = els.settingsPanel.querySelector("button, input");
+  if (first) first.focus();
 }
 
 function dismissCoach() {
   if (els.coachEl && !els.coachEl.classList.contains("hide")) {
     els.coachEl.classList.add("hide");
+    els.coachEl.setAttribute("aria-hidden", "true");
     try { localStorage.setItem("reader:hinted", "1"); } catch (e) { console.warn("coach:dismiss", e); }
   }
 }
@@ -164,9 +176,10 @@ function clearOverlay() {
 // ---------- Prefs application (Phase 4: each concern subscribes) ----------
 function applyPrefs() {
   const p = prefs.data;
-  // Theme
-  document.body.classList.remove("theme-sepia", "theme-light", "theme-oled");
-  if (p.theme === "sepia") document.body.classList.add("theme-sepia");
+  // Theme (explicit theme-dark class prevents prefers-color-scheme override)
+  document.body.classList.remove("theme-dark", "theme-sepia", "theme-light", "theme-oled");
+  if (p.theme === "dark") document.body.classList.add("theme-dark");
+  else if (p.theme === "sepia") document.body.classList.add("theme-sepia");
   else if (p.theme === "light") document.body.classList.add("theme-light");
   else if (p.theme === "oled") document.body.classList.add("theme-oled");
 
@@ -221,7 +234,9 @@ function syncAllSegButtons() {
     const val = s.transform ? String(p[s.pref]) : p[s.pref];
     seg.querySelectorAll(".reader-seg-btn").forEach(btn => {
       const dataVal = btn.dataset[s.attr];
-      btn.classList.toggle("active", dataVal === String(val));
+      const isActive = dataVal === String(val);
+      btn.classList.toggle("active", isActive);
+      btn.setAttribute("aria-pressed", String(isActive));
     });
   }
 }
@@ -265,7 +280,7 @@ function wireSettings() {
 }
 
 function changeSize(dir) {
-  const next = Math.max(14, Math.min(30, prefs.data.size + dir * 2));
+  const next = Math.max(MIN_SIZE, Math.min(MAX_SIZE, prefs.data.size + dir * 2));
   if (next === prefs.data.size) return;
   prefs.data.size = next;
   applyPrefs();
@@ -405,7 +420,7 @@ async function loadFromUrl(url) {
 }
 
 // ---------- Wiring ----------
-els.searchBtn.addEventListener("click", () => { search.open(); updateAriaExpanded(); });
+els.searchBtn.addEventListener("click", () => { _lastPanelTrigger = els.searchBtn; search.open(); updateAriaExpanded(); });
 els.searchInput.addEventListener("input", (e) => search.run(e.target.value.trim()));
 els.tocBtn.addEventListener("click", openTOC);
 els.settingsBtn.addEventListener("click", openSettings);
@@ -422,13 +437,11 @@ els.content.addEventListener("click", (e) => footnotes.handleContentClick(e));
 
 wireSettings();
 
-// Scroll mode progress tracking
-let scrollSaveTimer = null;
+// Scroll mode progress tracking (storage.savePos has its own debounce)
 els.viewport.addEventListener("scroll", () => {
   if (!state.isScrollMode) return;
   chrome.updateProgress();
-  clearTimeout(scrollSaveTimer);
-  scrollSaveTimer = setTimeout(() => savePosMain(), SAVE_DEBOUNCE_MS);
+  savePosMain();
 }, { passive: true });
 
 // Resize
@@ -441,6 +454,15 @@ window.addEventListener("resize", () => {
 // ---------- Init ----------
 prefs.load();
 applyPrefs();
+
+// Respect prefers-color-scheme on first load (no stored prefs)
+if (!localStorage.getItem("reader:prefs")) {
+  const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
+  if (prefersLight) {
+    prefs.data.theme = "light";
+    applyPrefs();
+  }
+}
 
 // Respect prefers-reduced-motion
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -457,8 +479,12 @@ reduceMotion.addEventListener("change", (e) => {
 
 let hinted = false;
 try { hinted = localStorage.getItem("reader:hinted") === "1"; } catch (e) { console.warn("init:hinted", e); }
-if (hinted) els.coachEl.classList.add("hide");
-else setTimeout(dismissCoach, 6000);
+if (hinted) {
+  els.coachEl.classList.add("hide");
+} else {
+  els.coachEl.setAttribute("aria-hidden", "false");
+  setTimeout(dismissCoach, 6000);
+}
 
 const srcUrl = urlParams.get("src");
 if (srcUrl) {
