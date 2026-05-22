@@ -519,6 +519,33 @@
           <div class="picker-pointer"></div>
         </div>
       </div>
+      <div class="picker" aria-label="Comma pause intensity">
+        <div class="picker-display"><span id="commaValue">50</span><span class="picker-unit">COMMA %</span></div>
+        <div class="strip-wrap">
+          <div class="picker-strip" id="commaStrip">
+            <div class="picker-track" id="commaTrack"></div>
+          </div>
+          <div class="picker-pointer"></div>
+        </div>
+      </div>
+      <div class="picker" aria-label="Period pause intensity">
+        <div class="picker-display"><span id="periodValue">120</span><span class="picker-unit">PERIOD %</span></div>
+        <div class="strip-wrap">
+          <div class="picker-strip" id="periodStrip">
+            <div class="picker-track" id="periodTrack"></div>
+          </div>
+          <div class="picker-pointer"></div>
+        </div>
+      </div>
+      <div class="picker" aria-label="Paragraph pause intensity">
+        <div class="picker-display"><span id="paraValue">150</span><span class="picker-unit">PARAGRAPH %</span></div>
+        <div class="strip-wrap">
+          <div class="picker-strip" id="paraStrip">
+            <div class="picker-track" id="paraTrack"></div>
+          </div>
+          <div class="picker-pointer"></div>
+        </div>
+      </div>
       <div class="picker-actions">
         <button class="action-btn" id="openEpubBtn" type="button">Open EPUB</button>
       </div>
@@ -561,6 +588,9 @@ This was invitation enough.
   // 0 = no length boost; default 50 gives an 8-letter word ≈ 1.80x and a
   // 13-letter word ≈ 2.80x; 100 nearly doubles that again (≈2.60x and 4.60x).
   let lengthStrength = 50;
+  let commaPause     = 50;   // extra % for commas/semicolons/colons (50 → 1.5x)
+  let periodPause    = 120;  // extra % for sentence ends            (120 → 2.2x)
+  let paraPause      = 150;  // extra % for paragraph breaks         (150 → 2.5x)
   const LEN_THRESHOLD = 4;
   const LEN_SCALE = 250;
 
@@ -628,12 +658,12 @@ This was invitation enough.
   }
 
   function durationMultiplier(token) {
-    if (token === PARAGRAPH_BREAK) return 2.5;
+    if (token === PARAGRAPH_BREAK) return 1 + paraPause / 100;
     let m = lengthMultiplier(token.length);
     const trimmed = token.replace(TRAILING_CLOSERS, "");
     const last = trimmed.charAt(trimmed.length - 1);
-    if (last === "," || last === ";" || last === ":") m = Math.max(m, 1.5);
-    if (endsSentence(token)) m = Math.max(m, 2.2);
+    if (last === "," || last === ";" || last === ":") m = Math.max(m, 1 + commaPause / 100);
+    if (endsSentence(token)) m = Math.max(m, 1 + periodPause / 100);
     return m;
   }
 
@@ -1074,11 +1104,37 @@ This was invitation enough.
     onChange: (v) => { lengthStrength = v; },
   });
 
-  // The LENGTH picker starts inside a closed <details>, so it has no width to
-  // lay out against until the panel is opened. Re-center it on first open.
+  const commaPicker = createPicker({
+    stripId: "commaStrip", trackId: "commaTrack", valueId: "commaValue",
+    min: 0, max: 200, step: 10, majorEvery: 50,
+    initial: commaPause,
+    onChange: (v) => { commaPause = v; },
+  });
+
+  const periodPicker = createPicker({
+    stripId: "periodStrip", trackId: "periodTrack", valueId: "periodValue",
+    min: 0, max: 300, step: 10, majorEvery: 100,
+    initial: periodPause,
+    onChange: (v) => { periodPause = v; },
+  });
+
+  const paraPicker = createPicker({
+    stripId: "paraStrip", trackId: "paraTrack", valueId: "paraValue",
+    min: 0, max: 400, step: 10, majorEvery: 100,
+    initial: paraPause,
+    onChange: (v) => { paraPause = v; },
+  });
+
+  // Pickers inside a closed <details> have no width to lay out against until
+  // the panel is opened. Re-center them on first open.
   const settingsEl = document.getElementById("settings");
   settingsEl.addEventListener("toggle", () => {
-    if (settingsEl.open) requestAnimationFrame(lenPicker.relayout);
+    if (settingsEl.open) requestAnimationFrame(() => {
+      lenPicker.relayout();
+      commaPicker.relayout();
+      periodPicker.relayout();
+      paraPicker.relayout();
+    });
   });
 
   // ---------- EPUB loading ----------
