@@ -1,8 +1,9 @@
 import { SELECTION_DEBOUNCE_MS } from '../core/constants.js';
 
 export class SelectionManager {
-  constructor(state) {
+  constructor(state, signal) {
     this.state = state;
+    this._signal = signal;
     this._selBar = null;
     this._timer = null;
     this._bindEvents();
@@ -15,7 +16,7 @@ export class SelectionManager {
       if (!sel || sel.isCollapsed) { this.dismiss(); return; }
       clearTimeout(this._timer);
       this._timer = setTimeout(() => this._show(), SELECTION_DEBOUNCE_MS);
-    });
+    }, { signal: this._signal });
   }
 
   _show() {

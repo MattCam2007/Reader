@@ -2,22 +2,27 @@ import { DEFAULT_PREFS, MIN_SIZE, MAX_SIZE } from './constants.js';
 import { EventBus } from './events.js';
 
 export class PrefsManager extends EventBus {
-  constructor() {
+  constructor({ storageKey = 'reader:prefs', defaults = DEFAULT_PREFS, version = 1 } = {}) {
     super();
-    this.data = Object.assign({}, DEFAULT_PREFS);
+    this.storageKey = storageKey;
+    this.defaults = defaults;
+    this.version = version;
+    this.data = Object.assign({}, defaults);
   }
 
   load() {
     try {
-      const raw = localStorage.getItem("reader:prefs");
+      const raw = localStorage.getItem(this.storageKey);
       if (raw) Object.assign(this.data, JSON.parse(raw));
     } catch (e) { console.warn("prefs:load", e); }
-    this.data.size = Math.max(MIN_SIZE, Math.min(MAX_SIZE, this.data.size | 0 || 19));
-    if (!this.data.v) this.data.v = 1;
+    if (this.data.size !== undefined) {
+      this.data.size = Math.max(MIN_SIZE, Math.min(MAX_SIZE, this.data.size | 0 || 19));
+    }
+    if (!this.data.v) this.data.v = this.version;
   }
 
   save() {
-    try { localStorage.setItem("reader:prefs", JSON.stringify(this.data)); }
+    try { localStorage.setItem(this.storageKey, JSON.stringify(this.data)); }
     catch (e) { console.warn("prefs:save", e); }
   }
 

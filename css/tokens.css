@@ -25,6 +25,26 @@
   --border: rgba(255, 255, 255, 0.12);
   --accent: #e74c3c;
   --shadow: rgba(0, 0, 0, 0.5);
+  --fg-muted: rgba(255,255,255,0.55);
+  --fg-dim: #cfcfcf;
+  --accent-glow: rgba(231,76,60,0.5);
+  --accent-dim: rgba(231,76,60,0.22);
+  --accent-border: rgba(231,76,60,0.7);
+  --accent-pressed: #c0392b;
+  --control-bg: rgba(255,255,255,0.06);
+  --control-bg-hover: rgba(255,255,255,0.14);
+  --control-bg-active: rgba(255,255,255,0.08);
+  --border-mid: rgba(255,255,255,0.14);
+  --border-faint: rgba(255,255,255,0.07);
+  --guide: rgba(255,255,255,0.18);
+  --guide-tick: rgba(255,255,255,0.55);
+  --tick-mark: rgba(255,255,255,0.22);
+  --tick-major: rgba(255,255,255,0.45);
+  --tick-label: rgba(255,255,255,0.5);
+  --break-orp: rgba(232,232,232,0.3);
+  --pause-dim: 0.55;
+  --word-size: clamp(2.5rem, 8vw, 4.5rem);
+  --word-font: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
 body.theme-sepia {
@@ -37,6 +57,23 @@ body.theme-sepia {
   --border: rgba(91, 70, 54, 0.2);
   --accent: #b5651d;
   --shadow: rgba(91, 70, 54, 0.25);
+  --fg-muted: rgba(59,46,26,0.55);
+  --fg-dim: #5a4a30;
+  --accent-glow: rgba(160,82,45,0.35);
+  --accent-dim: rgba(160,82,45,0.18);
+  --accent-border: rgba(160,82,45,0.5);
+  --accent-pressed: #8b4513;
+  --control-bg: rgba(60,40,10,0.06);
+  --control-bg-hover: rgba(60,40,10,0.10);
+  --control-bg-active: rgba(60,40,10,0.08);
+  --border-mid: rgba(60,40,10,0.15);
+  --border-faint: rgba(60,40,10,0.08);
+  --guide: rgba(60,40,10,0.18);
+  --guide-tick: rgba(60,40,10,0.50);
+  --tick-mark: rgba(60,40,10,0.20);
+  --tick-major: rgba(60,40,10,0.40);
+  --tick-label: rgba(60,40,10,0.45);
+  --break-orp: rgba(59,46,26,0.3);
 }
 
 body.theme-light {
@@ -49,6 +86,23 @@ body.theme-light {
   --border: rgba(0, 0, 0, 0.12);
   --accent: #c0392b;
   --shadow: rgba(0, 0, 0, 0.18);
+  --fg-muted: rgba(0,0,0,0.50);
+  --fg-dim: #444;
+  --accent-glow: rgba(192,57,43,0.35);
+  --accent-dim: rgba(192,57,43,0.15);
+  --accent-border: rgba(192,57,43,0.5);
+  --accent-pressed: #a93226;
+  --control-bg: rgba(0,0,0,0.04);
+  --control-bg-hover: rgba(0,0,0,0.08);
+  --control-bg-active: rgba(0,0,0,0.06);
+  --border-mid: rgba(0,0,0,0.12);
+  --border-faint: rgba(0,0,0,0.06);
+  --guide: rgba(0,0,0,0.15);
+  --guide-tick: rgba(0,0,0,0.45);
+  --tick-mark: rgba(0,0,0,0.18);
+  --tick-major: rgba(0,0,0,0.38);
+  --tick-label: rgba(0,0,0,0.45);
+  --break-orp: rgba(30,30,30,0.3);
 }
 
 body.theme-oled {
@@ -61,6 +115,23 @@ body.theme-oled {
   --border: rgba(255, 255, 255, 0.1);
   --accent: #e74c3c;
   --shadow: rgba(0, 0, 0, 0.7);
+  --fg-muted: rgba(207,207,207,0.50);
+  --fg-dim: #999;
+  --accent-glow: rgba(231,76,60,0.5);
+  --accent-dim: rgba(231,76,60,0.22);
+  --accent-border: rgba(231,76,60,0.7);
+  --accent-pressed: #c0392b;
+  --control-bg: rgba(255,255,255,0.06);
+  --control-bg-hover: rgba(255,255,255,0.14);
+  --control-bg-active: rgba(255,255,255,0.08);
+  --border-mid: rgba(255,255,255,0.10);
+  --border-faint: rgba(255,255,255,0.05);
+  --guide: rgba(255,255,255,0.15);
+  --guide-tick: rgba(207,207,207,0.50);
+  --tick-mark: rgba(255,255,255,0.18);
+  --tick-major: rgba(255,255,255,0.38);
+  --tick-label: rgba(207,207,207,0.45);
+  --break-orp: rgba(207,207,207,0.3);
 }
 
 /* Auto light/dark based on OS preference (before JS sets an explicit theme class) */
@@ -75,6 +146,23 @@ body.theme-oled {
     --border: rgba(0, 0, 0, 0.12);
     --accent: #c0392b;
     --shadow: rgba(0, 0, 0, 0.18);
+    --fg-muted: rgba(0,0,0,0.50);
+    --fg-dim: #444;
+    --accent-glow: rgba(192,57,43,0.35);
+    --accent-dim: rgba(192,57,43,0.15);
+    --accent-border: rgba(192,57,43,0.5);
+    --accent-pressed: #a93226;
+    --control-bg: rgba(0,0,0,0.04);
+    --control-bg-hover: rgba(0,0,0,0.08);
+    --control-bg-active: rgba(0,0,0,0.06);
+    --border-mid: rgba(0,0,0,0.12);
+    --border-faint: rgba(0,0,0,0.06);
+    --guide: rgba(0,0,0,0.15);
+    --guide-tick: rgba(0,0,0,0.45);
+    --tick-mark: rgba(0,0,0,0.18);
+    --tick-major: rgba(0,0,0,0.38);
+    --tick-label: rgba(0,0,0,0.45);
+    --break-orp: rgba(30,30,30,0.3);
   }
 }
 

@@ -2,7 +2,8 @@
 export const FONT_SERIF = 'Georgia, "Iowan Old Style", "Palatino Linotype", Cambria, "Times New Roman", serif';
 export const FONT_SANS  = 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 export const FONT_DYSLEXIC = '"OpenDyslexic", "Comic Sans MS", cursive';
-export const FONT_MAP = { serif: FONT_SERIF, sans: FONT_SANS, dyslexic: FONT_DYSLEXIC };
+export const FONT_MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace';
+export const FONT_MAP = { serif: FONT_SERIF, sans: FONT_SANS, dyslexic: FONT_DYSLEXIC, mono: FONT_MONO };
 
 // Layout
 export const COLUMN_GAP = 40;

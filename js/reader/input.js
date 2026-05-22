@@ -5,11 +5,12 @@ import {
 } from '../core/constants.js';
 
 export class InputHandler {
-  constructor(state, els, pagination, callbacks) {
+  constructor(state, els, pagination, callbacks, signal) {
     this.state = state;
     this.els = els;
     this.pagination = pagination;
     this.callbacks = callbacks; // { toggleChrome, dismissCoach, closePanels, dismissSelBar, dismissNotePopover, activePopoverRef }
+    this._signal = signal;
 
     // Private touch state
     this._dragging = false;
@@ -25,6 +26,7 @@ export class InputHandler {
 
   _bindEvents() {
     const { viewport, content } = this.els;
+    const signal = this._signal;
 
     viewport.addEventListener("touchstart", (e) => {
       this.callbacks.dismissCoach();
@@ -36,7 +38,7 @@ export class InputHandler {
       this._baseTx = -(this.state.page * this.state.stride);
       this._decided = null;
       this._dragging = true;
-    }, { passive: true });
+    }, { passive: true, signal });
 
     viewport.addEventListener("touchmove", (e) => {
       if (!this._dragging) return;
@@ -57,7 +59,7 @@ export class InputHandler {
         if (tx < min) tx = min + (tx - min) * 0.3;
         content.style.setProperty("--page-offset", tx + "px");
       }
-    }, { passive: false });
+    }, { passive: false, signal });
 
     viewport.addEventListener("touchend", (e) => {
       if (!this._dragging) return;
@@ -74,13 +76,13 @@ export class InputHandler {
       } else if (this._decided !== "v" && Math.abs(dx) < 10 && Math.abs(dy) < 10 && (Date.now() - this._startT) < TAP_TIMEOUT_MS) {
         this._handleTap(this._startX);
       }
-    }, { passive: true });
+    }, { passive: true, signal });
 
     viewport.addEventListener("click", (e) => {
       this.callbacks.dismissCoach();
       if (Date.now() - this._lastTouchEnd < SYNTHETIC_CLICK_GUARD_MS) return;
       this._handleTap(e.clientX);
-    });
+    }, { signal });
 
     document.addEventListener("keydown", (e) => {
       if (this.callbacks.activePopoverRef() && e.key === "Escape") {
@@ -102,7 +104,7 @@ export class InputHandler {
         this.callbacks.dismissCoach();
         this.callbacks.closePanels();
       }
-    });
+    }, { signal });
   }
 
   _handleTap(x) {

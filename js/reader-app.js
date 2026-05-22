@@ -18,6 +18,10 @@ import { buildSample } from '../fixtures/sample.js';
 import { runSelftest } from './test/selftest.js';
 import { trapFocus } from './reader/focus-trap.js';
 
+// ---------- Abort signal for listener cleanup ----------
+const controller = new AbortController();
+const { signal } = controller;
+
 // ---------- DOM elements ----------
 const els = {
   viewport:      document.getElementById("viewport"),
@@ -89,13 +93,13 @@ function goToLocator(loc) {
 const search = new SearchManager(state, els, goToLocator, closePanels);
 
 // ---------- Selection ----------
-const selection = new SelectionManager(state);
+const selection = new SelectionManager(state, signal);
 
 // ---------- Focus traps ----------
 const focusTraps = {
-  toc: trapFocus(els.toc),
-  settings: trapFocus(els.settingsPanel),
-  search: trapFocus(els.searchPanel),
+  toc: trapFocus(els.toc, signal),
+  settings: trapFocus(els.settingsPanel, signal),
+  search: trapFocus(els.searchPanel, signal),
 };
 
 // ---------- Panels ----------
@@ -154,7 +158,7 @@ const input = new InputHandler(state, els, pagination, {
   dismissSelBar: () => selection.dismiss(),
   dismissNotePopover: () => footnotes.dismiss(),
   activePopoverRef: () => footnotes.activePopover,
-});
+}, signal);
 
 // ---------- Overlay ----------
 function showLoading(msg) {
@@ -420,20 +424,20 @@ async function loadFromUrl(url) {
 }
 
 // ---------- Wiring ----------
-els.searchBtn.addEventListener("click", () => { _lastPanelTrigger = els.searchBtn; search.open(); updateAriaExpanded(); });
-els.searchInput.addEventListener("input", (e) => search.run(e.target.value.trim()));
-els.tocBtn.addEventListener("click", openTOC);
-els.settingsBtn.addEventListener("click", openSettings);
-els.backdrop.addEventListener("click", closePanels);
-els.openBtn.addEventListener("click", () => els.fileInput.click());
-els.overlayBtn.addEventListener("click", () => els.fileInput.click());
+els.searchBtn.addEventListener("click", () => { _lastPanelTrigger = els.searchBtn; search.open(); updateAriaExpanded(); }, { signal });
+els.searchInput.addEventListener("input", (e) => search.run(e.target.value.trim()), { signal });
+els.tocBtn.addEventListener("click", openTOC, { signal });
+els.settingsBtn.addEventListener("click", openSettings, { signal });
+els.backdrop.addEventListener("click", closePanels, { signal });
+els.openBtn.addEventListener("click", () => els.fileInput.click(), { signal });
+els.overlayBtn.addEventListener("click", () => els.fileInput.click(), { signal });
 els.fileInput.addEventListener("change", (e) => {
   const file = e.target.files && e.target.files[0];
   e.target.value = "";
   if (file) loadEpub(file);
-});
-els.progressEl.addEventListener("input", () => pagination.goTo(parseInt(els.progressEl.value, 10) || 0, false));
-els.content.addEventListener("click", (e) => footnotes.handleContentClick(e));
+}, { signal });
+els.progressEl.addEventListener("input", () => pagination.goTo(parseInt(els.progressEl.value, 10) || 0, false), { signal });
+els.content.addEventListener("click", (e) => footnotes.handleContentClick(e), { signal });
 
 wireSettings();
 
@@ -442,14 +446,14 @@ els.viewport.addEventListener("scroll", () => {
   if (!state.isScrollMode) return;
   chrome.updateProgress();
   savePosMain();
-}, { passive: true });
+}, { passive: true, signal });
 
 // Resize
 let resizeTimer = null;
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => pagination.paginateQuick(), RESIZE_DEBOUNCE_MS);
-});
+}, { signal });
 
 // ---------- Init ----------
 prefs.load();
@@ -475,7 +479,7 @@ reduceMotion.addEventListener("change", (e) => {
     applyPrefs();
     prefs.save();
   }
-});
+}, { signal });
 
 let hinted = false;
 try { hinted = localStorage.getItem("reader:hinted") === "1"; } catch (e) { console.warn("init:hinted", e); }

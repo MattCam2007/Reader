@@ -137,3 +137,84 @@ export async function extractSections(book, onProgress) {
   }
   return { sections, allImgUrls };
 }
+
+/* ── Plain-text extraction for RSVP speed reader ── */
+
+const BLOCK_TAGS_TEXT = new Set([
+  "P", "DIV", "SECTION", "ARTICLE",
+  "H1", "H2", "H3", "H4", "H5", "H6",
+  "LI", "BLOCKQUOTE", "PRE", "DT", "DD",
+]);
+const SKIP_TAGS_TEXT = new Set([
+  "SCRIPT", "STYLE", "NAV", "HEADER", "FOOTER",
+  "ASIDE", "FORM", "BUTTON", "SELECT", "INPUT",
+  "NOSCRIPT", "TEMPLATE", "IMG", "FIGURE", "FIGCAPTION",
+]);
+
+function walkForText(node, buf) {
+  if (!node) return;
+  if (node.nodeType === 3) { buf.push(node.nodeValue); return; }
+  if (node.nodeType !== 1) return;
+  const tag = node.tagName.toUpperCase();
+  if (SKIP_TAGS_TEXT.has(tag)) return;
+  if (tag === "BR") { buf.push("\n"); return; }
+  const isBlock = BLOCK_TAGS_TEXT.has(tag);
+  if (isBlock) buf.push("\n\n");
+  for (const child of node.childNodes) walkForText(child, buf);
+  if (isBlock) buf.push("\n\n");
+}
+
+function extractTextFromDoc(docOrEl) {
+  const root = rootOf(docOrEl);
+  if (!root) return "";
+  const buf = [];
+  walkForText(root, buf);
+  let text = buf.join("");
+  text = text.replace(/\u00a0/g, " ");
+  text = text.replace(/[^\S\n]+/g, " ");
+  text = text.replace(/ ?\n ?/g, "\n");
+  text = text.replace(/\n{3,}/g, "\n\n");
+  return text.trim();
+}
+
+function extractChapterTitle(docOrEl, fallbackNum) {
+  const root = rootOf(docOrEl);
+  if (!root || !root.querySelector) return "Chapter " + fallbackNum;
+  for (const sel of ["h1", "h2", "h3", "title"]) {
+    const el = root.querySelector(sel);
+    if (el) {
+      const t = el.textContent.trim();
+      if (t && t.length < 80) return t;
+    }
+  }
+  return "Chapter " + fallbackNum;
+}
+
+export async function extractPlainText(book, onProgress) {
+  const items = (book.spine && book.spine.spineItems) || [];
+  if (!items.length) throw new Error("This EPUB has no readable spine items.");
+  const parts = [];
+  const chapterMeta = [];
+  let totalWords = 0;
+  for (let i = 0; i < items.length; i++) {
+    const section = items[i];
+    if (onProgress) onProgress(i + 1, items.length);
+    try {
+      const doc = await section.load(book.load.bind(book));
+      const text = extractTextFromDoc(doc);
+      if (text) {
+        const title = extractChapterTitle(doc, chapterMeta.length + 1);
+        chapterMeta.push({ title, wordOffset: totalWords });
+        totalWords += text.split(/\s+/).filter(Boolean).length;
+        parts.push(text);
+      }
+    } catch (e) {
+      console.warn("extractor:plaintext", section && section.href, e);
+    } finally {
+      if (section && typeof section.unload === "function") {
+        try { section.unload(); } catch (_) {}
+      }
+    }
+  }
+  return { text: parts.join("\n\n"), chapters: chapterMeta };
+}
