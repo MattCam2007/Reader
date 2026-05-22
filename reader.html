@@ -458,6 +458,78 @@
     transition: opacity 180ms ease !important;
   }
 
+  /* Page-curl animation overlay */
+  .content-clip.curl-fwd::before,
+  .content-clip.curl-fwd::after,
+  .content-clip.curl-back::before,
+  .content-clip.curl-back::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  /* Forward turn: fold sweeps right-to-left */
+  .content-clip.curl-fwd::before {
+    width: 60px;
+    left: var(--curl-x, 100%);
+    transform: translateX(-50%);
+    background: linear-gradient(to right,
+      transparent 0%,
+      rgba(0,0,0,0.10) 18%,
+      rgba(0,0,0,0.03) 35%,
+      rgba(255,255,255,0.10) 48%,
+      rgba(255,255,255,0.14) 52%,
+      rgba(0,0,0,0.04) 60%,
+      rgba(0,0,0,0.18) 78%,
+      transparent 100%
+    );
+    transition: left var(--curl-dur, 300ms) cubic-bezier(0.35,0.7,0.35,1);
+  }
+  .content-clip.curl-fwd::after {
+    width: 100px;
+    left: var(--curl-x, 100%);
+    transform: translateX(0);
+    background: linear-gradient(to left,
+      transparent 0%,
+      rgba(0,0,0,0.06) 50%,
+      rgba(0,0,0,0.14) 100%
+    );
+    transition: left var(--curl-dur, 300ms) cubic-bezier(0.35,0.7,0.35,1);
+  }
+
+  /* Backward turn: fold sweeps left-to-right */
+  .content-clip.curl-back::before {
+    width: 60px;
+    left: var(--curl-x, 0%);
+    transform: translateX(-50%);
+    background: linear-gradient(to left,
+      transparent 0%,
+      rgba(0,0,0,0.10) 18%,
+      rgba(0,0,0,0.03) 35%,
+      rgba(255,255,255,0.10) 48%,
+      rgba(255,255,255,0.14) 52%,
+      rgba(0,0,0,0.04) 60%,
+      rgba(0,0,0,0.18) 78%,
+      transparent 100%
+    );
+    transition: left var(--curl-dur, 300ms) cubic-bezier(0.35,0.7,0.35,1);
+  }
+  .content-clip.curl-back::after {
+    width: 100px;
+    left: auto;
+    right: calc(100% - var(--curl-x, 0%));
+    transform: translateX(-30px);
+    background: linear-gradient(to right,
+      transparent 0%,
+      rgba(0,0,0,0.06) 50%,
+      rgba(0,0,0,0.14) 100%
+    );
+    transition: right var(--curl-dur, 300ms) cubic-bezier(0.35,0.7,0.35,1);
+  }
+
   /* ---------- Top header (info only) ---------- */
 
   .topbar {
@@ -968,6 +1040,7 @@
       <span class="settings-label">Page turn</span>
       <div class="seg" id="pageAnimSeg">
         <button class="seg-btn" data-anim="slide" type="button">Slide</button>
+        <button class="seg-btn" data-anim="curl" type="button">Curl</button>
         <button class="seg-btn" data-anim="fade" type="button">Fade</button>
         <button class="seg-btn" data-anim="none" type="button">None</button>
       </div>
@@ -1014,6 +1087,7 @@
 
   // ---------- DOM ----------
   const viewport      = document.getElementById("viewport");
+  const contentClip   = document.getElementById("contentClip");
   const content       = document.getElementById("content");
   const bookTitleEl   = document.getElementById("bookTitle");
   const progressEl    = document.getElementById("progress");
@@ -1363,7 +1437,9 @@
     viewport.scrollTop += rect.top - viewport.getBoundingClientRect().top - 20;
   }
 
+  let curlTimer = 0;
   function goTo(p, animate) {
+    const oldPage = page;
     page = Math.max(0, Math.min(total - 1, p));
     const anim = animate ? (prefs.pageAnim || "slide") : "none";
     if (anim === "fade") {
@@ -1375,6 +1451,46 @@
         content.style.transition = "opacity 140ms ease";
         content.style.opacity = "1";
       }, 150);
+    } else if (anim === "curl") {
+      clearTimeout(curlTimer);
+      if (page === oldPage) {
+        // Snap back — animate curl back to edge, slide content back
+        content.style.transition = "transform 200ms ease-out";
+        content.style.transform = "translate3d(" + (-(page * stride)) + "px,0,0)";
+        contentClip.style.setProperty("--curl-dur", "200ms");
+        if (contentClip.classList.contains("curl-fwd"))
+          contentClip.style.setProperty("--curl-x", "100%");
+        else
+          contentClip.style.setProperty("--curl-x", "0%");
+        curlTimer = setTimeout(() => {
+          contentClip.classList.remove("curl-fwd", "curl-back");
+        }, 220);
+        updateProgress();
+        savePos();
+        return;
+      }
+      const fwd = page > oldPage;
+      const alreadyTracking = contentClip.classList.contains("curl-fwd") || contentClip.classList.contains("curl-back");
+      if (!alreadyTracking) {
+        // Tap/click: set up initial position at the edge
+        contentClip.style.setProperty("--curl-dur", "0ms");
+        contentClip.style.setProperty("--curl-x", fwd ? "100%" : "0%");
+        contentClip.classList.add(fwd ? "curl-fwd" : "curl-back");
+        void contentClip.offsetWidth; // force style calc
+      } else {
+        // Touch drag: already tracking, ensure correct direction class
+        contentClip.classList.remove("curl-fwd", "curl-back");
+        contentClip.classList.add(fwd ? "curl-fwd" : "curl-back");
+      }
+      // Animate fold across
+      contentClip.style.setProperty("--curl-dur", "300ms");
+      contentClip.style.setProperty("--curl-x", fwd ? "0%" : "100%");
+      // Slide content underneath
+      content.style.transition = "transform 300ms cubic-bezier(0.35,0.7,0.35,1)";
+      content.style.transform = "translate3d(" + (-(page * stride)) + "px,0,0)";
+      curlTimer = setTimeout(() => {
+        contentClip.classList.remove("curl-fwd", "curl-back");
+      }, 320);
     } else if (anim === "slide") {
       content.style.transition = "transform 240ms cubic-bezier(0.22,0.61,0.36,1)";
       content.style.transform = "translate3d(" + (-(page * stride)) + "px,0,0)";
@@ -2330,6 +2446,23 @@
       if (tx > max) tx = max + (tx - max) * 0.3;          // edge resistance
       if (tx < min) tx = min + (tx - min) * 0.3;
       content.style.transform = "translate3d(" + tx + "px,0,0)";
+      // Interactive curl overlay tracks finger
+      if (prefs.pageAnim === "curl") {
+        const vpW = viewport.clientWidth;
+        const progress = Math.min(1, Math.abs(dx) / vpW);
+        const fwd = dx < 0;
+        if (progress > 0.02) {
+          clearTimeout(curlTimer);
+          contentClip.classList.remove("curl-fwd", "curl-back");
+          contentClip.style.setProperty("--curl-dur", "0ms");
+          contentClip.style.setProperty("--curl-x", fwd
+            ? ((1 - progress) * 100) + "%"
+            : (progress * 100) + "%");
+          contentClip.classList.add(fwd ? "curl-fwd" : "curl-back");
+        } else {
+          contentClip.classList.remove("curl-fwd", "curl-back");
+        }
+      }
     }
   }, { passive: false });
 
@@ -2623,7 +2756,7 @@ This was invitation enough.
     prefs.pageAnim = "none";
   }
   reduceMotion.addEventListener("change", (e) => {
-    if (e.matches && prefs.pageAnim === "slide") {
+    if (e.matches && (prefs.pageAnim === "slide" || prefs.pageAnim === "curl")) {
       prefs.pageAnim = "none";
       applyPrefs(); savePrefs();
     }
