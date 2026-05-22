@@ -16,6 +16,7 @@ import { SelectionManager } from './reader/selection.js';
 import { FootnoteManager } from './reader/footnotes.js';
 import { buildSample } from '../fixtures/sample.js';
 import { runSelftest } from './test/selftest.js';
+import { trapFocus } from './reader/focus-trap.js';
 
 // ---------- DOM elements ----------
 const els = {
@@ -44,6 +45,9 @@ const els = {
   brightnessSlider: document.getElementById("brightnessSlider"),
   warmthSlider:  document.getElementById("warmthSlider"),
   lineHeightDisplay: document.getElementById("lineHeightDisplay"),
+  toc:           document.getElementById("toc"),
+  settingsPanel: document.getElementById("settings"),
+  searchPanel:   document.getElementById("searchPanel"),
 };
 
 // ---------- State & Prefs ----------
@@ -87,13 +91,41 @@ const search = new SearchManager(state, els, goToLocator, closePanels);
 // ---------- Selection ----------
 const selection = new SelectionManager(state);
 
+// ---------- Focus traps ----------
+const focusTraps = {
+  toc: trapFocus(els.toc),
+  settings: trapFocus(els.settingsPanel),
+  search: trapFocus(els.searchPanel),
+};
+
 // ---------- Panels ----------
+function updateAriaExpanded() {
+  els.tocBtn.setAttribute("aria-expanded", String(document.body.classList.contains("show-toc")));
+  els.settingsBtn.setAttribute("aria-expanded", String(document.body.classList.contains("show-settings")));
+  els.searchBtn.setAttribute("aria-expanded", String(document.body.classList.contains("show-search")));
+}
+
 function closePanels() {
   document.body.classList.remove("show-toc", "show-settings", "show-search");
   search.clearHighlights();
+  updateAriaExpanded();
 }
-function openTOC() { closePanels(); document.body.classList.add("show-toc"); document.body.classList.remove("chrome-hidden"); }
-function openSettings() { closePanels(); document.body.classList.add("show-settings"); }
+
+function openTOC() {
+  closePanels();
+  document.body.classList.add("show-toc");
+  document.body.classList.remove("chrome-hidden");
+  updateAriaExpanded();
+  // Focus first item in TOC for keyboard users
+  const firstItem = els.tocListEl.querySelector("button");
+  if (firstItem) firstItem.focus();
+}
+
+function openSettings() {
+  closePanels();
+  document.body.classList.add("show-settings");
+  updateAriaExpanded();
+}
 
 function dismissCoach() {
   if (els.coachEl && !els.coachEl.classList.contains("hide")) {
@@ -373,7 +405,7 @@ async function loadFromUrl(url) {
 }
 
 // ---------- Wiring ----------
-els.searchBtn.addEventListener("click", () => search.open());
+els.searchBtn.addEventListener("click", () => { search.open(); updateAriaExpanded(); });
 els.searchInput.addEventListener("input", (e) => search.run(e.target.value.trim()));
 els.tocBtn.addEventListener("click", openTOC);
 els.settingsBtn.addEventListener("click", openSettings);

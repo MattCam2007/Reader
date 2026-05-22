@@ -21,8 +21,7 @@ export class SearchManager {
   }
 
   close() {
-    document.body.classList.remove("show-search");
-    this.clearHighlights();
+    this.closePanelsFn();
   }
 
   run(query) {
