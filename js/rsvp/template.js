@@ -179,6 +179,7 @@ export function rsvpTemplate() {
       <div class="rsvp-actions">
         <button class="rsvp-action-btn" id="openEpubBtn" type="button">Open EPUB</button>
         <button class="rsvp-action-btn" id="modeBtn" type="button">Book Mode</button>
+        <button class="rsvp-action-btn" id="ttsModeBtn" type="button">Listen (TTS)</button>
         <button class="rsvp-action-btn" id="resetStatsBtn" type="button">Reset Stats</button>
       </div>
     </details>

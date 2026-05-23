@@ -457,12 +457,19 @@ export function init(options = {}) {
     resizeTimer = setTimeout(() => pagination.paginateQuick(), RESIZE_DEBOUNCE_MS);
   }, { signal });
 
-  // Mode switch button
+  // Mode switch buttons
   const modeBtn = document.getElementById("modeBtn");
   if (modeBtn && onModeSwitch) {
     modeBtn.addEventListener("click", () => {
       const fraction = getPositionFraction();
       onModeSwitch("rsvp", { fraction, bookId: state.bookId });
+    }, { signal });
+  }
+  const ttsModeBtn = document.getElementById("ttsModeBtn");
+  if (ttsModeBtn && onModeSwitch) {
+    ttsModeBtn.addEventListener("click", () => {
+      const fraction = getPositionFraction();
+      onModeSwitch("tts", { fraction, bookId: state.bookId });
     }, { signal });
   }
 

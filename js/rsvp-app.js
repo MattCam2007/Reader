@@ -208,7 +208,7 @@ export function init(options = {}) {
     }, { signal });
   }
 
-  // Mode toggle button
+  // Mode toggle buttons
   const modeBtn = document.getElementById("modeBtn");
   if (modeBtn && onModeSwitch) {
     modeBtn.addEventListener("click", (e) => {
@@ -216,6 +216,15 @@ export function init(options = {}) {
       playback.pause();
       const fraction = getPositionFraction();
       onModeSwitch("read", { fraction, bookId: state.bookId });
+    }, { signal });
+  }
+  const ttsModeBtn = document.getElementById("ttsModeBtn");
+  if (ttsModeBtn && onModeSwitch) {
+    ttsModeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      playback.pause();
+      const fraction = getPositionFraction();
+      onModeSwitch("tts", { fraction, bookId: state.bookId });
     }, { signal });
   }
 
