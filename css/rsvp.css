@@ -14,6 +14,8 @@ body.rsvp {
 /* ===== Topbar ===== */
 .rsvp-topbar {
   flex: 0 0 auto;
+  position: relative;
+  z-index: 30;
   background: var(--chrome-bg);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -35,10 +37,10 @@ body.rsvp {
 
 /* ===== Main area ===== */
 .rsvp-main {
-  position: relative;
-  flex: 1 1 auto;
+  position: fixed;
+  inset: 0;
   display: flex;
-  min-height: 0;
+  z-index: 1;
 }
 
 .rsvp-wrap {
@@ -47,7 +49,6 @@ body.rsvp {
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  min-height: 0;
   position: relative;
   cursor: pointer;
 }
@@ -220,10 +221,6 @@ body.error   .rsvp-display {
   -webkit-backdrop-filter: blur(14px);
   border-top: 1px solid var(--border);
   transition: transform 400ms ease, opacity 400ms ease;
-}
-
-.rsvp-main {
-  padding-bottom: 260px;
 }
 
 body.loading .rsvp-bottombar,
