@@ -91,13 +91,14 @@ export function init(options = {}) {
 
   // ---------- Engine ----------
   const engine = new TtsEngine({
+    onSentenceStart(index) {
+      currentSentenceIdx = index;
+      if (prefs.data.highlightMode === 'sentence') {
+        highlighter.highlightSentence(index);
+      }
+    },
     onSentenceEnd(index) {
       currentSentenceIdx = index + 1;
-    },
-    onBoundary({ sentenceIndex }) {
-      if (prefs.data.highlightMode === 'sentence') {
-        highlighter.highlightSentence(sentenceIndex);
-      }
     },
     onEnd() {
       setPlaying(false);
@@ -177,10 +178,94 @@ export function init(options = {}) {
 
   // ---------- Sentence segmentation ----------
   function splitSentences(text) {
-    // Split on sentence-ending punctuation followed by whitespace
     const marked = text.replace(/([.!?…])\s+/g, '$1\x00');
     const parts = marked.split('\x00');
     return parts.map(s => s.trim()).filter(Boolean);
+  }
+
+  // Split text nodes within el at the given sorted character offsets (in el.textContent coords)
+  function splitTextNodesAt(el, sortedPositions) {
+    if (!sortedPositions.length) return;
+    let charCount = 0;
+    const nodeSplits = [];
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let node;
+    let posIdx = 0;
+    while ((node = walker.nextNode()) && posIdx < sortedPositions.length) {
+      const len = node.textContent.length;
+      const local = [];
+      while (posIdx < sortedPositions.length && sortedPositions[posIdx] <= charCount + len) {
+        const off = sortedPositions[posIdx] - charCount;
+        if (off > 0 && off < len) local.push(off);
+        posIdx++;
+      }
+      if (local.length) nodeSplits.push([node, local]);
+      charCount += len;
+    }
+    // Apply splits largest-offset-first so earlier offsets stay valid on the original node
+    for (const [textNode, offsets] of nodeSplits) {
+      for (let i = offsets.length - 1; i >= 0; i--) {
+        textNode.splitText(offsets[i]);
+      }
+    }
+  }
+
+  // Return a Range spanning [startChar, endChar) within el.textContent
+  function charOffsetToRange(el, startChar, endChar) {
+    const range = document.createRange();
+    let charCount = 0;
+    let startSet = false, endSet = false;
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      const len = node.textContent.length;
+      if (!startSet && charCount + len > startChar) {
+        range.setStart(node, startChar - charCount);
+        startSet = true;
+      }
+      if (startSet && !endSet && charCount + len >= endChar) {
+        range.setEnd(node, endChar - charCount);
+        endSet = true;
+        break;
+      }
+      charCount += len;
+    }
+    return (startSet && endSet) ? range : null;
+  }
+
+  // Wrap each sentence's text in blockEl in a <span class="tts-sent">.
+  // Returns an array of highlight elements (spans, or blockEl as fallback).
+  function wrapBlockSentences(blockEl, sentenceTexts) {
+    const fullText = blockEl.textContent;
+    // Find character boundaries of each sentence in the block's raw textContent
+    const boundaries = [];
+    let searchFrom = 0;
+    for (const s of sentenceTexts) {
+      const idx = fullText.indexOf(s, searchFrom);
+      if (idx < 0) return sentenceTexts.map(() => blockEl); // fallback: can't locate
+      boundaries.push([idx, idx + s.length]);
+      searchFrom = idx + s.length;
+    }
+    // Pre-split text nodes at all sentence boundaries so ranges don't cross partial nodes
+    const allPositions = [...new Set(boundaries.flat())].sort((a, b) => a - b);
+    splitTextNodesAt(blockEl, allPositions);
+
+    // Wrap each sentence in a span
+    const spans = [];
+    for (const [start, end] of boundaries) {
+      const range = charOffsetToRange(blockEl, start, end);
+      if (!range) return sentenceTexts.map(() => blockEl);
+      try {
+        const span = document.createElement('span');
+        span.className = 'tts-sent';
+        range.surroundContents(span);
+        spans.push(span);
+      } catch (_) {
+        // Range crossed an element boundary (e.g. sentence ends inside <em>): fall back
+        return sentenceTexts.map(() => blockEl);
+      }
+    }
+    return spans;
   }
 
   function segmentContent() {
@@ -192,9 +277,12 @@ export function init(options = {}) {
       const text = blockEl.textContent.trim();
       if (!text) continue;
       const parts = splitSentences(text);
-      for (const part of parts) {
-        const wc = part.split(/\s+/).filter(Boolean).length;
-        result.push({ text: part, blockEl, wordOffset });
+      const highlightEls = parts.length > 1
+        ? wrapBlockSentences(blockEl, parts)
+        : [blockEl];
+      for (let i = 0; i < parts.length; i++) {
+        const wc = parts[i].split(/\s+/).filter(Boolean).length;
+        result.push({ text: parts[i], blockEl, highlightEl: highlightEls[i] || blockEl, wordOffset });
         wordOffset += wc;
       }
     }
@@ -213,9 +301,6 @@ export function init(options = {}) {
     const texts = sentences.map(s => s.text);
     engine.speakSentences(texts, currentSentenceIdx);
     setPlaying(true);
-    if (prefs.data.highlightMode === 'sentence' && sentences[currentSentenceIdx]) {
-      highlighter.highlightSentence(currentSentenceIdx);
-    }
   }
 
   function pause() {
@@ -251,10 +336,11 @@ export function init(options = {}) {
   function scrollToSentence(index) {
     const sent = sentences[index];
     if (sent) {
+      const el = sent.highlightEl || sent.blockEl;
       try {
-        sent.blockEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } catch (_) {
-        sent.blockEl.scrollIntoView(false);
+        el.scrollIntoView(false);
       }
     }
   }

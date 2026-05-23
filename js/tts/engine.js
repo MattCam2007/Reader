@@ -1,6 +1,7 @@
 export class TtsEngine {
-  constructor({ onBoundary, onSentenceEnd, onEnd, onError } = {}) {
+  constructor({ onBoundary, onSentenceStart, onSentenceEnd, onEnd, onError } = {}) {
     this._onBoundary = onBoundary;
+    this._onSentenceStart = onSentenceStart;
     this._onSentenceEnd = onSentenceEnd;
     this._onEnd = onEnd;
     this._onError = onError;
@@ -47,6 +48,7 @@ export class TtsEngine {
       return;
     }
     this._currentIndex = index;
+    if (this._onSentenceStart) this._onSentenceStart(index);
     const text = this._sentences[index];
     const utt = new SpeechSynthesisUtterance(text);
     if (this._voice) utt.voice = this._voice;

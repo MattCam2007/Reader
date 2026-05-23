@@ -137,6 +137,11 @@ body.images-off .tts-content .blk-figure { display: none; }
 
 /* ── Highlights ───────────────────────────────────── */
 
+/* Sentence span wrapper — no visual impact until highlighted */
+.tts-sent {
+  border-radius: 2px;
+}
+
 .tts-sentence-hl {
   background: var(--accent-dim);
   border-radius: 2px;

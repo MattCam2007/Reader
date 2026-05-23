@@ -19,12 +19,14 @@ export class TtsHighlighter {
     const sent = this._sentences[index];
     if (!sent) return;
 
-    // Remove previous
-    if (this._currentEl && this._currentEl !== sent.blockEl) {
+    const el = sent.highlightEl || sent.blockEl;
+
+    // Remove previous highlight (skip if same element — same paragraph, different sentence span)
+    if (this._currentEl && this._currentEl !== el) {
       this._currentEl.classList.remove('tts-sentence-hl');
     }
 
-    this._currentEl = sent.blockEl;
+    this._currentEl = el;
     this._currentEl.classList.add('tts-sentence-hl');
 
     if (this._autoScroll) {
