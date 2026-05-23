@@ -64,7 +64,7 @@ body.rsvp {
   font-size: var(--word-size);
   font-family: var(--word-font);
   padding: 0.45em 0;
-  --orp-position: 35%;
+  --orp-position: 50%;
 }
 
 .rsvp-guide {
