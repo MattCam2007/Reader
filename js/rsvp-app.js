@@ -228,6 +228,80 @@ export function init(options = {}) {
     }, { signal });
   }
 
+  // Settings panel
+  const settingsBtn = document.getElementById("settingsBtn");
+  if (settingsBtn) {
+    settingsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.body.classList.remove('show-toc');
+      const show = document.body.classList.toggle('rsvp-show-settings');
+      settingsBtn.setAttribute('aria-expanded', show);
+      if (show) {
+        requestAnimationFrame(() => {
+          lenPicker.relayout();
+          commaPicker.relayout();
+          periodPicker.relayout();
+          paraPicker.relayout();
+          fontSizePicker.relayout();
+          if (prefs.data.trainingEnabled) {
+            trainIncPicker.relayout();
+            trainIntPicker.relayout();
+            trainCeilPicker.relayout();
+          }
+        });
+      }
+    }, { signal });
+  }
+
+  // TOC panel
+  const tocBtn = document.getElementById("tocBtn");
+  const tocList = document.getElementById("tocList");
+
+  if (tocBtn) {
+    tocBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.body.classList.remove('rsvp-show-settings');
+      const show = document.body.classList.toggle('show-toc');
+      tocBtn.setAttribute('aria-expanded', show);
+    }, { signal });
+  }
+
+  // Backdrop closes all panels
+  const backdrop = document.getElementById("backdrop");
+  if (backdrop) {
+    backdrop.addEventListener('click', () => {
+      document.body.classList.remove('rsvp-show-settings', 'show-toc');
+      if (settingsBtn) settingsBtn.setAttribute('aria-expanded', 'false');
+      if (tocBtn) tocBtn.setAttribute('aria-expanded', 'false');
+    }, { signal });
+  }
+
+  function populateTocList() {
+    if (!tocList) return;
+    tocList.innerHTML = '';
+    if (!state.chapters.length) {
+      const empty = document.createElement('div');
+      empty.className = 'reader-toc-empty';
+      empty.textContent = 'Load an EPUB to see chapters.';
+      tocList.appendChild(empty);
+      return;
+    }
+    state.chapters.forEach((ch) => {
+      const btn = document.createElement('button');
+      btn.className = 'reader-toc-item';
+      btn.textContent = ch.title;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (state.playState === 'playing') playback.pause();
+        else if (state.playState === 'countdown') playback.cancelCountdown();
+        playback.seekTo(ch.tokenIdx);
+        document.body.classList.remove('show-toc');
+        if (tocBtn) tocBtn.setAttribute('aria-expanded', 'false');
+      }, { signal });
+      tocList.appendChild(btn);
+    });
+  }
+
   // ---------- Pickers ----------
   let wpmPicker, fontSizePicker, lenPicker, commaPicker, periodPicker, paraPicker;
   let trainIncPicker, trainIntPicker, trainCeilPicker;
@@ -299,25 +373,6 @@ export function init(options = {}) {
     onChange: (v) => { prefs.data.trainingCeiling = v; prefs.save(); },
   });
 
-  // Relayout pickers inside <details> on first open
-  const settingsEl = document.getElementById("rsvpSettings");
-  if (settingsEl) {
-    settingsEl.addEventListener("toggle", () => {
-      if (settingsEl.open) requestAnimationFrame(() => {
-        lenPicker.relayout();
-        commaPicker.relayout();
-        periodPicker.relayout();
-        paraPicker.relayout();
-        fontSizePicker.relayout();
-        if (prefs.data.trainingEnabled) {
-          trainIncPicker.relayout();
-          trainIntPicker.relayout();
-          trainCeilPicker.relayout();
-        }
-      });
-    }, { signal });
-  }
-
   // ---------- EPUB loading ----------
   function loadText(text, chapterMeta) {
     const result = tokenize(text);
@@ -331,6 +386,7 @@ export function init(options = {}) {
     }));
     state.isEpubLoaded = state.chapters.length > 0;
     chapters.update();
+    populateTocList();
 
     state.currentIdx = 0;
     state.rampRemaining = 0;
@@ -369,6 +425,9 @@ export function init(options = {}) {
       book = ePub(buffer);
       await book.ready;
 
+      const bookTitle = (book.packaging && book.packaging.metadata && book.packaging.metadata.title)
+        || file.name.replace(/\.epub$/i, '');
+
       const { text, chapters: chapterMeta } = await extractPlainText(book, (i, total) => {
         els.statusMsg.textContent = "Parsing\u2026 " + i + " / " + total;
       });
@@ -376,6 +435,8 @@ export function init(options = {}) {
         throw new Error("No readable text found in this EPUB (it may be image-only or DRM-protected).");
       }
       loadText(text, chapterMeta);
+      const bookTitleEl = document.getElementById("bookTitle");
+      if (bookTitleEl) bookTitleEl.textContent = bookTitle;
       if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId: state.bookId || file.name });
     } catch (err) {
       console.error("EPUB load failed:", err);

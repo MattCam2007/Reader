@@ -11,17 +11,25 @@ body.rsvp {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
-/* ===== Stats bar ===== */
-.rsvp-stats {
+/* ===== Topbar ===== */
+.rsvp-topbar {
   flex: 0 0 auto;
+  background: var(--chrome-bg);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+  padding: calc(env(safe-area-inset-top, 0px) + 0.6rem) 1rem 0.55rem;
+  text-align: center;
+}
+
+.rsvp-stats {
   display: flex;
   justify-content: center;
-  gap: 0.6rem;
-  padding: 0.35rem 0.9rem;
-  font-size: 0.7rem;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+  font-size: 0.68rem;
   color: var(--fg-muted);
   font-variant-numeric: tabular-nums;
-  border-bottom: 1px solid var(--border-faint);
 }
 .rsvp-stats-sep { opacity: 0.4; }
 
@@ -200,26 +208,34 @@ body.error   .rsvp-display {
 }
 .rsvp-status-msg.error { color: var(--accent); }
 
-/* ===== Controls panel ===== */
-.rsvp-controls {
+/* ===== Bottom bar ===== */
+.rsvp-bottombar {
   flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  padding: 0.5rem 0.9rem calc(0.6rem + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid var(--border-faint);
+  background: var(--chrome-bg);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-top: 1px solid var(--border);
   transition: transform 400ms ease, opacity 400ms ease;
 }
-body.loading .rsvp-controls,
-body.error   .rsvp-controls {
+
+body.loading .rsvp-bottombar,
+body.error   .rsvp-bottombar {
   opacity: 0;
   pointer-events: none;
 }
 
-body.fs-hide-controls .rsvp-controls {
+body.fs-hide-controls .rsvp-bottombar {
   transform: translateY(100%);
   opacity: 0;
   pointer-events: none;
+}
+
+/* ===== Controls panel ===== */
+.rsvp-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0.9rem 0.4rem;
 }
 
 /* ===== Chapter nav ===== */
@@ -253,14 +269,14 @@ body.fs-hide-controls .rsvp-controls {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.2rem;
 }
 
 .rsvp-seek-readout {
   text-align: center;
   font-variant-numeric: tabular-nums;
   color: var(--fg-muted);
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   letter-spacing: 0.02em;
 }
 
@@ -304,18 +320,29 @@ body.fs-hide-controls .rsvp-controls {
   box-shadow: 0 2px 8px var(--accent-glow);
 }
 
-/* ===== Grain buttons ===== */
+/* ===== Opts row (grain buttons) ===== */
+.rsvp-opts-row {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 40rem;
+  margin: 0 auto;
+  width: 100%;
+}
+.rsvp-opts-row .rsvp-grain {
+  flex: 1 1 0;
+}
+
 .rsvp-grain {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.3rem;
 }
 .rsvp-grain__btn {
   flex: 1 1 0;
-  padding: 0.5rem 0.6rem;
+  padding: 0.42rem 0.4rem;
   background: var(--control-bg);
   color: var(--fg-dim);
   font-family: inherit;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.02em;
   border: 1px solid var(--border-mid);
@@ -332,48 +359,68 @@ body.fs-hide-controls .rsvp-controls {
   background: var(--control-bg-hover);
 }
 
-/* ===== Transport ===== */
+/* ===== Transport row ===== */
+.rsvp-transport-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 40rem;
+  margin: 0 auto;
+  width: 100%;
+}
+.rsvp-transport-row > .picker {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-top: 0;
+}
+
 .rsvp-transport {
   display: flex;
-  gap: 0.4rem;
-  align-items: stretch;
-}
-.rsvp-nav-btn {
+  gap: 0.35rem;
+  align-items: center;
   flex: 0 0 auto;
-  min-width: 3rem;
-  padding: 0.5rem 0.6rem;
+}
+
+.rsvp-nav-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--control-bg-active);
+  width: 38px;
+  height: 38px;
+  background: var(--control-bg);
   color: var(--fg);
-  font-size: 1.1rem;
-  line-height: 1;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 50%;
   cursor: pointer;
+  flex-shrink: 0;
   -webkit-tap-highlight-color: transparent;
   touch-action: none;
+}
+.rsvp-nav-btn svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .rsvp-nav-btn:active { background: var(--control-bg-hover); }
 .rsvp-nav-btn:disabled { opacity: 0.3; }
 
 .rsvp-play-btn {
-  flex: 1 1 auto;
-  padding: 0.55rem 1rem;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 52px;
+  height: 52px;
   background: var(--accent);
-  color: #ffffff;
-  font-family: inherit;
-  font-size: 0.85rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  color: #fff;
   border: 0;
-  border-radius: 8px;
+  border-radius: 50%;
   cursor: pointer;
+  flex-shrink: 0;
   -webkit-tap-highlight-color: transparent;
   box-shadow: 0 4px 14px var(--accent-glow);
 }
@@ -381,84 +428,109 @@ body.fs-hide-controls .rsvp-controls {
   background: var(--accent-pressed);
   transform: translateY(1px);
 }
+.rsvp-play-btn svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+  fill: currentColor;
+  stroke: none;
+}
+.rsvp-pause-icon { display: none; }
+body:not(.paused):not(.loading):not(.error) .rsvp-play-icon { display: none; }
+body:not(.paused):not(.loading):not(.error) .rsvp-pause-icon { display: block; }
 
-/* ===== Settings ===== */
+.rsvp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ===== Settings sheet (slide-up) ===== */
 .rsvp-settings {
-  width: 100%;
-  max-width: 40rem;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
   margin: 0 auto;
+  max-width: 34rem;
+  max-height: 78vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  z-index: 50;
+  background: var(--panel-bg);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -8px 40px var(--shadow);
+  border-radius: 1.1rem 1.1rem 0 0;
+  transform: translateY(102%);
+  transition: transform 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  padding: 0.6rem 1.1rem calc(env(safe-area-inset-bottom, 0px) + 1.4rem);
 }
-.rsvp-settings > summary {
-  list-style: none;
-  cursor: pointer;
-  text-align: center;
-  color: var(--fg-muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  padding: 0.6rem;
-  -webkit-tap-highlight-color: transparent;
+.rsvp-settings::before {
+  content: "";
+  display: block;
+  width: 38px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  margin: 0.2rem auto 0.8rem;
 }
-.rsvp-settings > summary::-webkit-details-marker { display: none; }
+body.rsvp-show-settings .rsvp-settings { transform: translateY(0); }
+body.rsvp-show-settings .ui-backdrop { opacity: 1; pointer-events: auto; }
 
-.rsvp-settings-label {
+.rsvp-section-label {
   color: var(--fg-muted);
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  padding: 0.6rem 0 0.2rem;
-  text-align: center;
-}
-
-.rsvp-action-btn {
-  padding: 0.6rem 1.4rem;
-  background: var(--control-bg);
-  color: var(--fg);
-  font-family: inherit;
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  border: 1px solid var(--border-mid);
-  border-radius: 999px;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.rsvp-action-btn:active { background: var(--control-bg-hover); }
-
-.rsvp-actions {
-  display: flex;
-  justify-content: center;
-  gap: 0.5rem;
-  padding-top: 0.6rem;
+  padding: 0.8rem 0 0.25rem;
 }
 
 .rsvp-toggle-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.4rem 0;
+  padding: 0.5rem 0;
   color: var(--fg-muted);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   cursor: pointer;
+  border-bottom: 1px solid var(--border-faint);
   -webkit-tap-highlight-color: transparent;
 }
+.rsvp-toggle-row:last-of-type { border-bottom: 0; }
 .rsvp-toggle-row input[type="checkbox"] {
   accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 .rsvp-training-opts {
-  padding: 0.2rem 0;
+  padding: 0.1rem 0;
 }
+
+.rsvp-settings-actions {
+  display: flex;
+  justify-content: center;
+  padding-top: 1rem;
+}
+
+/* ===== Backdrop (shared with show-toc from drawers.css) ===== */
+body.show-toc .ui-backdrop { opacity: 1; pointer-events: auto; }
 
 /* ===== Reduced motion ===== */
 @media (prefers-reduced-motion: reduce) {
   .rsvp-display,
-  .rsvp-controls,
+  .rsvp-bottombar,
   .rsvp-status,
-  .rsvp-toast {
+  .rsvp-toast,
+  .rsvp-settings {
     transition: none !important;
   }
 }

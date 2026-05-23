@@ -19,7 +19,8 @@
   cursor: pointer;
 }
 .reader-seg-btn:active { background: var(--border); }
-.reader-seg-btn.active {
+.reader-seg-btn.active,
+.reader-seg-btn.is-active {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;

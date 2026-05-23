@@ -7,7 +7,7 @@ const READER_BODY_CLASSES = [
   'images-off', 'selection-on', 'layout-scroll',
 ];
 const RSVP_BODY_CLASSES = [
-  'rsvp', 'paused', 'loading', 'error', 'fs-hide-controls',
+  'rsvp', 'paused', 'loading', 'error', 'fs-hide-controls', 'rsvp-show-settings', 'show-toc',
 ];
 const TTS_BODY_CLASSES = [
   'tts', 'loading', 'error', 'show-toc', 'tts-show-settings', 'tts-show-voice', 'tts-playing',
