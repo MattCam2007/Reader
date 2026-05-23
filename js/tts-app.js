@@ -93,12 +93,19 @@ export function init(options = {}) {
   const engine = new TtsEngine({
     onSentenceStart(index) {
       currentSentenceIdx = index;
-      if (prefs.data.highlightMode === 'sentence') {
-        highlighter.highlightSentence(index);
-      }
+      highlighter.clearWordHighlight();
+      const mode = prefs.data.highlightMode;
+      if (mode === 'off') return;
+      if (mode === 'paragraph') highlighter.highlightParagraph(index);
+      else highlighter.highlightSentence(index); // 'sentence' or 'word'
     },
     onSentenceEnd(index) {
       currentSentenceIdx = index + 1;
+    },
+    onBoundary({ sentenceIndex, charIndex, charLength }) {
+      if (prefs.data.highlightMode === 'word') {
+        highlighter.highlightWord(sentenceIndex, charIndex, charLength);
+      }
     },
     onEnd() {
       setPlaying(false);
@@ -657,7 +664,11 @@ export function init(options = {}) {
         const btn = e.target.closest('[data-hl]');
         if (!btn) return;
         prefs.data.highlightMode = btn.dataset.hl;
-        if (btn.dataset.hl === 'off') highlighter.clearHighlight();
+        if (btn.dataset.hl === 'off') {
+          highlighter.clearHighlight();
+        } else {
+          highlighter.clearWordHighlight();
+        }
         applyPrefs();
         prefs.save();
       }, { signal });

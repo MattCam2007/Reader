@@ -124,7 +124,9 @@ export function ttsTemplate() {
     <div class="reader-settings-row">
       <span class="reader-settings-label">Highlight</span>
       <div class="reader-seg" id="ttsHighlightSeg">
+        <button class="reader-seg-btn" data-hl="word" type="button">Word</button>
         <button class="reader-seg-btn" data-hl="sentence" type="button">Sentence</button>
+        <button class="reader-seg-btn" data-hl="paragraph" type="button">Paragraph</button>
         <button class="reader-seg-btn" data-hl="off" type="button">Off</button>
       </div>
     </div>
