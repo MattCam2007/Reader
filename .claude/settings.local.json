@@ -13,7 +13,9 @@
       "WebFetch(domain:www.jsdelivr.com)",
       "WebFetch(domain:cdn.jsdelivr.net)",
       "WebFetch(domain:app.unpkg.com)",
-      "Bash(git revert:*)"
+      "Bash(git revert:*)",
+      "Bash(git commit:*)",
+      "Bash(node --check js/mode-switcher.js && node --check js/reader-app.js && node --check js/rsvp-app.js && node --check js/reader/template.js && node --check js/rsvp/template.js && echo \"All syntax OK\")"
     ]
   }
 }
