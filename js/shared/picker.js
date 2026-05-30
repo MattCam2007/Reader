@@ -84,5 +84,6 @@ export function createPicker(opts) {
     relayout,
     scrollTo: (v) => { current = v; scrollToValue(v, true); },
     getValue: () => current,
+    destroy() { window.removeEventListener("resize", relayout); },
   };
 }

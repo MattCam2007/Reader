@@ -119,7 +119,7 @@ export class InputHandler {
       return;
     }
     if (!document.body.classList.contains("chrome-hidden") &&
-        (document.body.classList.contains("show-toc") || document.body.classList.contains("show-settings"))) {
+        (document.body.classList.contains("show-toc") || document.body.classList.contains("show-search") || document.getElementById("settingsScreen"))) {
       this.callbacks.closePanels();
       return;
     }

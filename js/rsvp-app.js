@@ -1,4 +1,5 @@
 import { FONT_MAP, FONT_MONO, THEME_COLORS } from './core/constants.js';
+import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 import { PrefsManager } from './core/prefs.js';
 import { EventBus } from './core/events.js';
 import { extractPlainText } from './epub/extractor.js';
@@ -176,50 +177,30 @@ export function init(options = {}) {
     }, { signal });
   }
 
-  // ---------- Settings toggles ----------
-  function bindToggle(id, prefKey) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.checked = !!prefs.data[prefKey];
-    el.addEventListener('change', (e) => {
-      prefs.data[prefKey] = e.target.checked;
-      prefs.save();
-      if (prefKey === 'contextEnabled') {
-        const ctx = els.contextLine;
-        if (ctx) {
-          ctx.hidden = !e.target.checked;
-          if (e.target.checked) display.updateContext(state.currentIdx);
-        }
-      }
-      if (prefKey === 'trainingEnabled') {
-        const opts = document.getElementById("trainingOpts");
-        if (opts) opts.hidden = !e.target.checked;
-        if (e.target.checked) {
-          training.reset();
-          requestAnimationFrame(() => {
-            if (trainIncPicker) trainIncPicker.relayout();
-            if (trainIntPicker) trainIntPicker.relayout();
-            if (trainCeilPicker) trainCeilPicker.relayout();
-          });
-        }
-      }
-    }, { signal });
-  }
-
-  bindToggle("startPausedToggle", "startPaused");
-  bindToggle("countdownToggle", "countdownEnabled");
-  bindToggle("contextToggle", "contextEnabled");
-  bindToggle("autoPauseToggle", "autoPauseEnabled");
-  bindToggle("trainingToggle", "trainingEnabled");
-
-  // Reset stats button
-  const resetBtn = document.getElementById("resetStatsBtn");
-  if (resetBtn) {
-    resetBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
+  // ---------- Live settings apply callback (called from settings screen) ----------
+  function onRsvpSettingChange(key, value) {
+    if (key === '_resetStats') {
       stats.reset(state.playState === 'playing');
       training.reset();
-    }, { signal });
+      return;
+    }
+    prefs.data[key] = value;
+    if (key === 'theme') applyTheme(value);
+    else if (key === 'font') applyFont(value);
+    else if (key === 'fontSize') document.documentElement.style.setProperty('--word-size', value + 'px');
+    else if (key === 'chunkSize') {
+      document.querySelectorAll('[data-chunk]').forEach(b =>
+        b.classList.toggle('is-active', parseInt(b.dataset.chunk, 10) === value));
+    }
+    else if (key === 'contextEnabled') {
+      if (els.contextLine) {
+        els.contextLine.hidden = !value;
+        if (value) display.updateContext(state.currentIdx);
+      }
+    }
+    else if (key === 'trainingEnabled') {
+      if (value) training.reset();
+    }
   }
 
   // Open EPUB button
@@ -251,18 +232,18 @@ export function init(options = {}) {
   if (modeBtn && onModeSwitch) {
     modeBtn.addEventListener("click", (e) => {
       e.stopPropagation();
+      closeSettingsScreen();
       playback.pause();
-      const fraction = getPositionFraction();
-      onModeSwitch("read", { fraction, bookId: state.bookId });
+      onModeSwitch("read", { fraction: getPositionFraction(), bookId: state.bookId });
     }, { signal });
   }
   const ttsModeBtn = document.getElementById("ttsModeBtn");
   if (ttsModeBtn && onModeSwitch) {
     ttsModeBtn.addEventListener("click", (e) => {
       e.stopPropagation();
+      closeSettingsScreen();
       playback.pause();
-      const fraction = getPositionFraction();
-      onModeSwitch("tts", { fraction, bookId: state.bookId });
+      onModeSwitch("tts", { fraction: getPositionFraction(), bookId: state.bookId });
     }, { signal });
   }
 
@@ -272,22 +253,13 @@ export function init(options = {}) {
     settingsBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       document.body.classList.remove('show-toc');
-      const show = document.body.classList.toggle('rsvp-show-settings');
-      settingsBtn.setAttribute('aria-expanded', show);
-      if (show) {
-        requestAnimationFrame(() => {
-          lenPicker.relayout();
-          commaPicker.relayout();
-          periodPicker.relayout();
-          paraPicker.relayout();
-          fontSizePicker.relayout();
-          if (prefs.data.trainingEnabled) {
-            trainIncPicker.relayout();
-            trainIntPicker.relayout();
-            trainCeilPicker.relayout();
-          }
-        });
-      }
+      if (tocBtn) tocBtn.setAttribute('aria-expanded', 'false');
+      openSettingsScreen({
+        initialTab: 'rsvp',
+        currentMode: 'rsvp',
+        onRsvpChange: onRsvpSettingChange,
+      });
+      settingsBtn.setAttribute('aria-expanded', 'true');
     }, { signal });
   }
 
@@ -298,19 +270,18 @@ export function init(options = {}) {
   if (tocBtn) {
     tocBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      document.body.classList.remove('rsvp-show-settings');
       const show = document.body.classList.toggle('show-toc');
       tocBtn.setAttribute('aria-expanded', show);
     }, { signal });
   }
 
-  // Backdrop closes all panels
+  // Backdrop closes TOC
   const backdrop = document.getElementById("backdrop");
   if (backdrop) {
     backdrop.addEventListener('click', () => {
-      document.body.classList.remove('rsvp-show-settings', 'show-toc');
-      if (settingsBtn) settingsBtn.setAttribute('aria-expanded', 'false');
+      document.body.classList.remove('show-toc');
       if (tocBtn) tocBtn.setAttribute('aria-expanded', 'false');
+      closeSettingsScreen();
     }, { signal });
   }
 
@@ -341,74 +312,13 @@ export function init(options = {}) {
   }
 
   // ---------- Pickers ----------
-  let wpmPicker, fontSizePicker, lenPicker, commaPicker, periodPicker, paraPicker;
-  let trainIncPicker, trainIntPicker, trainCeilPicker;
+  let wpmPicker;
 
   wpmPicker = createPicker({
     stripId: "wpmStrip", trackId: "wpmTrack", valueId: "wpmValue",
     min: 100, max: 800, step: 25, majorEvery: 100,
     initial: prefs.data.wpm,
     onChange: (v) => { prefs.data.wpm = v; prefs.save(); display.updateSeek(); },
-  });
-
-  fontSizePicker = createPicker({
-    stripId: "fontSizeStrip", trackId: "fontSizeTrack", valueId: "fontSizeValue",
-    min: 24, max: 96, step: 4, majorEvery: 16,
-    initial: prefs.data.fontSize,
-    onChange: (v) => {
-      prefs.data.fontSize = v;
-      prefs.save();
-      document.documentElement.style.setProperty("--word-size", v + "px");
-    },
-  });
-
-  lenPicker = createPicker({
-    stripId: "lenStrip", trackId: "lenTrack", valueId: "lenValue",
-    min: 0, max: 100, step: 5, majorEvery: 25,
-    initial: prefs.data.lengthStrength,
-    onChange: (v) => { prefs.data.lengthStrength = v; prefs.save(); },
-  });
-
-  commaPicker = createPicker({
-    stripId: "commaStrip", trackId: "commaTrack", valueId: "commaValue",
-    min: 0, max: 200, step: 10, majorEvery: 50,
-    initial: prefs.data.commaPause,
-    onChange: (v) => { prefs.data.commaPause = v; prefs.save(); },
-  });
-
-  periodPicker = createPicker({
-    stripId: "periodStrip", trackId: "periodTrack", valueId: "periodValue",
-    min: 0, max: 300, step: 10, majorEvery: 100,
-    initial: prefs.data.periodPause,
-    onChange: (v) => { prefs.data.periodPause = v; prefs.save(); },
-  });
-
-  paraPicker = createPicker({
-    stripId: "paraStrip", trackId: "paraTrack", valueId: "paraValue",
-    min: 0, max: 400, step: 10, majorEvery: 100,
-    initial: prefs.data.paraPause,
-    onChange: (v) => { prefs.data.paraPause = v; prefs.save(); },
-  });
-
-  trainIncPicker = createPicker({
-    stripId: "trainIncStrip", trackId: "trainIncTrack", valueId: "trainIncValue",
-    min: 5, max: 50, step: 5, majorEvery: 10,
-    initial: prefs.data.trainingIncrement,
-    onChange: (v) => { prefs.data.trainingIncrement = v; prefs.save(); },
-  });
-
-  trainIntPicker = createPicker({
-    stripId: "trainIntStrip", trackId: "trainIntTrack", valueId: "trainIntValue",
-    min: 100, max: 2000, step: 100, majorEvery: 500,
-    initial: prefs.data.trainingInterval,
-    onChange: (v) => { prefs.data.trainingInterval = v; prefs.save(); },
-  });
-
-  trainCeilPicker = createPicker({
-    stripId: "trainCeilStrip", trackId: "trainCeilTrack", valueId: "trainCeilValue",
-    min: 200, max: 800, step: 25, majorEvery: 100,
-    initial: prefs.data.trainingCeiling,
-    onChange: (v) => { prefs.data.trainingCeiling = v; prefs.save(); },
   });
 
   // ---------- EPUB loading ----------
@@ -493,18 +403,8 @@ export function init(options = {}) {
   applyFont(prefs.data.font);
   document.documentElement.style.setProperty("--word-size", prefs.data.fontSize + "px");
 
-  // Sync chunk/granularity buttons
-  document.querySelectorAll("[data-chunk]").forEach(b =>
-    b.classList.toggle("is-active", parseInt(b.dataset.chunk, 10) === prefs.data.chunkSize));
-  document.querySelectorAll("[data-unit]").forEach(b =>
-    b.classList.toggle("is-active", b.dataset.unit === prefs.data.granularity));
-
   // Context line visibility
   if (els.contextLine) els.contextLine.hidden = !prefs.data.contextEnabled;
-
-  // Training opts visibility
-  const trainingOpts = document.getElementById("trainingOpts");
-  if (trainingOpts) trainingOpts.hidden = !prefs.data.trainingEnabled;
 
   // OS preference fallback
   if (!localStorage.getItem("rsvp:prefs")) {
@@ -551,6 +451,7 @@ This was invitation enough.
 
   return {
     teardown() {
+      closeSettingsScreen();
       playback.clearPending();
       playback.cancelCountdown();
       stats.destroy();

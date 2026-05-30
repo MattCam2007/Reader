@@ -1,4 +1,5 @@
-import { FONT_MAP, FONT_SERIF, THEME_COLORS, SETTINGS, RESIZE_DEBOUNCE_MS, SAVE_DEBOUNCE_MS, MIN_SIZE, MAX_SIZE } from './core/constants.js';
+import { FONT_MAP, FONT_SERIF, THEME_COLORS, RESIZE_DEBOUNCE_MS, SAVE_DEBOUNCE_MS } from './core/constants.js';
+import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 import { PrefsManager } from './core/prefs.js';
 import { ReaderState } from './core/state.js';
 import { StorageManager } from './core/storage.js';
@@ -40,18 +41,13 @@ export function init(options = {}) {
     overlayMsg:    document.getElementById("overlayMsg"),
     overlayBtn:    document.getElementById("overlayBtn"),
     fileInput:     document.getElementById("fileInput"),
-    sizeDisplay:   document.getElementById("sizeDisplay"),
     bookSubEl:     document.getElementById("bookSub"),
     coachEl:       document.getElementById("coach"),
     searchInput:   document.getElementById("searchInput"),
     searchResults: document.getElementById("searchResults"),
     comfortDim:    document.getElementById("comfortDim"),
     comfortWarm:   document.getElementById("comfortWarm"),
-    brightnessSlider: document.getElementById("brightnessSlider"),
-    warmthSlider:  document.getElementById("warmthSlider"),
-    lineHeightDisplay: document.getElementById("lineHeightDisplay"),
     toc:           document.getElementById("toc"),
-    settingsPanel: document.getElementById("settings"),
     searchPanel:   document.getElementById("searchPanel"),
   };
 
@@ -97,23 +93,20 @@ export function init(options = {}) {
   const selection = new SelectionManager(state, signal);
 
   // ---------- Focus traps ----------
-  const focusTraps = {
-    toc: trapFocus(els.toc, signal),
-    settings: trapFocus(els.settingsPanel, signal),
-    search: trapFocus(els.searchPanel, signal),
-  };
+  trapFocus(els.toc, signal);
+  trapFocus(els.searchPanel, signal);
 
   // ---------- Panels ----------
   let _lastPanelTrigger = null;
 
   function updateAriaExpanded() {
     els.tocBtn.setAttribute("aria-expanded", String(document.body.classList.contains("show-toc")));
-    els.settingsBtn.setAttribute("aria-expanded", String(document.body.classList.contains("show-settings")));
+    els.settingsBtn.setAttribute("aria-expanded", String(!!document.getElementById("settingsScreen")));
     els.searchBtn.setAttribute("aria-expanded", String(document.body.classList.contains("show-search")));
   }
 
   function closePanels() {
-    document.body.classList.remove("show-toc", "show-settings", "show-search");
+    document.body.classList.remove("show-toc", "show-search");
     search.clearHighlights();
     updateAriaExpanded();
     if (_lastPanelTrigger) {
@@ -134,13 +127,17 @@ export function init(options = {}) {
   }
 
   function openSettings() {
-    _lastPanelTrigger = els.settingsBtn;
     closePanels();
-    _lastPanelTrigger = els.settingsBtn;
-    document.body.classList.add("show-settings");
+    openSettingsScreen({
+      initialTab: 'read',
+      currentMode: 'read',
+      onReaderChange(key, value, needsRepaginate) {
+        prefs.data[key] = value;
+        applyPrefs();
+        if (needsRepaginate) pagination.paginateQuick();
+      },
+    });
     updateAriaExpanded();
-    const first = els.settingsPanel.querySelector("button, input");
-    if (first) first.focus();
   }
 
   function dismissCoach() {
@@ -191,11 +188,9 @@ export function init(options = {}) {
     // Font
     els.content.style.fontFamily = FONT_MAP[p.font] || FONT_SERIF;
     els.content.style.fontSize = p.size + "px";
-    els.sizeDisplay.textContent = p.size;
 
     // Line height
     els.content.style.setProperty("--reading-line-height", String(p.lineHeight));
-    if (els.lineHeightDisplay) els.lineHeightDisplay.textContent = p.lineHeight.toFixed(1);
 
     // Margins via CSS class
     els.viewport.classList.remove("margin-narrow", "margin-normal", "margin-wide");
@@ -224,82 +219,6 @@ export function init(options = {}) {
     // Comfort overlay
     if (els.comfortDim) els.comfortDim.style.opacity = String(1 - (p.brightness || 1));
     if (els.comfortWarm) els.comfortWarm.style.opacity = String(p.warmth || 0);
-    if (els.brightnessSlider) els.brightnessSlider.value = String(Math.round((p.brightness || 1) * 100));
-    if (els.warmthSlider) els.warmthSlider.value = String(Math.round((p.warmth || 0) * 100));
-
-    // Sync all seg-btn active states
-    syncAllSegButtons();
-  }
-
-  function syncAllSegButtons() {
-    const p = prefs.data;
-    for (const s of SETTINGS) {
-      const seg = document.getElementById(s.seg);
-      if (!seg) continue;
-      const val = s.transform ? String(p[s.pref]) : p[s.pref];
-      seg.querySelectorAll(".reader-seg-btn").forEach(btn => {
-        const dataVal = btn.dataset[s.attr];
-        const isActive = dataVal === String(val);
-        btn.classList.toggle("active", isActive);
-        btn.setAttribute("aria-pressed", String(isActive));
-      });
-    }
-  }
-
-  // ---------- DRY settings wiring (Phase 3) ----------
-  function wireSettings() {
-    for (const s of SETTINGS) {
-      const seg = document.getElementById(s.seg);
-      if (!seg) continue;
-      seg.addEventListener("click", (e) => {
-        const btn = e.target.closest(`[data-${s.attr}]`);
-        if (!btn) return;
-        const raw = btn.dataset[s.attr];
-        const val = s.transform ? s.transform(raw) : raw;
-        prefs.data[s.pref] = val;
-        applyPrefs();
-        prefs.save();
-        if (s.repaginate) pagination.paginateQuick();
-      });
-    }
-
-    // Size controls
-    document.getElementById("sizeDown").addEventListener("click", () => changeSize(-1));
-    document.getElementById("sizeUp").addEventListener("click", () => changeSize(1));
-
-    // Line height controls
-    document.getElementById("lineHeightDown").addEventListener("click", () => changeLineHeight(-0.1));
-    document.getElementById("lineHeightUp").addEventListener("click", () => changeLineHeight(0.1));
-
-    // Brightness/warmth sliders
-    els.brightnessSlider.addEventListener("input", (e) => {
-      prefs.data.brightness = parseInt(e.target.value, 10) / 100;
-      applyPrefs();
-      prefs.save();
-    });
-    els.warmthSlider.addEventListener("input", (e) => {
-      prefs.data.warmth = parseInt(e.target.value, 10) / 100;
-      applyPrefs();
-      prefs.save();
-    });
-  }
-
-  function changeSize(dir) {
-    const next = Math.max(MIN_SIZE, Math.min(MAX_SIZE, prefs.data.size + dir * 2));
-    if (next === prefs.data.size) return;
-    prefs.data.size = next;
-    applyPrefs();
-    prefs.save();
-    pagination.paginateQuick();
-  }
-
-  function changeLineHeight(dir) {
-    const next = Math.round(Math.max(1.0, Math.min(2.4, prefs.data.lineHeight + dir)) * 10) / 10;
-    if (next === prefs.data.lineHeight) return;
-    prefs.data.lineHeight = next;
-    applyPrefs();
-    prefs.save();
-    pagination.paginateQuick();
   }
 
   // ---------- Rendering ----------
@@ -430,7 +349,7 @@ export function init(options = {}) {
   els.searchInput.addEventListener("input", (e) => search.run(e.target.value.trim()), { signal });
   els.tocBtn.addEventListener("click", openTOC, { signal });
   els.settingsBtn.addEventListener("click", openSettings, { signal });
-  els.backdrop.addEventListener("click", closePanels, { signal });
+  els.backdrop.addEventListener("click", () => { closePanels(); closeSettingsScreen(); }, { signal });
   els.openBtn.addEventListener("click", () => els.fileInput.click(), { signal });
   els.overlayBtn.addEventListener("click", () => els.fileInput.click(), { signal });
   els.fileInput.addEventListener("change", (e) => {
@@ -440,8 +359,6 @@ export function init(options = {}) {
   }, { signal });
   els.progressEl.addEventListener("input", () => pagination.goTo(parseInt(els.progressEl.value, 10) || 0, false), { signal });
   els.content.addEventListener("click", (e) => footnotes.handleContentClick(e), { signal });
-
-  wireSettings();
 
   // Scroll mode progress tracking (storage.savePos has its own debounce)
   els.viewport.addEventListener("scroll", () => {
@@ -461,15 +378,15 @@ export function init(options = {}) {
   const modeBtn = document.getElementById("modeBtn");
   if (modeBtn && onModeSwitch) {
     modeBtn.addEventListener("click", () => {
-      const fraction = getPositionFraction();
-      onModeSwitch("rsvp", { fraction, bookId: state.bookId });
+      closeSettingsScreen();
+      onModeSwitch("rsvp", { fraction: getPositionFraction(), bookId: state.bookId });
     }, { signal });
   }
   const ttsModeBtn = document.getElementById("ttsModeBtn");
   if (ttsModeBtn && onModeSwitch) {
     ttsModeBtn.addEventListener("click", () => {
-      const fraction = getPositionFraction();
-      onModeSwitch("tts", { fraction, bookId: state.bookId });
+      closeSettingsScreen();
+      onModeSwitch("tts", { fraction: getPositionFraction(), bookId: state.bookId });
     }, { signal });
   }
 
@@ -544,6 +461,7 @@ export function init(options = {}) {
 
   return {
     teardown() {
+      closeSettingsScreen();
       state.blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (_) {} });
       state.blobUrls = [];
       if (resizeTimer) clearTimeout(resizeTimer);
