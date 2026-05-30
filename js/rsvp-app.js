@@ -10,7 +10,6 @@ import { RsvpDisplay } from './rsvp/display.js';
 import { RsvpInput } from './rsvp/input.js';
 import { StatsTracker } from './rsvp/stats.js';
 import { TrainingManager } from './rsvp/training.js';
-import { RsvpChapters } from './rsvp/chapters.js';
 import { createPicker } from './shared/picker.js';
 
 export function init(options = {}) {
@@ -43,11 +42,10 @@ export function init(options = {}) {
     playPauseBtn: document.getElementById("playPause"),
     playLabel:    document.getElementById("playLabel"),
     fullscreenBtn: document.getElementById("fullscreenBtn"),
-    // Chapter nav
-    chapterNav: document.getElementById("chapterNav"),
-    chSelect:   document.getElementById("chSelect"),
-    chPrevBtn:  document.getElementById("chPrev"),
-    chNextBtn:  document.getElementById("chNext"),
+    // Drawer panels
+    panelBlue:    document.getElementById("panelBlue"),
+    panelPurple:  document.getElementById("panelPurple"),
+    drawerHandle: document.getElementById("drawerHandle"),
     // File
     fileInput: document.getElementById("fileInput"),
   };
@@ -68,7 +66,6 @@ export function init(options = {}) {
   const playback = new PlaybackEngine(state, prefs, bus);
   const stats = new StatsTracker(els);
   const training = new TrainingManager(prefs);
-  const chapters = new RsvpChapters(state, els);
   const input = new RsvpInput(state, prefs, playback, display, bus, els, signal);
 
   // ---------- Bus wiring ----------
@@ -137,6 +134,47 @@ export function init(options = {}) {
       b.classList.toggle("is-active", b.dataset.font === name));
   }
   bus.on('fontChange', applyFont);
+
+  // ---------- Controls drawer ----------
+  const LEVEL_LABELS = ['Expand controls', 'Show transport', 'Collapse controls'];
+  function applyControlsLevel(level) {
+    const { panelBlue, panelPurple, drawerHandle } = els;
+    if (panelBlue)   panelBlue.classList.toggle('is-collapsed',  level < 1);
+    if (panelPurple) panelPurple.classList.toggle('is-collapsed', level < 2);
+    if (drawerHandle) drawerHandle.setAttribute('aria-label', LEVEL_LABELS[level] ?? LEVEL_LABELS[0]);
+    prefs.data.controlsLevel = level;
+    prefs.save();
+  }
+  applyControlsLevel(prefs.data.controlsLevel ?? 2);
+  if (els.drawerHandle) {
+    els.drawerHandle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyControlsLevel(((prefs.data.controlsLevel ?? 2) + 1) % 3);
+    }, { signal });
+  }
+
+  // ---------- Unit cycle button ----------
+  const UNIT_CYCLE = ['word', 'sentence', 'paragraph'];
+  const UNIT_LABELS = { word: 'Word', sentence: 'Sent', paragraph: 'Para' };
+  const unitCycleBtn = document.getElementById("unitCycleBtn");
+  function applyGranularity(unit) {
+    prefs.data.granularity = unit;
+    prefs.save();
+    if (unitCycleBtn) unitCycleBtn.textContent = UNIT_LABELS[unit] ?? unit;
+    document.querySelectorAll('[data-unit]').forEach(b =>
+      b.classList.toggle('is-active', b.dataset.unit === unit));
+    display.updateSeek();
+    display.resetContextCache();
+    display.updateContext(state.currentIdx);
+  }
+  applyGranularity(prefs.data.granularity || 'word');
+  if (unitCycleBtn) {
+    unitCycleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const cur = prefs.data.granularity || 'word';
+      applyGranularity(UNIT_CYCLE[(UNIT_CYCLE.indexOf(cur) + 1) % UNIT_CYCLE.length]);
+    }, { signal });
+  }
 
   // ---------- Settings toggles ----------
   function bindToggle(id, prefKey) {
@@ -385,13 +423,12 @@ export function init(options = {}) {
         : state.tokens.length - 1,
     }));
     state.isEpubLoaded = state.chapters.length > 0;
-    chapters.update();
     populateTocList();
 
     state.currentIdx = 0;
     state.rampRemaining = 0;
     state.manuallySeeked = false;
-    display.resetSentenceCache();
+    display.resetContextCache();
     playback.clearPending();
     stats.reset(false);
     training.reset();

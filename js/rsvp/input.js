@@ -58,7 +58,7 @@ export class RsvpInput {
   _bind() {
     const signal = this._signal;
     const { readerWrap, seekSlider, stepPrevBtn, stepNextBtn, playPauseBtn,
-            fullscreenBtn, chSelect, chPrevBtn, chNextBtn } = this.els;
+            fullscreenBtn } = this.els;
 
     // Tap / click on reader area -> toggle play
     if (readerWrap) {
@@ -186,51 +186,21 @@ export class RsvpInput {
       }
     }, { signal });
 
-    // Chapter nav
-    if (chSelect) {
-      chSelect.addEventListener('change', (e) => {
-        e.stopPropagation();
-        if (this.state.playState === 'playing') this.playback.pause();
-        else if (this.state.playState === 'countdown') this.playback.cancelCountdown();
-        const ci = parseInt(e.target.value, 10);
-        if (this.state.chapters[ci]) this.playback.seekTo(this.state.chapters[ci].tokenIdx);
-      }, { signal });
-    }
-    if (chPrevBtn) {
-      chPrevBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (this.state.playState === 'playing') this.playback.pause();
-        else if (this.state.playState === 'countdown') this.playback.cancelCountdown();
-        if (!this.state.chapters.length) return;
-        const ci = this._currentChapterIndex();
-        const curTok = this.state.currentWordIdx(this.state.currentIdx);
-        if (curTok > this.state.chapters[ci].tokenIdx) {
-          this.playback.seekTo(this.state.chapters[ci].tokenIdx);
-        } else if (ci > 0) {
-          this.playback.seekTo(this.state.chapters[ci - 1].tokenIdx);
-        }
-      }, { signal });
-    }
-    if (chNextBtn) {
-      chNextBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (this.state.playState === 'playing') this.playback.pause();
-        else if (this.state.playState === 'countdown') this.playback.cancelCountdown();
-        if (!this.state.chapters.length) return;
-        const ci = this._currentChapterIndex();
-        if (ci < this.state.chapters.length - 1) this.playback.seekTo(this.state.chapters[ci + 1].tokenIdx);
-      }, { signal });
-    }
-
-    // Granularity selector
+    // Granularity selector (settings grain buttons — keep in sync with cycle btn)
+    const UNIT_LABELS = { word: 'Word', sentence: 'Sent', paragraph: 'Para' };
     const grainBtns = Array.from(document.querySelectorAll('[data-unit]'));
     grainBtns.forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.prefs.data.granularity = btn.dataset.unit;
+        const unit = btn.dataset.unit;
+        this.prefs.data.granularity = unit;
         this.prefs.save();
         grainBtns.forEach(b => b.classList.toggle('is-active', b === btn));
+        const cycleBtn = document.getElementById('unitCycleBtn');
+        if (cycleBtn) cycleBtn.textContent = UNIT_LABELS[unit] ?? unit;
         this.display.updateSeek();
+        this.display.resetContextCache();
+        this.display.updateContext(this.state.currentIdx);
       }, { signal });
     });
 
@@ -283,12 +253,4 @@ export class RsvpInput {
     }, { signal });
   }
 
-  _currentChapterIndex() {
-    const pos = this.state.currentWordIdx(this.state.currentIdx);
-    let ci = 0;
-    for (let i = this.state.chapters.length - 1; i >= 0; i--) {
-      if (this.state.chapters[i].tokenIdx <= pos) { ci = i; break; }
-    }
-    return ci;
-  }
 }
