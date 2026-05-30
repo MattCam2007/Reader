@@ -417,16 +417,36 @@ body:not(.paused):not(.loading):not(.error) .rsvp-bottombar {
   background: var(--control-bg-hover);
 }
 
-/* ===== Transport ===== */
-.rsvp-transport {
+/* ===== Transport row ===== */
+.rsvp-transport-row {
   display: flex;
-  gap: 0.35rem;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   width: 100%;
   max-width: 40rem;
   margin: 0 auto;
 }
+
+.rsvp-transport {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.rsvp-unit-cycle {
+  padding: 0.4rem 0.9rem;
+  background: var(--control-bg);
+  color: var(--fg-dim);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--border-mid);
+  border-radius: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.rsvp-unit-cycle:active { background: var(--control-bg-hover); }
 
 .rsvp-nav-btn {
   display: flex;

@@ -186,14 +186,18 @@ export class RsvpInput {
       }
     }, { signal });
 
-    // Granularity selector
+    // Granularity selector (settings grain buttons — keep in sync with cycle btn)
+    const UNIT_LABELS = { word: 'Word', sentence: 'Sent', paragraph: 'Para' };
     const grainBtns = Array.from(document.querySelectorAll('[data-unit]'));
     grainBtns.forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.prefs.data.granularity = btn.dataset.unit;
+        const unit = btn.dataset.unit;
+        this.prefs.data.granularity = unit;
         this.prefs.save();
         grainBtns.forEach(b => b.classList.toggle('is-active', b === btn));
+        const cycleBtn = document.getElementById('unitCycleBtn');
+        if (cycleBtn) cycleBtn.textContent = UNIT_LABELS[unit] ?? unit;
         this.display.updateSeek();
         this.display.resetContextCache();
         this.display.updateContext(this.state.currentIdx);

@@ -153,6 +153,29 @@ export function init(options = {}) {
     }, { signal });
   }
 
+  // ---------- Unit cycle button ----------
+  const UNIT_CYCLE = ['word', 'sentence', 'paragraph'];
+  const UNIT_LABELS = { word: 'Word', sentence: 'Sent', paragraph: 'Para' };
+  const unitCycleBtn = document.getElementById("unitCycleBtn");
+  function applyGranularity(unit) {
+    prefs.data.granularity = unit;
+    prefs.save();
+    if (unitCycleBtn) unitCycleBtn.textContent = UNIT_LABELS[unit] ?? unit;
+    document.querySelectorAll('[data-unit]').forEach(b =>
+      b.classList.toggle('is-active', b.dataset.unit === unit));
+    display.updateSeek();
+    display.resetContextCache();
+    display.updateContext(state.currentIdx);
+  }
+  applyGranularity(prefs.data.granularity || 'word');
+  if (unitCycleBtn) {
+    unitCycleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const cur = prefs.data.granularity || 'word';
+      applyGranularity(UNIT_CYCLE[(UNIT_CYCLE.indexOf(cur) + 1) % UNIT_CYCLE.length]);
+    }, { signal });
+  }
+
   // ---------- Settings toggles ----------
   function bindToggle(id, prefKey) {
     const el = document.getElementById(id);
