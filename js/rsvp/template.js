@@ -92,7 +92,7 @@ export function rsvpTemplate() {
         <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
         <span>Chapters</span>
       </button>
-      <button class="reader-tool" id="settingsBtn" type="button" aria-label="Display settings" aria-expanded="false">
+      <button class="reader-tool" id="settingsBtn" type="button" aria-label="Settings" aria-expanded="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="10" cy="8" r="2.6"/><circle cx="15" cy="16" r="2.6"/></svg>
         <span>Settings</span>
       </button>
