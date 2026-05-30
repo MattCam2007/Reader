@@ -36,50 +36,60 @@ export function rsvpTemplate() {
   </div>
 
   <footer class="rsvp-bottombar" id="rsvpBottombar">
-    <div class="rsvp-controls">
-      <div class="rsvp-seek">
-        <div class="rsvp-seek-readout" id="seekReadout"></div>
-        <input class="rsvp-seek-slider" id="seekSlider" type="range" min="0" max="0" value="0" step="1" aria-label="Reading position">
-      </div>
+    <div class="rsvp-controls" id="rsvpControls">
+      <button class="rsvp-drawer-handle" id="drawerHandle" type="button" aria-label="Expand controls">
+        <span class="rsvp-drawer-pip"></span>
+      </button>
 
-      <div class="rsvp-opts-row">
-        <div class="rsvp-grain" role="group" aria-label="Words per flash">
-          <button class="rsvp-grain__btn is-active" type="button" data-chunk="1">1w</button>
-          <button class="rsvp-grain__btn" type="button" data-chunk="2">2w</button>
-          <button class="rsvp-grain__btn" type="button" data-chunk="3">3w</button>
-        </div>
-        <div class="rsvp-grain" role="group" aria-label="Move by">
-          <button class="rsvp-grain__btn is-active" type="button" data-unit="word">Word</button>
-          <button class="rsvp-grain__btn" type="button" data-unit="sentence">Sent</button>
-          <button class="rsvp-grain__btn" type="button" data-unit="paragraph">Para</button>
-        </div>
-      </div>
-
-      <div class="rsvp-transport-row">
-        <div class="rsvp-transport">
-          <button class="rsvp-nav-btn" id="stepPrev" type="button" aria-label="Step back">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15,18 9,12 15,6"/></svg>
-          </button>
-          <button class="rsvp-play-btn" id="playPause" type="button" aria-label="Play or pause">
-            <svg class="rsvp-play-icon" viewBox="0 0 24 24" aria-hidden="true"><polygon points="5,3 19,12 5,21"/></svg>
-            <svg class="rsvp-pause-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-            <span id="playLabel" class="rsvp-sr-only">Play</span>
-          </button>
-          <button class="rsvp-nav-btn" id="stepNext" type="button" aria-label="Step forward">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9,18 15,12 9,6"/></svg>
-          </button>
-          <button class="rsvp-nav-btn" id="fullscreenBtn" type="button" aria-label="Toggle fullscreen">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15,3 21,3 21,9"/><polyline points="9,21 3,21 3,15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-          </button>
-        </div>
-
-        <div class="picker" aria-label="Reading speed">
-          <div class="picker-display"><span id="wpmValue">400</span><span class="picker-unit">WPM</span></div>
-          <div class="strip-wrap">
-            <div class="picker-strip" id="wpmStrip">
-              <div class="picker-track" id="wpmTrack"></div>
+      <div class="rsvp-panel" id="panelBlue">
+        <div class="rsvp-panel-inner">
+          <div class="rsvp-seek">
+            <div class="rsvp-seek-readout" id="seekReadout"></div>
+            <input class="rsvp-seek-slider" id="seekSlider" type="range" min="0" max="0" value="0" step="1" aria-label="Reading position">
+          </div>
+          <div class="rsvp-opts-row">
+            <div class="rsvp-grain" role="group" aria-label="Words per flash">
+              <button class="rsvp-grain__btn is-active" type="button" data-chunk="1">1w</button>
+              <button class="rsvp-grain__btn" type="button" data-chunk="2">2w</button>
+              <button class="rsvp-grain__btn" type="button" data-chunk="3">3w</button>
             </div>
-            <div class="picker-pointer"></div>
+            <div class="rsvp-grain" role="group" aria-label="Move by">
+              <button class="rsvp-grain__btn is-active" type="button" data-unit="word">Word</button>
+              <button class="rsvp-grain__btn" type="button" data-unit="sentence">Sent</button>
+              <button class="rsvp-grain__btn" type="button" data-unit="paragraph">Para</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rsvp-panel" id="panelPurple">
+        <div class="rsvp-panel-inner">
+          <div class="rsvp-transport-row">
+            <div class="rsvp-transport">
+              <button class="rsvp-nav-btn" id="stepPrev" type="button" aria-label="Step back">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15,18 9,12 15,6"/></svg>
+              </button>
+              <button class="rsvp-play-btn" id="playPause" type="button" aria-label="Play or pause">
+                <svg class="rsvp-play-icon" viewBox="0 0 24 24" aria-hidden="true"><polygon points="5,3 19,12 5,21"/></svg>
+                <svg class="rsvp-pause-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                <span id="playLabel" class="rsvp-sr-only">Play</span>
+              </button>
+              <button class="rsvp-nav-btn" id="stepNext" type="button" aria-label="Step forward">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9,18 15,12 9,6"/></svg>
+              </button>
+              <button class="rsvp-nav-btn" id="fullscreenBtn" type="button" aria-label="Toggle fullscreen">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15,3 21,3 21,9"/><polyline points="9,21 3,21 3,15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+              </button>
+            </div>
+            <div class="picker" aria-label="Reading speed">
+              <div class="picker-display"><span id="wpmValue">400</span><span class="picker-unit">WPM</span></div>
+              <div class="strip-wrap">
+                <div class="picker-strip" id="wpmStrip">
+                  <div class="picker-track" id="wpmTrack"></div>
+                </div>
+                <div class="picker-pointer"></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

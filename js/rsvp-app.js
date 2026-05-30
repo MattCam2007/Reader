@@ -42,6 +42,10 @@ export function init(options = {}) {
     playPauseBtn: document.getElementById("playPause"),
     playLabel:    document.getElementById("playLabel"),
     fullscreenBtn: document.getElementById("fullscreenBtn"),
+    // Drawer panels
+    panelBlue:    document.getElementById("panelBlue"),
+    panelPurple:  document.getElementById("panelPurple"),
+    drawerHandle: document.getElementById("drawerHandle"),
     // File
     fileInput: document.getElementById("fileInput"),
   };
@@ -130,6 +134,24 @@ export function init(options = {}) {
       b.classList.toggle("is-active", b.dataset.font === name));
   }
   bus.on('fontChange', applyFont);
+
+  // ---------- Controls drawer ----------
+  const LEVEL_LABELS = ['Expand controls', 'Show transport', 'Collapse controls'];
+  function applyControlsLevel(level) {
+    const { panelBlue, panelPurple, drawerHandle } = els;
+    if (panelBlue)   panelBlue.classList.toggle('is-collapsed',  level < 1);
+    if (panelPurple) panelPurple.classList.toggle('is-collapsed', level < 2);
+    if (drawerHandle) drawerHandle.setAttribute('aria-label', LEVEL_LABELS[level] ?? LEVEL_LABELS[0]);
+    prefs.data.controlsLevel = level;
+    prefs.save();
+  }
+  applyControlsLevel(prefs.data.controlsLevel ?? 2);
+  if (els.drawerHandle) {
+    els.drawerHandle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyControlsLevel(((prefs.data.controlsLevel ?? 2) + 1) % 3);
+    }, { signal });
+  }
 
   // ---------- Settings toggles ----------
   function bindToggle(id, prefKey) {
