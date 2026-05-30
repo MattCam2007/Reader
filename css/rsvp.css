@@ -391,6 +391,9 @@ body:not(.paused):not(.loading):not(.error) .rsvp-bottombar {
   display: flex;
   gap: 0.3rem;
 }
+.reader-settings-row .rsvp-grain {
+  flex: 1 1 auto;
+}
 .rsvp-grain__btn {
   flex: 1 1 0;
   padding: 0.42rem 0.4rem;
@@ -414,26 +417,15 @@ body:not(.paused):not(.loading):not(.error) .rsvp-bottombar {
   background: var(--control-bg-hover);
 }
 
-/* ===== Transport row ===== */
-.rsvp-transport-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  max-width: 40rem;
-  margin: 0 auto;
-  width: 100%;
-}
-.rsvp-transport-row > .picker {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding-top: 0;
-}
-
+/* ===== Transport ===== */
 .rsvp-transport {
   display: flex;
   gap: 0.35rem;
   align-items: center;
-  flex: 0 0 auto;
+  justify-content: center;
+  width: 100%;
+  max-width: 40rem;
+  margin: 0 auto;
 }
 
 .rsvp-nav-btn {
