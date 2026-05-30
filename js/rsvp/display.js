@@ -154,9 +154,6 @@ export class RsvpDisplay {
       playLabel.textContent = (state.playState === 'playing' || state.playState === 'countdown') ? "Pause" : "Play";
     }
 
-    if (state.isEpubLoaded && state.chapters.length && this.els.chSelect) {
-      this.els.chSelect.value = this._currentChapterIndex();
-    }
   }
 
   showToast(msg) {
@@ -178,16 +175,6 @@ export class RsvpDisplay {
     const list = this._unitList(granularity);
     if (!list.length) return 0;
     return lastIndexAtMost(list, this.state.currentWordIdx(idx));
-  }
-
-  _currentChapterIndex() {
-    const { state } = this;
-    const pos = state.currentWordIdx(state.currentIdx);
-    let ci = 0;
-    for (let i = state.chapters.length - 1; i >= 0; i--) {
-      if (state.chapters[i].tokenIdx <= pos) { ci = i; break; }
-    }
-    return ci;
   }
 
   resetSentenceCache() {

@@ -10,7 +10,6 @@ import { RsvpDisplay } from './rsvp/display.js';
 import { RsvpInput } from './rsvp/input.js';
 import { StatsTracker } from './rsvp/stats.js';
 import { TrainingManager } from './rsvp/training.js';
-import { RsvpChapters } from './rsvp/chapters.js';
 import { createPicker } from './shared/picker.js';
 
 export function init(options = {}) {
@@ -43,11 +42,6 @@ export function init(options = {}) {
     playPauseBtn: document.getElementById("playPause"),
     playLabel:    document.getElementById("playLabel"),
     fullscreenBtn: document.getElementById("fullscreenBtn"),
-    // Chapter nav
-    chapterNav: document.getElementById("chapterNav"),
-    chSelect:   document.getElementById("chSelect"),
-    chPrevBtn:  document.getElementById("chPrev"),
-    chNextBtn:  document.getElementById("chNext"),
     // File
     fileInput: document.getElementById("fileInput"),
   };
@@ -68,7 +62,6 @@ export function init(options = {}) {
   const playback = new PlaybackEngine(state, prefs, bus);
   const stats = new StatsTracker(els);
   const training = new TrainingManager(prefs);
-  const chapters = new RsvpChapters(state, els);
   const input = new RsvpInput(state, prefs, playback, display, bus, els, signal);
 
   // ---------- Bus wiring ----------
@@ -385,7 +378,6 @@ export function init(options = {}) {
         : state.tokens.length - 1,
     }));
     state.isEpubLoaded = state.chapters.length > 0;
-    chapters.update();
     populateTocList();
 
     state.currentIdx = 0;

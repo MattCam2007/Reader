@@ -37,16 +37,6 @@ export function rsvpTemplate() {
 
   <footer class="rsvp-bottombar" id="rsvpBottombar">
     <div class="rsvp-controls">
-      <div class="rsvp-chapter-nav" id="chapterNav" hidden>
-        <button class="rsvp-nav-btn" id="chPrev" type="button" aria-label="Previous chapter">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15,18 9,12 15,6"/></svg>
-        </button>
-        <select class="rsvp-chapter-select" id="chSelect" aria-label="Chapter"></select>
-        <button class="rsvp-nav-btn" id="chNext" type="button" aria-label="Next chapter">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9,18 15,12 9,6"/></svg>
-        </button>
-      </div>
-
       <div class="rsvp-seek">
         <div class="rsvp-seek-readout" id="seekReadout"></div>
         <input class="rsvp-seek-slider" id="seekSlider" type="range" min="0" max="0" value="0" step="1" aria-label="Reading position">
