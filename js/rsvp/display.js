@@ -6,7 +6,7 @@ export class RsvpDisplay {
     this.state = state;
     this.prefs = prefs;
     this.els = els;
-    this._lastSentenceIdx = -1;
+    this._lastContextKey = null;
     this._toastTimer = null;
   }
 
@@ -62,22 +62,36 @@ export class RsvpDisplay {
   }
 
   updateContext(tokenIdx) {
-    const { state } = this;
+    const { state, prefs } = this;
     const contextEl = this.els.contextLine;
-    if (!this.prefs.data.contextEnabled || !contextEl) {
+    if (!prefs.data.contextEnabled || !contextEl) {
       if (contextEl) contextEl.textContent = "";
       return;
     }
     if (tokenIdx < 0 || tokenIdx >= state.tokens.length || state.tokens[tokenIdx] === PARAGRAPH_BREAK) {
       contextEl.textContent = "";
-      this._lastSentenceIdx = -1;
+      this._lastContextKey = null;
       return;
     }
-    const si = lastIndexAtMost(state.sentenceStarts, state.currentWordIdx(tokenIdx));
-    if (si !== this._lastSentenceIdx) {
-      this._lastSentenceIdx = si;
-      const start = state.sentenceStarts[si];
-      const end = si + 1 < state.sentenceStarts.length ? state.sentenceStarts[si + 1] : state.tokens.length;
+
+    const granularity = prefs.data.granularity || 'word';
+    const wordIdx = state.currentWordIdx(tokenIdx);
+    let start, end, contextKey;
+
+    if (granularity === 'paragraph' && state.paragraphStarts.length) {
+      const pi = lastIndexAtMost(state.paragraphStarts, wordIdx);
+      start = state.paragraphStarts[pi];
+      end = pi + 1 < state.paragraphStarts.length ? state.paragraphStarts[pi + 1] : state.tokens.length;
+      contextKey = 'p:' + pi;
+    } else {
+      const si = lastIndexAtMost(state.sentenceStarts, wordIdx);
+      start = state.sentenceStarts[si];
+      end = si + 1 < state.sentenceStarts.length ? state.sentenceStarts[si + 1] : state.tokens.length;
+      contextKey = 's:' + si;
+    }
+
+    if (contextKey !== this._lastContextKey) {
+      this._lastContextKey = contextKey;
       const frag = document.createDocumentFragment();
       for (let i = start; i < end; i++) {
         if (state.tokens[i] === PARAGRAPH_BREAK) continue;
@@ -177,7 +191,7 @@ export class RsvpDisplay {
     return lastIndexAtMost(list, this.state.currentWordIdx(idx));
   }
 
-  resetSentenceCache() {
-    this._lastSentenceIdx = -1;
+  resetContextCache() {
+    this._lastContextKey = null;
   }
 }

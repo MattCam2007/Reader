@@ -195,6 +195,8 @@ export class RsvpInput {
         this.prefs.save();
         grainBtns.forEach(b => b.classList.toggle('is-active', b === btn));
         this.display.updateSeek();
+        this.display.resetContextCache();
+        this.display.updateContext(this.state.currentIdx);
       }, { signal });
     });
 

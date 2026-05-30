@@ -141,11 +141,8 @@ body.paused .rsvp-display { opacity: var(--pause-dim); }
   text-align: center;
   max-width: 32rem;
   margin: 0.5rem auto 0;
-  max-height: 3em;
+  max-height: 40vh;
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
 }
 .rsvp-context b {
   color: var(--fg);

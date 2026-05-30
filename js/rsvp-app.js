@@ -405,7 +405,7 @@ export function init(options = {}) {
     state.currentIdx = 0;
     state.rampRemaining = 0;
     state.manuallySeeked = false;
-    display.resetSentenceCache();
+    display.resetContextCache();
     playback.clearPending();
     stats.reset(false);
     training.reset();
