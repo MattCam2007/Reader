@@ -22,6 +22,7 @@ body.rsvp {
   border-bottom: 1px solid var(--border);
   padding: calc(env(safe-area-inset-top, 0px) + 0.6rem) 1rem 0.55rem;
   text-align: center;
+  transition: transform 350ms ease, opacity 350ms ease;
 }
 
 .rsvp-stats {
@@ -229,6 +230,17 @@ body.error   .rsvp-bottombar {
 }
 
 body.fs-hide-controls .rsvp-bottombar {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+body:not(.paused):not(.loading):not(.error) .rsvp-topbar {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+body:not(.paused):not(.loading):not(.error) .rsvp-bottombar {
   transform: translateY(100%);
   opacity: 0;
   pointer-events: none;
