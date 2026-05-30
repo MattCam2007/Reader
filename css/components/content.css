@@ -1,0 +1,254 @@
+/* Reading surface: viewport, content area, blocks, figures, tables, footnotes */
+
+.reader-viewport {
+  --reading-margin: clamp(1.25rem, 6vw, 3rem);
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--bg);
+  padding-top: calc(env(safe-area-inset-top, 0px) + 1.2rem);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.4rem);
+  padding-left: var(--reading-margin);
+  padding-right: var(--reading-margin);
+  z-index: 1;
+}
+
+.reader-viewport.margin-narrow  { --reading-margin: 1rem; }
+.reader-viewport.margin-normal  { --reading-margin: clamp(1.25rem, 6vw, 3rem); }
+.reader-viewport.margin-wide    { --reading-margin: clamp(2rem, 10vw, 5rem); }
+
+.reader-content-clip {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.reader-content {
+  --reading-line-height: 1.62;
+  --page-offset: 0px;
+  height: 100%;
+  column-fill: auto;
+  column-gap: 40px;
+  transform: translate3d(var(--page-offset), 0, 0);
+  will-change: transform;
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", Cambria, "Times New Roman", serif;
+  font-size: 19px;
+  line-height: var(--reading-line-height);
+  color: var(--content-fg);
+  text-align: justify;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  overflow-wrap: break-word;
+}
+
+.reader-content .blk-p {
+  margin: 0;
+  text-indent: 1.3em;
+}
+.reader-content.para-spaced .blk-p { text-indent: 0; margin-bottom: 0.8em; }
+.reader-content .chap > .blk-p:first-child,
+.reader-content .blk-h1 + .blk-p,
+.reader-content .blk-h2 + .blk-p,
+.reader-content .blk-h3 + .blk-p,
+.reader-content .blk-h4 + .blk-p,
+.reader-content .blk-h5 + .blk-p,
+.reader-content .blk-h6 + .blk-p {
+  text-indent: 0;
+}
+
+.reader-content .blk-h1,
+.reader-content .blk-h2,
+.reader-content .blk-h3,
+.reader-content .blk-h4,
+.reader-content .blk-h5,
+.reader-content .blk-h6 {
+  text-align: center;
+  hyphens: none;
+  -webkit-hyphens: none;
+  line-height: 1.25;
+  font-weight: 600;
+  break-inside: avoid;
+  margin: 0.2em 0 0.9em;
+}
+.reader-content .blk-h1 { font-size: 1.7em; margin-top: 0.4em; }
+.reader-content .blk-h2 { font-size: 1.4em; }
+.reader-content .blk-h3 { font-size: 1.2em; }
+.reader-content .chap { break-before: column; -webkit-column-break-before: always; }
+.reader-content .chap:first-child { break-before: auto; -webkit-column-break-before: auto; }
+
+.reader-content .blk-blockquote {
+  margin: 0.8em 1.4em;
+  font-style: italic;
+  color: var(--muted);
+  text-indent: 0;
+}
+.reader-content .blk-li {
+  margin: 0.3em 0 0.3em 1.4em;
+  text-indent: 0;
+  list-style: disc;
+}
+.reader-content .blk-pre {
+  white-space: pre-wrap;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  text-indent: 0;
+  margin: 0.6em 0;
+}
+
+/* Inline formatting */
+.reader-content em, .reader-content i { font-style: italic; }
+.reader-content strong, .reader-content b { font-weight: 700; }
+.reader-content sup { font-size: 0.75em; vertical-align: super; }
+.reader-content sub { font-size: 0.75em; vertical-align: sub; }
+.reader-content code {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  background: var(--border);
+  padding: 0.05em 0.25em;
+  border-radius: 3px;
+}
+.reader-content a {
+  color: var(--accent);
+  text-decoration: none;
+  pointer-events: auto;
+}
+.reader-content small { font-size: 0.85em; }
+.reader-content u { text-decoration: underline; }
+
+/* Cover page */
+.reader-content #cover {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  break-after: column;
+  -webkit-column-break-after: always;
+}
+.reader-content #cover img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* Images & figures */
+.reader-content .blk-figure {
+  margin: 0.8em 0;
+  text-align: center;
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+}
+.reader-content .blk-figure img,
+.reader-content .blk-p img {
+  max-width: 100%;
+  max-height: 80vh;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+.reader-content .blk-figcaption {
+  font-size: 0.85em;
+  color: var(--muted);
+  text-align: center;
+  text-indent: 0;
+  margin: 0.3em 0;
+}
+body.images-off .reader-content img,
+body.images-off .reader-content .blk-figure { display: none; }
+
+/* Tables */
+.reader-content .blk-table-wrap {
+  margin: 0.8em 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: 80vh;
+  overflow-y: auto;
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+}
+.reader-content table {
+  border-collapse: collapse;
+  font-size: 0.9em;
+  line-height: 1.4;
+  text-indent: 0;
+  text-align: left;
+}
+.reader-content th, .reader-content td {
+  padding: 0.35em 0.65em;
+  border: 1px solid var(--border);
+  vertical-align: top;
+}
+.reader-content th {
+  font-weight: 700;
+  background: var(--border);
+}
+.reader-content caption {
+  font-size: 0.85em;
+  color: var(--muted);
+  text-align: center;
+  padding: 0.3em 0;
+  caption-side: bottom;
+}
+
+/* Footnote popover */
+.note-popover-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  background: rgba(0, 0, 0, 0.3);
+}
+.note-popover {
+  position: fixed;
+  z-index: 46;
+  background: var(--panel-bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  box-shadow: 0 8px 30px var(--shadow);
+  padding: 0.9rem 1.1rem;
+  max-width: min(88vw, 26rem);
+  max-height: 40vh;
+  overflow-y: auto;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+.note-popover .note-close {
+  display: block;
+  margin-top: 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* Scroll mode */
+body.layout-scroll .reader-content-clip {
+  overflow: visible;
+}
+body.layout-scroll .reader-viewport {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+body.layout-scroll .reader-content {
+  height: auto;
+  column-fill: initial;
+  column-width: initial;
+  column-gap: initial;
+  column-count: initial;
+  --page-offset: 0px;
+  will-change: auto;
+  max-width: 42em;
+  margin: 0 auto;
+  padding-bottom: 4rem;
+}
+body.layout-scroll .reader-scrub { display: none; }
+
+/* Page animation */
+body:not(.layout-scroll) .reader-content.anim-fade {
+  transition: opacity 180ms ease;
+}

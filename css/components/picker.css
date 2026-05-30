@@ -1,0 +1,101 @@
+/* Shared scroll-snap picker strip */
+
+.picker {
+  padding-top: 0.5rem;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.picker-display {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-dim);
+  font-size: 1.05rem;
+  line-height: 1.4;
+}
+.picker-display .picker-unit {
+  color: var(--fg-muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  margin-left: 0.3em;
+}
+
+.strip-wrap {
+  position: relative;
+  height: 46px;
+  margin-top: 0.25rem;
+}
+
+.picker-strip {
+  position: absolute;
+  inset: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+  touch-action: pan-x;
+}
+.picker-strip::-webkit-scrollbar { display: none; }
+
+.picker-track {
+  display: flex;
+  align-items: flex-start;
+  height: 100%;
+  width: max-content;
+}
+
+.tick {
+  flex: 0 0 18px;
+  height: 100%;
+  position: relative;
+  scroll-snap-align: center;
+  cursor: pointer;
+}
+.tick::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  width: 1px;
+  height: 8px;
+  background: var(--tick-mark);
+  transform: translateX(-50%);
+}
+.tick.major::before {
+  height: 14px;
+  background: var(--tick-major);
+}
+.tick-label {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.65rem;
+  color: var(--tick-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.picker-pointer {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  transform: translateX(-1px);
+  pointer-events: none;
+  z-index: 2;
+  border-radius: 1px;
+}
+.picker-pointer::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  transform: translateX(-50%) rotate(45deg);
+}

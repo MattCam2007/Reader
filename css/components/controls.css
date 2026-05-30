@@ -1,0 +1,41 @@
+/* Segmented buttons, range sliders, controls */
+
+.reader-seg {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+}
+.reader-seg-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.6rem 1rem;
+  min-height: 44px;
+  min-width: 3rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.reader-seg-btn:active { background: var(--border); }
+.reader-seg-btn.active,
+.reader-seg-btn.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.reader-size-display {
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 2.6rem;
+  text-align: center;
+  color: var(--fg);
+}
+.reader-slider-row {
+  flex: 1;
+}
+.reader-slider {
+  width: 100%;
+  accent-color: var(--accent);
+}
