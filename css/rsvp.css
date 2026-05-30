@@ -269,21 +269,18 @@ body.fs-hide-controls .rsvp-bottombar {
 
 /* ===== Collapsible panels ===== */
 .rsvp-panel {
-  display: grid;
-  grid-template-rows: 1fr;
   overflow: hidden;
-  transition: grid-template-rows 260ms ease;
+  max-height: 200px;
+  transition: max-height 240ms ease;
 }
 .rsvp-panel.is-collapsed {
-  grid-template-rows: 0fr;
+  max-height: 0;
 }
 .rsvp-panel-inner {
-  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding-top: 0.2rem;
-  padding-bottom: 0.3rem;
+  padding-bottom: 0.35rem;
 }
 
 /* ===== Chapter nav ===== */
