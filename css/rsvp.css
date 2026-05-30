@@ -408,9 +408,6 @@ body:not(.paused):not(.loading):not(.error) .rsvp-bottombar {
   display: flex;
   gap: 0.3rem;
 }
-.reader-settings-row .rsvp-grain {
-  flex: 1 1 auto;
-}
 .rsvp-grain__btn {
   flex: 1 1 0;
   padding: 0.42rem 0.4rem;
@@ -530,76 +527,6 @@ body:not(.paused):not(.loading):not(.error) .rsvp-pause-icon { display: block; }
   border: 0;
 }
 
-/* ===== Settings sheet (slide-up) ===== */
-.rsvp-settings {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  margin: 0 auto;
-  max-width: 34rem;
-  max-height: 78vh;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  z-index: 50;
-  background: var(--panel-bg);
-  border-top: 1px solid var(--border);
-  box-shadow: 0 -8px 40px var(--shadow);
-  border-radius: 1.1rem 1.1rem 0 0;
-  transform: translateY(102%);
-  transition: transform 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
-  padding: 0.6rem 1.1rem calc(env(safe-area-inset-bottom, 0px) + 1.4rem);
-}
-.rsvp-settings::before {
-  content: "";
-  display: block;
-  width: 38px;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--border);
-  margin: 0.2rem auto 0.8rem;
-}
-body.rsvp-show-settings .rsvp-settings { transform: translateY(0); }
-body.rsvp-show-settings .ui-backdrop { opacity: 1; pointer-events: auto; }
-
-.rsvp-section-label {
-  color: var(--fg-muted);
-  font-size: 0.65rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  padding: 0.8rem 0 0.25rem;
-}
-
-.rsvp-toggle-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0;
-  color: var(--fg-muted);
-  font-size: 0.82rem;
-  cursor: pointer;
-  border-bottom: 1px solid var(--border-faint);
-  -webkit-tap-highlight-color: transparent;
-}
-.rsvp-toggle-row:last-of-type { border-bottom: 0; }
-.rsvp-toggle-row input[type="checkbox"] {
-  accent-color: var(--accent);
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-}
-
-.rsvp-training-opts {
-  padding: 0.1rem 0;
-}
-
-.rsvp-settings-actions {
-  display: flex;
-  justify-content: center;
-  padding-top: 1rem;
-}
-
 /* ===== Backdrop (shared with show-toc from drawers.css) ===== */
 body.show-toc .ui-backdrop { opacity: 1; pointer-events: auto; }
 
@@ -608,8 +535,7 @@ body.show-toc .ui-backdrop { opacity: 1; pointer-events: auto; }
   .rsvp-display,
   .rsvp-bottombar,
   .rsvp-status,
-  .rsvp-toast,
-  .rsvp-settings {
+  .rsvp-toast {
     transition: none !important;
   }
 }

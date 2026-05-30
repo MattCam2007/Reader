@@ -1,16 +1,17 @@
 import { readerTemplate } from './reader/template.js';
 import { rsvpTemplate } from './rsvp/template.js';
 import { ttsTemplate } from './tts/template.js';
+import { closeSettingsScreen } from './settings/settings-screen.js';
 
 const READER_BODY_CLASSES = [
-  'chrome-hidden', 'loading', 'error', 'show-toc', 'show-settings', 'show-search',
+  'chrome-hidden', 'loading', 'error', 'show-toc', 'show-search',
   'images-off', 'selection-on', 'layout-scroll',
 ];
 const RSVP_BODY_CLASSES = [
-  'rsvp', 'paused', 'loading', 'error', 'fs-hide-controls', 'rsvp-show-settings', 'show-toc',
+  'rsvp', 'paused', 'loading', 'error', 'fs-hide-controls', 'show-toc',
 ];
 const TTS_BODY_CLASSES = [
-  'tts', 'loading', 'error', 'show-toc', 'tts-show-settings', 'tts-show-voice', 'tts-playing',
+  'tts', 'loading', 'error', 'show-toc', 'tts-show-voice', 'tts-playing',
 ];
 const THEME_CLASSES = ['theme-dark', 'theme-light', 'theme-sepia', 'theme-oled'];
 
@@ -37,6 +38,7 @@ function onBookLoaded({ buffer, fileName, bookId }) {
 
 async function switchMode(targetMode, posInfo) {
   // Tear down current mode
+  closeSettingsScreen();
   if (currentHandle) {
     try { currentHandle.teardown(); } catch (e) { console.warn('switcher:teardown', e); }
     currentHandle = null;

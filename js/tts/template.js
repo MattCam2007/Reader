@@ -41,9 +41,9 @@ export function ttsTemplate() {
         <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
         <span>Contents</span>
       </button>
-      <button class="reader-tool" id="ttsSettingsBtn" type="button" aria-label="Display settings" aria-expanded="false">
+      <button class="reader-tool" id="ttsSettingsBtn" type="button" aria-label="Settings" aria-expanded="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="10" cy="8" r="2.6"/><circle cx="15" cy="16" r="2.6"/></svg>
-        <span>Display</span>
+        <span>Settings</span>
       </button>
       <button class="reader-tool" id="ttsVoiceBtn" type="button" aria-label="Voice" aria-expanded="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
@@ -66,71 +66,6 @@ export function ttsTemplate() {
     <div class="reader-toc-head">Contents</div>
     <div class="reader-toc-list" id="tocList"></div>
   </nav>
-
-  <section class="tts-settings" id="ttsSettings" role="dialog" aria-modal="true" aria-label="Display settings">
-    <div class="reader-settings-row">
-      <span class="reader-settings-label">Theme</span>
-      <div class="reader-seg" id="ttsThemeSeg">
-        <button class="reader-seg-btn" data-theme="dark" type="button">Dark</button>
-        <button class="reader-seg-btn" data-theme="sepia" type="button">Sepia</button>
-        <button class="reader-seg-btn" data-theme="light" type="button">Light</button>
-        <button class="reader-seg-btn" data-theme="oled" type="button">OLED</button>
-      </div>
-    </div>
-    <div class="reader-settings-row">
-      <span class="reader-settings-label">Brightness</span>
-      <div class="reader-seg reader-slider-row">
-        <input type="range" id="ttsBrightnessSlider" min="30" max="100" value="100" class="reader-slider" aria-label="Brightness">
-      </div>
-    </div>
-    <div class="reader-settings-row">
-      <span class="reader-settings-label">Warmth</span>
-      <div class="reader-seg reader-slider-row">
-        <input type="range" id="ttsWarmthSlider" min="0" max="100" value="0" class="reader-slider" aria-label="Warmth">
-      </div>
-    </div>
-    <div class="reader-settings-row">
-      <span class="reader-settings-label">Text size</span>
-      <div class="reader-seg">
-        <button class="reader-seg-btn" id="ttsSizeDown" type="button">&minus;</button>
-        <span class="reader-size-display" id="ttsSizeDisplay">19</span>
-        <button class="reader-seg-btn" id="ttsSizeUp" type="button">+</button>
-      </div>
-    </div>
-    <div class="reader-settings-row">
-      <span class="reader-settings-label">Typeface</span>
-      <div class="reader-seg" id="ttsFontSeg">
-        <button class="reader-seg-btn" data-font="serif" type="button">Serif</button>
-        <button class="reader-seg-btn" data-font="sans" type="button">Sans</button>
-        <button class="reader-seg-btn" data-font="dyslexic" type="button">Dyslexic</button>
-      </div>
-    </div>
-    <div class="reader-settings-row">
-      <span class="reader-settings-label">Line spacing</span>
-      <div class="reader-seg">
-        <button class="reader-seg-btn" id="ttsLineHeightDown" type="button">&minus;</button>
-        <span class="reader-size-display" id="ttsLineHeightDisplay">1.6</span>
-        <button class="reader-seg-btn" id="ttsLineHeightUp" type="button">+</button>
-      </div>
-    </div>
-    <div class="reader-settings-row">
-      <span class="reader-settings-label">Margins</span>
-      <div class="reader-seg" id="ttsMarginSeg">
-        <button class="reader-seg-btn" data-margin="narrow" type="button">Narrow</button>
-        <button class="reader-seg-btn" data-margin="normal" type="button">Normal</button>
-        <button class="reader-seg-btn" data-margin="wide" type="button">Wide</button>
-      </div>
-    </div>
-    <div class="reader-settings-row">
-      <span class="reader-settings-label">Highlight</span>
-      <div class="reader-seg" id="ttsHighlightSeg">
-        <button class="reader-seg-btn" data-hl="word" type="button">Word</button>
-        <button class="reader-seg-btn" data-hl="sentence" type="button">Sentence</button>
-        <button class="reader-seg-btn" data-hl="paragraph" type="button">Paragraph</button>
-        <button class="reader-seg-btn" data-hl="off" type="button">Off</button>
-      </div>
-    </div>
-  </section>
 
   <div class="tts-voice-panel" id="ttsVoicePanel" role="dialog" aria-modal="true" aria-label="Voice selection">
     <div class="tts-voice-panel-head">Voice</div>

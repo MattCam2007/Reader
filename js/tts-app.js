@@ -1,4 +1,4 @@
-import { FONT_MAP, FONT_SERIF, THEME_COLORS, MIN_SIZE, MAX_SIZE } from './core/constants.js';
+import { FONT_MAP, FONT_SERIF, THEME_COLORS } from './core/constants.js';
 import { PrefsManager } from './core/prefs.js';
 import { extractSections } from './epub/extractor.js';
 import { resolveImageUrls, findCoverImage } from './epub/images.js';
@@ -6,23 +6,8 @@ import { flattenToc, buildTOC, resolveHref } from './epub/toc.js';
 import { buildSample } from '../fixtures/sample.js';
 import { TtsEngine } from './tts/engine.js';
 import { TtsHighlighter } from './tts/highlighter.js';
-
-const TTS_DEFAULTS = {
-  v: 1,
-  theme: 'dark',
-  font: 'serif',
-  size: 19,
-  lineHeight: 1.62,
-  margin: 'normal',
-  align: 'justify',
-  brightness: 1,
-  warmth: 0,
-  rate: 1.0,
-  pitch: 1.0,
-  voiceName: '',
-  autoScroll: true,
-  highlightMode: 'sentence',
-};
+import { TTS_DEFAULTS } from './tts/constants.js';
+import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 
 export function init(options = {}) {
   const signal = options.signal || new AbortController().signal;
@@ -51,21 +36,8 @@ export function init(options = {}) {
     ttsPrevBtn:     document.getElementById('ttsPrevBtn'),
     ttsNextBtn:     document.getElementById('ttsNextBtn'),
     ttsRateSeg:     document.getElementById('ttsRateSeg'),
-    ttsSettings:    document.getElementById('ttsSettings'),
     ttsVoicePanel:  document.getElementById('ttsVoicePanel'),
     ttsVoiceList:   document.getElementById('ttsVoiceList'),
-    ttsThemeSeg:    document.getElementById('ttsThemeSeg'),
-    ttsFontSeg:     document.getElementById('ttsFontSeg'),
-    ttsMarginSeg:   document.getElementById('ttsMarginSeg'),
-    ttsHighlightSeg:document.getElementById('ttsHighlightSeg'),
-    ttsSizeDown:    document.getElementById('ttsSizeDown'),
-    ttsSizeUp:      document.getElementById('ttsSizeUp'),
-    ttsSizeDisplay: document.getElementById('ttsSizeDisplay'),
-    ttsLineHeightDown: document.getElementById('ttsLineHeightDown'),
-    ttsLineHeightUp:   document.getElementById('ttsLineHeightUp'),
-    ttsLineHeightDisplay: document.getElementById('ttsLineHeightDisplay'),
-    ttsBrightnessSlider: document.getElementById('ttsBrightnessSlider'),
-    ttsWarmthSlider:     document.getElementById('ttsWarmthSlider'),
     comfortDim:     document.getElementById('comfortDim'),
     comfortWarm:    document.getElementById('comfortWarm'),
     coach:          document.getElementById('ttsCoach'),
@@ -124,7 +96,7 @@ export function init(options = {}) {
   let _panelTrigger = null;
 
   function closePanels() {
-    document.body.classList.remove('show-toc', 'tts-show-settings', 'tts-show-voice');
+    document.body.classList.remove('show-toc', 'tts-show-voice');
     if (els.ttsTocBtn) els.ttsTocBtn.setAttribute('aria-expanded', 'false');
     if (els.ttsSettingsBtn) els.ttsSettingsBtn.setAttribute('aria-expanded', 'false');
     if (els.ttsVoiceBtn) els.ttsVoiceBtn.setAttribute('aria-expanded', 'false');
@@ -142,11 +114,18 @@ export function init(options = {}) {
   }
 
   function openSettings() {
-    _panelTrigger = els.ttsSettingsBtn;
     closePanels();
-    _panelTrigger = els.ttsSettingsBtn;
-    document.body.classList.add('tts-show-settings');
-    els.ttsSettingsBtn.setAttribute('aria-expanded', 'true');
+    openSettingsScreen({
+      initialTab: 'tts',
+      currentMode: 'tts',
+      onTtsChange(key, value) {
+        prefs.data[key] = value;
+        applyPrefs();
+        if (key === 'highlightMode' && value === 'off') highlighter.clearHighlight();
+        if (key === 'autoScroll') highlighter.setAutoScroll(value);
+      },
+    });
+    if (els.ttsSettingsBtn) els.ttsSettingsBtn.setAttribute('aria-expanded', 'true');
   }
 
   function openVoicePanel() {
@@ -406,11 +385,9 @@ export function init(options = {}) {
     // Font & size
     els.content.style.fontFamily = FONT_MAP[p.font] || FONT_SERIF;
     els.content.style.fontSize = p.size + 'px';
-    if (els.ttsSizeDisplay) els.ttsSizeDisplay.textContent = p.size;
 
     // Line height
     els.content.style.setProperty('--reading-line-height', String(p.lineHeight));
-    if (els.ttsLineHeightDisplay) els.ttsLineHeightDisplay.textContent = p.lineHeight.toFixed(1);
 
     // Margin
     els.viewport.classList.remove('margin-narrow', 'margin-normal', 'margin-wide');
@@ -419,47 +396,15 @@ export function init(options = {}) {
     // Comfort overlay
     if (els.comfortDim) els.comfortDim.style.opacity = String(1 - (p.brightness || 1));
     if (els.comfortWarm) els.comfortWarm.style.opacity = String(p.warmth || 0);
-    if (els.ttsBrightnessSlider) els.ttsBrightnessSlider.value = String(Math.round((p.brightness || 1) * 100));
-    if (els.ttsWarmthSlider) els.ttsWarmthSlider.value = String(Math.round((p.warmth || 0) * 100));
 
     // Auto scroll
     highlighter.setAutoScroll(p.autoScroll !== false);
-
-    // Sync seg buttons
-    syncSegBtn(els.ttsThemeSeg, 'data-theme', p.theme);
-    syncSegBtn(els.ttsFontSeg, 'data-font', p.font);
-    syncSegBtn(els.ttsMarginSeg, 'data-margin', p.margin || 'normal');
-    syncSegBtn(els.ttsHighlightSeg, 'data-hl', p.highlightMode || 'sentence');
 
     // Rate buttons
     const rateBtns = els.ttsRateSeg ? els.ttsRateSeg.querySelectorAll('.tts-rate-btn') : [];
     rateBtns.forEach(btn => {
       btn.classList.toggle('active', parseFloat(btn.dataset.rate) === p.rate);
     });
-  }
-
-  function syncSegBtn(segEl, attr, val) {
-    if (!segEl) return;
-    segEl.querySelectorAll('.reader-seg-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.getAttribute(attr) === String(val));
-      btn.setAttribute('aria-pressed', String(btn.getAttribute(attr) === String(val)));
-    });
-  }
-
-  function changeSize(dir) {
-    const next = Math.max(MIN_SIZE, Math.min(MAX_SIZE, prefs.data.size + dir * 2));
-    if (next === prefs.data.size) return;
-    prefs.data.size = next;
-    applyPrefs();
-    prefs.save();
-  }
-
-  function changeLineHeight(dir) {
-    const next = Math.round(Math.max(1.0, Math.min(2.4, prefs.data.lineHeight + dir)) * 10) / 10;
-    if (next === prefs.data.lineHeight) return;
-    prefs.data.lineHeight = next;
-    applyPrefs();
-    prefs.save();
   }
 
   // ---------- Voice panel ----------
@@ -626,75 +571,6 @@ export function init(options = {}) {
     } catch (_) { return 0; }
   }
 
-  // ---------- Settings wiring ----------
-  function wireSettings() {
-    // Theme
-    if (els.ttsThemeSeg) {
-      els.ttsThemeSeg.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-theme]');
-        if (!btn) return;
-        prefs.data.theme = btn.dataset.theme;
-        applyPrefs();
-        prefs.save();
-      }, { signal });
-    }
-    // Font
-    if (els.ttsFontSeg) {
-      els.ttsFontSeg.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-font]');
-        if (!btn) return;
-        prefs.data.font = btn.dataset.font;
-        applyPrefs();
-        prefs.save();
-      }, { signal });
-    }
-    // Margin
-    if (els.ttsMarginSeg) {
-      els.ttsMarginSeg.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-margin]');
-        if (!btn) return;
-        prefs.data.margin = btn.dataset.margin;
-        applyPrefs();
-        prefs.save();
-      }, { signal });
-    }
-    // Highlight mode
-    if (els.ttsHighlightSeg) {
-      els.ttsHighlightSeg.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-hl]');
-        if (!btn) return;
-        prefs.data.highlightMode = btn.dataset.hl;
-        if (btn.dataset.hl === 'off') {
-          highlighter.clearHighlight();
-        } else {
-          highlighter.clearWordHighlight();
-        }
-        applyPrefs();
-        prefs.save();
-      }, { signal });
-    }
-    // Size
-    if (els.ttsSizeDown) els.ttsSizeDown.addEventListener('click', () => changeSize(-1), { signal });
-    if (els.ttsSizeUp) els.ttsSizeUp.addEventListener('click', () => changeSize(1), { signal });
-    // Line height
-    if (els.ttsLineHeightDown) els.ttsLineHeightDown.addEventListener('click', () => changeLineHeight(-0.1), { signal });
-    if (els.ttsLineHeightUp) els.ttsLineHeightUp.addEventListener('click', () => changeLineHeight(0.1), { signal });
-    // Brightness/warmth
-    if (els.ttsBrightnessSlider) {
-      els.ttsBrightnessSlider.addEventListener('input', (e) => {
-        prefs.data.brightness = parseInt(e.target.value, 10) / 100;
-        applyPrefs();
-        prefs.save();
-      }, { signal });
-    }
-    if (els.ttsWarmthSlider) {
-      els.ttsWarmthSlider.addEventListener('input', (e) => {
-        prefs.data.warmth = parseInt(e.target.value, 10) / 100;
-        applyPrefs();
-        prefs.save();
-      }, { signal });
-    }
-  }
 
   // ---------- Wiring ----------
   if (els.ttsPlayBtn) els.ttsPlayBtn.addEventListener('click', playPause, { signal });
@@ -723,7 +599,7 @@ export function init(options = {}) {
     openVoicePanel();
     renderVoiceList();
   }, { signal });
-  if (els.backdrop) els.backdrop.addEventListener('click', closePanels, { signal });
+  if (els.backdrop) els.backdrop.addEventListener('click', () => { closePanels(); closeSettingsScreen(); }, { signal });
 
   // File open
   if (els.ttsOpenBtn) els.ttsOpenBtn.addEventListener('click', () => els.fileInput.click(), { signal });
@@ -739,6 +615,7 @@ export function init(options = {}) {
   // Mode switch
   if (els.ttsReadBtn && onModeSwitch) {
     els.ttsReadBtn.addEventListener('click', () => {
+      closeSettingsScreen();
       engine.cancel();
       setPlaying(false);
       savePosition();
@@ -781,8 +658,6 @@ export function init(options = {}) {
   els.viewport.addEventListener('scroll', () => {
     savePosition();
   }, { passive: true, signal });
-
-  wireSettings();
 
   // ---------- Init ----------
   applyPrefs();
@@ -848,6 +723,7 @@ export function init(options = {}) {
 
   return {
     teardown() {
+      closeSettingsScreen();
       engine.cancel();
       setPlaying(false);
       savePosition();
