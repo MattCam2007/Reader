@@ -597,6 +597,7 @@ export function init(options = {}) {
         b.classList.toggle('active', parseFloat(b.dataset.rate) === rate);
       });
       if (isPlaying) {
+        setPlaying(false);
         engine.cancel();
         play();
       }
@@ -649,7 +650,7 @@ export function init(options = {}) {
         engine.setRate(prefs.data.rate);
         prefs.save();
         applyPrefs();
-        if (isPlaying) { engine.cancel(); play(); }
+        if (isPlaying) { setPlaying(false); engine.cancel(); play(); }
       }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -660,7 +661,7 @@ export function init(options = {}) {
         engine.setRate(prefs.data.rate);
         prefs.save();
         applyPrefs();
-        if (isPlaying) { engine.cancel(); play(); }
+        if (isPlaying) { setPlaying(false); engine.cancel(); play(); }
       }
     } else if (e.key === 'Escape') {
       closePanels();

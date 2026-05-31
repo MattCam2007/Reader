@@ -38,7 +38,10 @@ export class TtsEngine {
     this._sentences = sentences;
     this._cancelled = false;
     speechSynthesis.cancel();
-    this._speakAt(startIndex);
+    // Android Chrome ignores speak() called synchronously after cancel(); defer one tick.
+    setTimeout(() => {
+      if (!this._cancelled) this._speakAt(startIndex);
+    }, 0);
   }
 
   _speakAt(index) {
