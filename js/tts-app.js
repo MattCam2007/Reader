@@ -380,30 +380,30 @@ export function init(options = {}) {
   }
 
   function annotateInlineText(root) {
-    root.querySelectorAll('.blk').forEach(annotateBlock);
+    root.querySelectorAll(".blk").forEach(annotateBlock);
   }
 
   function annotateBlock(blk) {
+    const SPLIT = /(["\u201C\u201D])|([.,:;!?\u2014\u2013\u2026()\[\]])/g;
     const walker = document.createTreeWalker(blk, NodeFilter.SHOW_TEXT);
     const nodes = [];
-    let n;
-    while ((n = walker.nextNode())) nodes.push(n);
+    let nd;
+    while ((nd = walker.nextNode())) nodes.push(nd);
 
     let inSpeech = false;
     for (const node of nodes) {
       const parent = node.parentNode;
       if (!parent) continue;
-      if (parent.closest && parent.closest('code, pre')) continue;
+      if (parent.closest && parent.closest("code, pre")) continue;
       const text = node.nodeValue;
-      const re = /([“””])|([.,:;!?—–…()\[\]])/g;
       let last = 0, m, hasMatch = false;
       const parts = [];
 
       const pushText = (t) => {
         if (!t) return;
         if (inSpeech) {
-          const sp = document.createElement('span');
-          sp.className = 'inline-speech';
+          const sp = document.createElement("span");
+          sp.className = "inline-speech";
           sp.textContent = t;
           parts.push(sp);
         } else {
@@ -411,21 +411,22 @@ export function init(options = {}) {
         }
       };
 
-      while ((m = re.exec(text)) !== null) {
+      SPLIT.lastIndex = 0;
+      while ((m = SPLIT.exec(text)) !== null) {
         hasMatch = true;
         pushText(text.slice(last, m.index));
         const ch = m[0];
         if (m[1]) {
-          const sp = document.createElement('span');
-          sp.className = 'inline-speech';
+          const sp = document.createElement("span");
+          sp.className = "inline-speech";
           sp.textContent = ch;
           parts.push(sp);
-          if (ch === '“') inSpeech = true;
-          else if (ch === '”') inSpeech = false;
+          if (ch === "\u201C") inSpeech = true;
+          else if (ch === "\u201D") inSpeech = false;
           else inSpeech = !inSpeech;
         } else {
-          const sp = document.createElement('span');
-          sp.className = inSpeech ? 'inline-speech' : 'inline-punct';
+          const sp = document.createElement("span");
+          sp.className = inSpeech ? "inline-speech" : "inline-punct";
           sp.textContent = ch;
           parts.push(sp);
         }
@@ -434,8 +435,8 @@ export function init(options = {}) {
 
       if (!hasMatch) {
         if (inSpeech) {
-          const sp = document.createElement('span');
-          sp.className = 'inline-speech';
+          const sp = document.createElement("span");
+          sp.className = "inline-speech";
           sp.textContent = text;
           parent.replaceChild(sp, node);
         }
