@@ -596,6 +596,10 @@ export function init(options = {}) {
       els.ttsRateSeg.querySelectorAll('.tts-rate-btn').forEach(b => {
         b.classList.toggle('active', parseFloat(b.dataset.rate) === rate);
       });
+      if (isPlaying) {
+        engine.cancel();
+        play();
+      }
     }, { signal });
   }
 
@@ -645,6 +649,7 @@ export function init(options = {}) {
         engine.setRate(prefs.data.rate);
         prefs.save();
         applyPrefs();
+        if (isPlaying) { engine.cancel(); play(); }
       }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -655,6 +660,7 @@ export function init(options = {}) {
         engine.setRate(prefs.data.rate);
         prefs.save();
         applyPrefs();
+        if (isPlaying) { engine.cancel(); play(); }
       }
     } else if (e.key === 'Escape') {
       closePanels();
