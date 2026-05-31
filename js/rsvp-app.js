@@ -1,5 +1,7 @@
 import { FONT_MAP, FONT_MONO, THEME_COLORS, GENERAL_DEFAULTS, ALL_THEME_NAMES } from './core/constants.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
+import { BookmarkManager } from './core/bookmarks.js';
+import { initBookmarksPanel } from './bookmarks/panel.js';
 import { PrefsManager } from './core/prefs.js';
 import { EventBus } from './core/events.js';
 import { extractPlainText } from './epub/extractor.js';
@@ -63,6 +65,45 @@ export function init(options = {}) {
 
   const state = new RsvpState();
   const bus = new EventBus();
+
+  // ---------- Bookmarks ----------
+  const bookmarkManager = new BookmarkManager();
+  const bmPanel = initBookmarksPanel(
+    { panelEl: document.getElementById('bookmarksPanel'), listEl: document.getElementById('bmList'), addBtnEl: document.getElementById('bmAddBtn') },
+    signal
+  );
+  bmPanel.setBook(bookmarkManager);
+
+  function getRsvpBookmarkContext() {
+    if (!state.tokens.length) return null;
+    const fraction = getPositionFraction();
+    let chapterLabel = '';
+    if (state.chapters.length) {
+      for (let i = state.chapters.length - 1; i >= 0; i--) {
+        if (state.chapters[i].tokenIdx <= state.currentIdx) { chapterLabel = state.chapters[i].title; break; }
+      }
+    }
+    const words = [];
+    for (let i = state.currentIdx; i < state.tokens.length && words.length < 15; i++) {
+      const tok = state.tokens[i];
+      if (tok && tok !== '\n') words.push(tok);
+    }
+    return { fraction, chapterLabel, text: words.join(' ').slice(0, 120) };
+  }
+
+  function navigateRsvpToBookmark(item) {
+    if (state.playState === 'playing') playback.pause();
+    else if (state.playState === 'countdown') playback.cancelCountdown();
+    if (state.totalWords) {
+      playback.seekTo(state.ordinalToIdx(Math.round(item.fraction * (state.totalWords - 1))));
+    }
+  }
+
+  bmPanel.setCallbacks({
+    getContext: getRsvpBookmarkContext,
+    onNavigate: navigateRsvpToBookmark,
+    closePanel: () => { document.body.classList.remove('show-bookmarks'); const b = document.getElementById('bookmarksBtn'); if (b) b.setAttribute('aria-expanded', 'false'); },
+  });
 
   // ---------- Modules ----------
   const display = new RsvpDisplay(state, prefs, els);
@@ -367,8 +408,30 @@ export function init(options = {}) {
       e.stopPropagation();
       const show = document.body.classList.toggle('show-toc');
       tocBtn.setAttribute('aria-expanded', show);
-      document.body.classList.remove('show-search');
+      document.body.classList.remove('show-search', 'show-bookmarks');
       if (searchBtn) searchBtn.setAttribute('aria-expanded', 'false');
+      const bBtn = document.getElementById('bookmarksBtn');
+      if (bBtn) bBtn.setAttribute('aria-expanded', 'false');
+    }, { signal });
+  }
+
+  // Bookmarks panel
+  const bookmarksBtn = document.getElementById('bookmarksBtn');
+  if (bookmarksBtn) {
+    bookmarksBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = document.body.classList.contains('show-bookmarks');
+      document.body.classList.remove('show-toc', 'show-search', 'show-bookmarks');
+      if (tocBtn) tocBtn.setAttribute('aria-expanded', 'false');
+      if (searchBtn) searchBtn.setAttribute('aria-expanded', 'false');
+      closeSettingsScreen();
+      if (!isOpen) {
+        document.body.classList.add('show-bookmarks');
+        bookmarksBtn.setAttribute('aria-expanded', 'true');
+        bmPanel.render();
+      } else {
+        bookmarksBtn.setAttribute('aria-expanded', 'false');
+      }
     }, { signal });
   }
 
@@ -376,9 +439,10 @@ export function init(options = {}) {
   const backdrop = document.getElementById("backdrop");
   if (backdrop) {
     backdrop.addEventListener('click', () => {
-      document.body.classList.remove('show-toc', 'show-search');
+      document.body.classList.remove('show-toc', 'show-search', 'show-bookmarks');
       if (tocBtn) tocBtn.setAttribute('aria-expanded', 'false');
       if (searchBtn) searchBtn.setAttribute('aria-expanded', 'false');
+      if (bookmarksBtn) bookmarksBtn.setAttribute('aria-expanded', 'false');
       closeSettingsScreen();
     }, { signal });
   }
@@ -480,10 +544,12 @@ export function init(options = {}) {
       if (!text || text.length < 32) {
         throw new Error("No readable text found in this EPUB (it may be image-only or DRM-protected).");
       }
+      state.bookId = bookTitle || file.name;
+      bookmarkManager.setBook(state.bookId);
       loadText(text, chapterMeta);
       const bookTitleEl = document.getElementById("bookTitle");
       if (bookTitleEl) bookTitleEl.textContent = bookTitle;
-      if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId: state.bookId || file.name });
+      if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId: state.bookId });
     } catch (err) {
       console.error("EPUB load failed:", err);
       state.setPlayState('error');
@@ -544,6 +610,8 @@ This was invitation enough.
 "Oh! Single, my dear, to be sure! A single man of large fortune; four or five thousand a year. What a fine thing for our girls!"`;
 
   // ---------- Init ----------
+  state.bookId = new URLSearchParams(location.search).get('id') || 'Pride and Prejudice (sample)';
+  bookmarkManager.setBook(state.bookId);
   loadText(sampleText, []);
 
   // ---------- Handle ----------

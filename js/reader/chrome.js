@@ -30,6 +30,8 @@ export class ChromeManager {
     }
   }
 
+  currentChapterLabel() { return this._currentChapterLabel(); }
+
   _currentChapterLabel() {
     const { chapterIndex, page } = this.state;
     if (!chapterIndex.length) return "";

@@ -108,6 +108,10 @@ export function rsvpTemplate() {
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
         <span>Listen</span>
       </button>
+      <button class="reader-tool" id="bookmarksBtn" type="button" aria-label="Bookmarks" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        <span>Marks</span>
+      </button>
       <button class="reader-tool" id="openEpubBtn" type="button" aria-label="Open EPUB">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         <span>Open</span>
@@ -116,6 +120,14 @@ export function rsvpTemplate() {
   </footer>
 
   <div class="ui-backdrop" id="backdrop"></div>
+
+  <div class="bm-panel" id="bookmarksPanel" role="dialog" aria-modal="true" aria-label="Bookmarks">
+    <div class="bm-panel-head">
+      <div class="bm-panel-title">Bookmarks</div>
+      <button class="bm-add-btn" id="bmAddBtn" type="button">+ Add</button>
+    </div>
+    <div class="bm-panel-list" id="bmList"></div>
+  </div>
 
   <div class="reader-search-panel" id="searchPanel" role="search" aria-label="Search in book">
     <div class="reader-search-head">

@@ -7,6 +7,23 @@ import { createPicker } from '../shared/picker.js';
 let _screen = null;
 let _cleanup = null;
 
+// Module-level singleton prefs — one instance per scope for the entire app lifetime.
+// Created lazily on first settings open; load() called each time to sync with localStorage.
+let _generalPrefs = null;
+let _readerPrefs = null;
+let _rsvpPrefs = null;
+let _ttsPrefs = null;
+
+function getOrCreatePrefs(ref, opts) {
+  if (!ref) {
+    const p = new PrefsManager(opts);
+    p.load();
+    return p;
+  }
+  ref.load(); // re-sync in case the app changed values externally
+  return ref;
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 export function openSettingsScreen(config = {}) {
@@ -21,14 +38,15 @@ export function openSettingsScreen(config = {}) {
     onTtsChange = null,      // fn(key, value)
   } = config;
 
-  const generalPrefs = new PrefsManager({ storageKey: 'general:prefs', defaults: GENERAL_DEFAULTS });
-  generalPrefs.load();
-  const readerPrefs = new PrefsManager({ storageKey: 'reader:prefs', defaults: DEFAULT_PREFS });
-  readerPrefs.load();
-  const rsvpPrefs = new PrefsManager({ storageKey: 'rsvp:prefs', defaults: RSVP_DEFAULTS });
-  rsvpPrefs.load();
-  const ttsPrefs = new PrefsManager({ storageKey: 'tts:prefs', defaults: TTS_DEFAULTS });
-  ttsPrefs.load();
+  _generalPrefs = getOrCreatePrefs(_generalPrefs, { storageKey: 'general:prefs', defaults: GENERAL_DEFAULTS });
+  _readerPrefs  = getOrCreatePrefs(_readerPrefs,  { storageKey: 'reader:prefs',  defaults: DEFAULT_PREFS });
+  _rsvpPrefs    = getOrCreatePrefs(_rsvpPrefs,    { storageKey: 'rsvp:prefs',    defaults: RSVP_DEFAULTS });
+  _ttsPrefs     = getOrCreatePrefs(_ttsPrefs,     { storageKey: 'tts:prefs',     defaults: TTS_DEFAULTS });
+
+  const generalPrefs = _generalPrefs;
+  const readerPrefs  = _readerPrefs;
+  const rsvpPrefs    = _rsvpPrefs;
+  const ttsPrefs     = _ttsPrefs;
 
   _screen = document.createElement('div');
   _screen.id = 'settingsScreen';
