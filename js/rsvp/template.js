@@ -92,7 +92,7 @@ export function rsvpTemplate() {
         <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
         <span>Chapters</span>
       </button>
-      <button class="reader-tool" id="settingsBtn" type="button" aria-label="Display settings" aria-expanded="false">
+      <button class="reader-tool" id="settingsBtn" type="button" aria-label="Settings" aria-expanded="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="10" cy="8" r="2.6"/><circle cx="15" cy="16" r="2.6"/></svg>
         <span>Settings</span>
       </button>
@@ -120,126 +120,5 @@ export function rsvpTemplate() {
     </div>
   </nav>
 
-  <section class="rsvp-settings" id="rsvpSettings" role="dialog" aria-modal="true" aria-label="Settings">
-    <div class="reader-settings-row">
-      <span class="reader-settings-label">Theme</span>
-      <div class="reader-seg">
-        <button class="reader-seg-btn is-active" type="button" data-theme="dark">Dark</button>
-        <button class="reader-seg-btn" type="button" data-theme="light">Light</button>
-        <button class="reader-seg-btn" type="button" data-theme="sepia">Sepia</button>
-        <button class="reader-seg-btn" type="button" data-theme="oled">OLED</button>
-      </div>
-    </div>
-
-    <div class="reader-settings-row">
-      <span class="reader-settings-label">Font</span>
-      <div class="reader-seg">
-        <button class="reader-seg-btn" type="button" data-font="sans">Sans</button>
-        <button class="reader-seg-btn" type="button" data-font="serif">Serif</button>
-        <button class="reader-seg-btn is-active" type="button" data-font="mono">Mono</button>
-        <button class="reader-seg-btn" type="button" data-font="dyslexic">Dyslexic</button>
-      </div>
-    </div>
-
-    <div class="rsvp-section-label">Reading</div>
-    <div class="reader-settings-row">
-      <span class="reader-settings-label">Flash size</span>
-      <div class="rsvp-grain" role="group" aria-label="Words per flash">
-        <button class="rsvp-grain__btn is-active" type="button" data-chunk="1">1w</button>
-        <button class="rsvp-grain__btn" type="button" data-chunk="2">2w</button>
-        <button class="rsvp-grain__btn" type="button" data-chunk="3">3w</button>
-      </div>
-    </div>
-
-    <div class="rsvp-section-label">Font size</div>
-    <div class="picker" aria-label="Font size">
-      <div class="picker-display"><span id="fontSizeValue">48</span><span class="picker-unit">PX</span></div>
-      <div class="strip-wrap">
-        <div class="picker-strip" id="fontSizeStrip">
-          <div class="picker-track" id="fontSizeTrack"></div>
-        </div>
-        <div class="picker-pointer"></div>
-      </div>
-    </div>
-
-    <div class="rsvp-section-label">Timing</div>
-    <div class="picker" aria-label="Long word pause intensity">
-      <div class="picker-display"><span id="lenValue">50</span><span class="picker-unit">LENGTH</span></div>
-      <div class="strip-wrap">
-        <div class="picker-strip" id="lenStrip">
-          <div class="picker-track" id="lenTrack"></div>
-        </div>
-        <div class="picker-pointer"></div>
-      </div>
-    </div>
-    <div class="picker" aria-label="Comma pause intensity">
-      <div class="picker-display"><span id="commaValue">50</span><span class="picker-unit">COMMA %</span></div>
-      <div class="strip-wrap">
-        <div class="picker-strip" id="commaStrip">
-          <div class="picker-track" id="commaTrack"></div>
-        </div>
-        <div class="picker-pointer"></div>
-      </div>
-    </div>
-    <div class="picker" aria-label="Period pause intensity">
-      <div class="picker-display"><span id="periodValue">120</span><span class="picker-unit">PERIOD %</span></div>
-      <div class="strip-wrap">
-        <div class="picker-strip" id="periodStrip">
-          <div class="picker-track" id="periodTrack"></div>
-        </div>
-        <div class="picker-pointer"></div>
-      </div>
-    </div>
-    <div class="picker" aria-label="Paragraph pause intensity">
-      <div class="picker-display"><span id="paraValue">150</span><span class="picker-unit">PARAGRAPH %</span></div>
-      <div class="strip-wrap">
-        <div class="picker-strip" id="paraStrip">
-          <div class="picker-track" id="paraTrack"></div>
-        </div>
-        <div class="picker-pointer"></div>
-      </div>
-    </div>
-
-    <div class="rsvp-section-label">Behavior</div>
-    <label class="rsvp-toggle-row"><input type="checkbox" id="startPausedToggle" checked><span>Start paused on load</span></label>
-    <label class="rsvp-toggle-row"><input type="checkbox" id="countdownToggle" checked><span>Countdown before resume</span></label>
-    <label class="rsvp-toggle-row"><input type="checkbox" id="contextToggle" checked><span>Show context line</span></label>
-    <label class="rsvp-toggle-row"><input type="checkbox" id="autoPauseToggle" checked><span>Pause when tab hidden</span></label>
-
-    <div class="rsvp-section-label">Training</div>
-    <label class="rsvp-toggle-row"><input type="checkbox" id="trainingToggle"><span>WPM training ramp</span></label>
-    <div class="rsvp-training-opts" id="trainingOpts" hidden>
-      <div class="picker" aria-label="Training increment">
-        <div class="picker-display"><span id="trainIncValue">10</span><span class="picker-unit">WPM / BUMP</span></div>
-        <div class="strip-wrap">
-          <div class="picker-strip" id="trainIncStrip">
-            <div class="picker-track" id="trainIncTrack"></div>
-          </div>
-          <div class="picker-pointer"></div>
-        </div>
-      </div>
-      <div class="picker" aria-label="Training interval">
-        <div class="picker-display"><span id="trainIntValue">500</span><span class="picker-unit">WORDS / BUMP</span></div>
-        <div class="strip-wrap">
-          <div class="picker-strip" id="trainIntStrip">
-            <div class="picker-track" id="trainIntTrack"></div>
-          </div>
-          <div class="picker-pointer"></div>
-        </div>
-      </div>
-      <div class="picker" aria-label="Training ceiling">
-        <div class="picker-display"><span id="trainCeilValue">600</span><span class="picker-unit">MAX WPM</span></div>
-        <div class="strip-wrap">
-          <div class="picker-strip" id="trainCeilStrip">
-            <div class="picker-track" id="trainCeilTrack"></div>
-          </div>
-          <div class="picker-pointer"></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="rsvp-settings-actions">
-      <button class="ui-chip" id="resetStatsBtn" type="button">Reset Stats</button>
-    </div>
-  </section>`;
+`;
 }
