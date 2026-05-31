@@ -1,4 +1,4 @@
-import { FONT_MAP, FONT_SERIF, THEME_COLORS } from './core/constants.js';
+import { FONT_MAP, FONT_SERIF, THEME_COLORS, GENERAL_DEFAULTS, ALL_THEME_NAMES } from './core/constants.js';
 import { PrefsManager } from './core/prefs.js';
 import { extractSections } from './epub/extractor.js';
 import { resolveImageUrls, findCoverImage } from './epub/images.js';
@@ -46,6 +46,8 @@ export function init(options = {}) {
   // ---------- State ----------
   const prefs = new PrefsManager({ storageKey: 'tts:prefs', defaults: TTS_DEFAULTS, version: 1 });
   prefs.load();
+  const generalPrefs = new PrefsManager({ storageKey: 'general:prefs', defaults: GENERAL_DEFAULTS });
+  generalPrefs.load();
 
   const urlParams = new URLSearchParams(location.search);
   const blobUrls = [];
@@ -118,6 +120,10 @@ export function init(options = {}) {
     openSettingsScreen({
       initialTab: 'tts',
       currentMode: 'tts',
+      onGeneralChange(key, value) {
+        generalPrefs.data[key] = value;
+        applyPrefs();
+      },
       onTtsChange(key, value) {
         prefs.data[key] = value;
         applyPrefs();
@@ -376,11 +382,12 @@ export function init(options = {}) {
   function applyPrefs() {
     const p = prefs.data;
 
-    // Theme
-    document.body.classList.remove('theme-dark', 'theme-sepia', 'theme-light', 'theme-oled');
-    if (p.theme !== 'dark') document.body.classList.add('theme-' + p.theme);
+    // Theme (reads from app-wide general prefs)
+    const theme = generalPrefs.data.theme;
+    document.body.classList.remove(...ALL_THEME_NAMES.map(t => `theme-${t}`));
+    if (theme !== 'dark') document.body.classList.add('theme-' + theme);
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta && THEME_COLORS[p.theme]) meta.setAttribute('content', THEME_COLORS[p.theme]);
+    if (meta && THEME_COLORS[theme]) meta.setAttribute('content', THEME_COLORS[theme]);
 
     // Font & size
     els.content.style.fontFamily = FONT_MAP[p.font] || FONT_SERIF;

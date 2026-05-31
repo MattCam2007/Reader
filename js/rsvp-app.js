@@ -1,4 +1,4 @@
-import { FONT_MAP, FONT_MONO, THEME_COLORS } from './core/constants.js';
+import { FONT_MAP, FONT_MONO, THEME_COLORS, GENERAL_DEFAULTS, ALL_THEME_NAMES } from './core/constants.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 import { PrefsManager } from './core/prefs.js';
 import { EventBus } from './core/events.js';
@@ -58,6 +58,8 @@ export function init(options = {}) {
     version: 1,
   });
   prefs.load();
+  const generalPrefs = new PrefsManager({ storageKey: 'general:prefs', defaults: GENERAL_DEFAULTS });
+  generalPrefs.load();
 
   const state = new RsvpState();
   const bus = new EventBus();
@@ -107,15 +109,11 @@ export function init(options = {}) {
 
   // ---------- Theme ----------
   function applyTheme(name) {
-    document.body.classList.remove("theme-dark", "theme-light", "theme-sepia", "theme-oled");
+    document.body.classList.remove(...ALL_THEME_NAMES.map(t => `theme-${t}`));
     if (name !== "dark") document.body.classList.add("theme-" + name);
-    prefs.data.theme = name;
-    prefs.save();
     const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim();
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.content = bg;
-    document.querySelectorAll("[data-theme]").forEach(b =>
-      b.classList.toggle("is-active", b.dataset.theme === name));
   }
   bus.on('themeChange', applyTheme);
 
@@ -185,8 +183,7 @@ export function init(options = {}) {
       return;
     }
     prefs.data[key] = value;
-    if (key === 'theme') applyTheme(value);
-    else if (key === 'font') applyFont(value);
+    if (key === 'font') applyFont(value);
     else if (key === 'fontSize') document.documentElement.style.setProperty('--word-size', value + 'px');
     else if (key === 'chunkSize') {
       document.querySelectorAll('[data-chunk]').forEach(b =>
@@ -257,6 +254,10 @@ export function init(options = {}) {
       openSettingsScreen({
         initialTab: 'rsvp',
         currentMode: 'rsvp',
+        onGeneralChange(key, value) {
+          generalPrefs.data[key] = value;
+          if (key === 'theme') applyTheme(value);
+        },
         onRsvpChange: onRsvpSettingChange,
       });
       settingsBtn.setAttribute('aria-expanded', 'true');
@@ -399,7 +400,7 @@ export function init(options = {}) {
   }
 
   // ---------- Apply saved prefs ----------
-  applyTheme(prefs.data.theme);
+  applyTheme(generalPrefs.data.theme);
   applyFont(prefs.data.font);
   document.documentElement.style.setProperty("--word-size", prefs.data.fontSize + "px");
 
@@ -407,8 +408,12 @@ export function init(options = {}) {
   if (els.contextLine) els.contextLine.hidden = !prefs.data.contextEnabled;
 
   // OS preference fallback
-  if (!localStorage.getItem("rsvp:prefs")) {
-    if (window.matchMedia("(prefers-color-scheme: light)").matches) applyTheme("light");
+  if (!localStorage.getItem("general:prefs")) {
+    if (window.matchMedia("(prefers-color-scheme: light)").matches) {
+      generalPrefs.data.theme = "light";
+      generalPrefs.save();
+      applyTheme("light");
+    }
   }
 
   // ---------- Sample text ----------

@@ -19,11 +19,19 @@ export const MARGINS = {
 
 // Theme colors for meta tag
 export const THEME_COLORS = {
-  dark: "#1a1a1a",
-  sepia: "#f4ecd8",
-  light: "#ffffff",
-  oled: "#000000",
+  dark:     "#1a1a1a",
+  sepia:    "#f4ecd8",
+  light:    "#ffffff",
+  oled:     "#000000",
+  terminal: "#0a0d0a",
+  nebula:   "#0d0818",
+  forest:   "#0b1a0e",
+  ember:    "#120c07",
+  nord:     "#0f1520",
 };
+
+// All theme class names (used for bulk body class removal)
+export const ALL_THEME_NAMES = Object.keys(THEME_COLORS);
 
 // Swipe / tap thresholds
 export const SWIPE_THRESHOLD_MAX_PX = 80;
@@ -51,6 +59,11 @@ export const SAFE_ATTRS = {
   img: new Set(["src","alt"]),
   td: new Set(["colspan","rowspan"]),
   th: new Set(["colspan","rowspan","scope"]),
+};
+
+// General (app-wide) prefs
+export const GENERAL_DEFAULTS = {
+  theme: 'dark',
 };
 
 // Default prefs

@@ -1,4 +1,4 @@
-import { FONT_MAP, FONT_SERIF, THEME_COLORS, RESIZE_DEBOUNCE_MS, SAVE_DEBOUNCE_MS } from './core/constants.js';
+import { FONT_MAP, FONT_SERIF, THEME_COLORS, RESIZE_DEBOUNCE_MS, SAVE_DEBOUNCE_MS, GENERAL_DEFAULTS, ALL_THEME_NAMES } from './core/constants.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 import { PrefsManager } from './core/prefs.js';
 import { ReaderState } from './core/state.js';
@@ -53,6 +53,7 @@ export function init(options = {}) {
 
   // ---------- State & Prefs ----------
   const prefs = new PrefsManager();
+  const generalPrefs = new PrefsManager({ storageKey: 'general:prefs', defaults: GENERAL_DEFAULTS });
   const state = new ReaderState();
   state.setPrefs(prefs);
   const urlParams = new URLSearchParams(location.search);
@@ -131,6 +132,10 @@ export function init(options = {}) {
     openSettingsScreen({
       initialTab: 'read',
       currentMode: 'read',
+      onGeneralChange(key, value) {
+        generalPrefs.data[key] = value;
+        applyPrefs();
+      },
       onReaderChange(key, value, needsRepaginate) {
         prefs.data[key] = value;
         applyPrefs();
@@ -178,12 +183,10 @@ export function init(options = {}) {
   // ---------- Prefs application (Phase 4: each concern subscribes) ----------
   function applyPrefs() {
     const p = prefs.data;
-    // Theme (explicit theme-dark class prevents prefers-color-scheme override)
-    document.body.classList.remove("theme-dark", "theme-sepia", "theme-light", "theme-oled");
-    if (p.theme === "dark") document.body.classList.add("theme-dark");
-    else if (p.theme === "sepia") document.body.classList.add("theme-sepia");
-    else if (p.theme === "light") document.body.classList.add("theme-light");
-    else if (p.theme === "oled") document.body.classList.add("theme-oled");
+    // Theme (reads from app-wide general prefs)
+    const theme = generalPrefs.data.theme;
+    document.body.classList.remove(...ALL_THEME_NAMES.map(t => `theme-${t}`));
+    if (theme !== "dark") document.body.classList.add("theme-" + theme);
 
     // Font
     els.content.style.fontFamily = FONT_MAP[p.font] || FONT_SERIF;
@@ -212,7 +215,7 @@ export function init(options = {}) {
     document.body.classList.toggle("layout-scroll", p.layout === "scroll");
 
     // Meta theme color
-    const tc = THEME_COLORS[p.theme];
+    const tc = THEME_COLORS[theme];
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta && tc) meta.setAttribute("content", tc);
 
@@ -392,13 +395,15 @@ export function init(options = {}) {
 
   // ---------- Init ----------
   prefs.load();
+  generalPrefs.load();
   applyPrefs();
 
-  // Respect prefers-color-scheme on first load (no stored prefs)
-  if (!localStorage.getItem("reader:prefs")) {
+  // Respect prefers-color-scheme on first load (no stored general prefs)
+  if (!localStorage.getItem("general:prefs")) {
     const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
     if (prefersLight) {
-      prefs.data.theme = "light";
+      generalPrefs.data.theme = "light";
+      generalPrefs.save();
       applyPrefs();
     }
   }

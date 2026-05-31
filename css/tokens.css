@@ -134,9 +134,261 @@ body.theme-oled {
   --break-orp: rgba(207,207,207,0.3);
 }
 
+/* ── Terminal ─────────────────────────────────────────────────────────────── */
+body.theme-terminal {
+  --bg: #0a0d0a;
+  --fg: #39d353;
+  --content-fg: #33c444;
+  --muted: rgba(57,211,83,0.5);
+  --chrome-bg: rgba(10,13,10,0.96);
+  --panel-bg: #0e1a0e;
+  --border: rgba(57,211,83,0.2);
+  --accent: #4fff00;
+  --shadow: rgba(0,0,0,0.75);
+  --fg-muted: rgba(57,211,83,0.55);
+  --fg-dim: #2ea050;
+  --accent-glow: rgba(79,255,0,0.45);
+  --accent-dim: rgba(79,255,0,0.15);
+  --accent-border: rgba(79,255,0,0.55);
+  --accent-pressed: #38cc00;
+  --control-bg: rgba(57,211,83,0.07);
+  --control-bg-hover: rgba(57,211,83,0.14);
+  --control-bg-active: rgba(57,211,83,0.09);
+  --border-mid: rgba(57,211,83,0.18);
+  --border-faint: rgba(57,211,83,0.08);
+  --guide: rgba(57,211,83,0.22);
+  --guide-tick: rgba(57,211,83,0.6);
+  --tick-mark: rgba(57,211,83,0.22);
+  --tick-major: rgba(57,211,83,0.5);
+  --tick-label: rgba(57,211,83,0.5);
+  --break-orp: rgba(57,211,83,0.3);
+  --pause-dim: 0.45;
+}
+/* Bold → bright lime, italic → cyan, code → amber — breaks up the green wall */
+body.theme-terminal .reader-content strong,
+body.theme-terminal .reader-content b,
+body.theme-terminal .tts-content strong,
+body.theme-terminal .tts-content b { color: #a8ff80; }
+body.theme-terminal .reader-content em,
+body.theme-terminal .reader-content i,
+body.theme-terminal .tts-content em,
+body.theme-terminal .tts-content i { color: #57ffd8; }
+body.theme-terminal .reader-content code,
+body.theme-terminal .tts-content code { color: #ffe066; background: rgba(255,224,102,0.1); }
+body.theme-terminal .reader-content a,
+body.theme-terminal .tts-content a { color: #80ffea; }
+body.theme-terminal .reader-content .blk-h1,
+body.theme-terminal .reader-content .blk-h2,
+body.theme-terminal .reader-content .blk-h3,
+body.theme-terminal .tts-content .blk-h1,
+body.theme-terminal .tts-content .blk-h2,
+body.theme-terminal .tts-content .blk-h3 { color: #a8ff80; }
+body.theme-terminal .reader-content .blk-blockquote,
+body.theme-terminal .tts-content .blk-blockquote { color: rgba(57,211,83,0.6); }
+
+/* ── Nebula ───────────────────────────────────────────────────────────────── */
+body.theme-nebula {
+  --bg: #0d0818;
+  --fg: #e2cefc;
+  --content-fg: #d8c4f8;
+  --muted: rgba(226,206,252,0.5);
+  --chrome-bg: rgba(13,8,24,0.95);
+  --panel-bg: #150d2a;
+  --border: rgba(180,100,255,0.2);
+  --accent: #c455f5;
+  --shadow: rgba(0,0,0,0.65);
+  --fg-muted: rgba(226,206,252,0.55);
+  --fg-dim: #a888d4;
+  --accent-glow: rgba(196,85,245,0.5);
+  --accent-dim: rgba(196,85,245,0.2);
+  --accent-border: rgba(196,85,245,0.6);
+  --accent-pressed: #a030d8;
+  --control-bg: rgba(255,255,255,0.06);
+  --control-bg-hover: rgba(255,255,255,0.12);
+  --control-bg-active: rgba(255,255,255,0.08);
+  --border-mid: rgba(180,100,255,0.18);
+  --border-faint: rgba(255,255,255,0.05);
+  --guide: rgba(196,85,245,0.22);
+  --guide-tick: rgba(196,85,245,0.6);
+  --tick-mark: rgba(226,206,252,0.2);
+  --tick-major: rgba(196,85,245,0.5);
+  --tick-label: rgba(226,206,252,0.5);
+  --break-orp: rgba(226,206,252,0.3);
+  --pause-dim: 0.5;
+}
+/* Bold → hot pink, italic → celestial blue, code → star-gold */
+body.theme-nebula .reader-content strong,
+body.theme-nebula .reader-content b,
+body.theme-nebula .tts-content strong,
+body.theme-nebula .tts-content b { color: #ff8ef0; }
+body.theme-nebula .reader-content em,
+body.theme-nebula .reader-content i,
+body.theme-nebula .tts-content em,
+body.theme-nebula .tts-content i { color: #6ec6ff; }
+body.theme-nebula .reader-content code,
+body.theme-nebula .tts-content code { color: #ffd870; background: rgba(255,216,112,0.1); }
+body.theme-nebula .reader-content a,
+body.theme-nebula .tts-content a { color: #c455f5; }
+body.theme-nebula .reader-content .blk-h1,
+body.theme-nebula .reader-content .blk-h2,
+body.theme-nebula .reader-content .blk-h3,
+body.theme-nebula .tts-content .blk-h1,
+body.theme-nebula .tts-content .blk-h2,
+body.theme-nebula .tts-content .blk-h3 { color: #f0aaff; }
+
+/* ── Forest ───────────────────────────────────────────────────────────────── */
+body.theme-forest {
+  --bg: #0b1a0e;
+  --fg: #c4dac7;
+  --content-fg: #b8d0bb;
+  --muted: rgba(196,218,199,0.5);
+  --chrome-bg: rgba(11,26,14,0.96);
+  --panel-bg: #112418;
+  --border: rgba(91,186,111,0.18);
+  --accent: #5bba6f;
+  --shadow: rgba(0,0,0,0.6);
+  --fg-muted: rgba(196,218,199,0.55);
+  --fg-dim: #7eaa88;
+  --accent-glow: rgba(91,186,111,0.4);
+  --accent-dim: rgba(91,186,111,0.18);
+  --accent-border: rgba(91,186,111,0.5);
+  --accent-pressed: #449958;
+  --control-bg: rgba(255,255,255,0.05);
+  --control-bg-hover: rgba(255,255,255,0.1);
+  --control-bg-active: rgba(255,255,255,0.07);
+  --border-mid: rgba(91,186,111,0.15);
+  --border-faint: rgba(255,255,255,0.05);
+  --guide: rgba(91,186,111,0.2);
+  --guide-tick: rgba(91,186,111,0.55);
+  --tick-mark: rgba(196,218,199,0.2);
+  --tick-major: rgba(91,186,111,0.48);
+  --tick-label: rgba(196,218,199,0.45);
+  --break-orp: rgba(196,218,199,0.3);
+  --pause-dim: 0.5;
+}
+/* Bold → moonlit white-green, italic → jade, code → moss teal */
+body.theme-forest .reader-content strong,
+body.theme-forest .reader-content b,
+body.theme-forest .tts-content strong,
+body.theme-forest .tts-content b { color: #e4f4e6; }
+body.theme-forest .reader-content em,
+body.theme-forest .reader-content i,
+body.theme-forest .tts-content em,
+body.theme-forest .tts-content i { color: #8fcca4; }
+body.theme-forest .reader-content code,
+body.theme-forest .tts-content code { color: #7ecdc5; background: rgba(126,205,197,0.1); }
+body.theme-forest .reader-content a,
+body.theme-forest .tts-content a { color: #7dd89a; }
+body.theme-forest .reader-content .blk-h1,
+body.theme-forest .reader-content .blk-h2,
+body.theme-forest .reader-content .blk-h3,
+body.theme-forest .tts-content .blk-h1,
+body.theme-forest .tts-content .blk-h2,
+body.theme-forest .tts-content .blk-h3 { color: #d8f0dc; }
+
+/* ── Ember ────────────────────────────────────────────────────────────────── */
+body.theme-ember {
+  --bg: #120c07;
+  --fg: #f0b95a;
+  --content-fg: #e8ad4e;
+  --muted: rgba(240,185,90,0.5);
+  --chrome-bg: rgba(18,12,7,0.96);
+  --panel-bg: #1e1408;
+  --border: rgba(240,185,90,0.18);
+  --accent: #ff6620;
+  --shadow: rgba(0,0,0,0.7);
+  --fg-muted: rgba(240,185,90,0.55);
+  --fg-dim: #b8862e;
+  --accent-glow: rgba(255,102,32,0.5);
+  --accent-dim: rgba(255,102,32,0.2);
+  --accent-border: rgba(255,102,32,0.6);
+  --accent-pressed: #e05510;
+  --control-bg: rgba(255,185,90,0.06);
+  --control-bg-hover: rgba(255,185,90,0.12);
+  --control-bg-active: rgba(255,185,90,0.08);
+  --border-mid: rgba(240,185,90,0.15);
+  --border-faint: rgba(240,185,90,0.07);
+  --guide: rgba(255,102,32,0.25);
+  --guide-tick: rgba(255,102,32,0.6);
+  --tick-mark: rgba(240,185,90,0.22);
+  --tick-major: rgba(255,102,32,0.52);
+  --tick-label: rgba(240,185,90,0.5);
+  --break-orp: rgba(240,185,90,0.3);
+  --pause-dim: 0.45;
+}
+/* Bold → warm gold, italic → copper-rose, code → cool sky contrast */
+body.theme-ember .reader-content strong,
+body.theme-ember .reader-content b,
+body.theme-ember .tts-content strong,
+body.theme-ember .tts-content b { color: #ffe09e; }
+body.theme-ember .reader-content em,
+body.theme-ember .reader-content i,
+body.theme-ember .tts-content em,
+body.theme-ember .tts-content i { color: #ff9e6a; }
+body.theme-ember .reader-content code,
+body.theme-ember .tts-content code { color: #7dc4e0; background: rgba(125,196,224,0.1); }
+body.theme-ember .reader-content a,
+body.theme-ember .tts-content a { color: #ff8840; }
+body.theme-ember .reader-content .blk-h1,
+body.theme-ember .reader-content .blk-h2,
+body.theme-ember .reader-content .blk-h3,
+body.theme-ember .tts-content .blk-h1,
+body.theme-ember .tts-content .blk-h2,
+body.theme-ember .tts-content .blk-h3 { color: #ffd080; }
+
+/* ── Nord ─────────────────────────────────────────────────────────────────── */
+body.theme-nord {
+  --bg: #0f1520;
+  --fg: #d4e0f0;
+  --content-fg: #c8d6ea;
+  --muted: rgba(212,224,240,0.5);
+  --chrome-bg: rgba(15,21,32,0.96);
+  --panel-bg: #151e30;
+  --border: rgba(77,148,245,0.18);
+  --accent: #4d94f5;
+  --shadow: rgba(0,0,0,0.6);
+  --fg-muted: rgba(212,224,240,0.55);
+  --fg-dim: #7898bc;
+  --accent-glow: rgba(77,148,245,0.45);
+  --accent-dim: rgba(77,148,245,0.2);
+  --accent-border: rgba(77,148,245,0.5);
+  --accent-pressed: #3878d8;
+  --control-bg: rgba(255,255,255,0.06);
+  --control-bg-hover: rgba(255,255,255,0.12);
+  --control-bg-active: rgba(255,255,255,0.08);
+  --border-mid: rgba(77,148,245,0.16);
+  --border-faint: rgba(255,255,255,0.06);
+  --guide: rgba(77,148,245,0.22);
+  --guide-tick: rgba(77,148,245,0.6);
+  --tick-mark: rgba(212,224,240,0.2);
+  --tick-major: rgba(77,148,245,0.5);
+  --tick-label: rgba(212,224,240,0.45);
+  --break-orp: rgba(212,224,240,0.3);
+  --pause-dim: 0.5;
+}
+/* Bold → ice white, italic → aurora teal, code → aurora violet */
+body.theme-nord .reader-content strong,
+body.theme-nord .reader-content b,
+body.theme-nord .tts-content strong,
+body.theme-nord .tts-content b { color: #e8f4ff; }
+body.theme-nord .reader-content em,
+body.theme-nord .reader-content i,
+body.theme-nord .tts-content em,
+body.theme-nord .tts-content i { color: #7dcfba; }
+body.theme-nord .reader-content code,
+body.theme-nord .tts-content code { color: #c7a8f5; background: rgba(199,168,245,0.1); }
+body.theme-nord .reader-content a,
+body.theme-nord .tts-content a { color: #4d94f5; }
+body.theme-nord .reader-content .blk-h1,
+body.theme-nord .reader-content .blk-h2,
+body.theme-nord .reader-content .blk-h3,
+body.theme-nord .tts-content .blk-h1,
+body.theme-nord .tts-content .blk-h2,
+body.theme-nord .tts-content .blk-h3 { color: #9ac8ff; }
+
 /* Auto light/dark based on OS preference (before JS sets an explicit theme class) */
 @media (prefers-color-scheme: light) {
-  body:not(.theme-sepia):not(.theme-light):not(.theme-oled):not(.theme-dark) {
+  body:not(.theme-sepia):not(.theme-light):not(.theme-oled):not(.theme-dark):not(.theme-terminal):not(.theme-nebula):not(.theme-forest):not(.theme-ember):not(.theme-nord) {
     --bg: #ffffff;
     --fg: #1f1f1f;
     --content-fg: #262626;
