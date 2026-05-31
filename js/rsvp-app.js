@@ -244,13 +244,27 @@ export function init(options = {}) {
     }, { signal });
   }
 
+  // Search panel
+  const searchBtn = document.getElementById("searchBtn");
+  if (searchBtn) {
+    searchBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const show = document.body.classList.toggle('show-search');
+      searchBtn.setAttribute('aria-expanded', show);
+      document.body.classList.remove('show-toc');
+      if (tocBtn) tocBtn.setAttribute('aria-expanded', 'false');
+      closeSettingsScreen();
+    }, { signal });
+  }
+
   // Settings panel
   const settingsBtn = document.getElementById("settingsBtn");
   if (settingsBtn) {
     settingsBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      document.body.classList.remove('show-toc');
+      document.body.classList.remove('show-toc', 'show-search');
       if (tocBtn) tocBtn.setAttribute('aria-expanded', 'false');
+      if (searchBtn) searchBtn.setAttribute('aria-expanded', 'false');
       openSettingsScreen({
         initialTab: 'rsvp',
         currentMode: 'rsvp',
@@ -273,15 +287,18 @@ export function init(options = {}) {
       e.stopPropagation();
       const show = document.body.classList.toggle('show-toc');
       tocBtn.setAttribute('aria-expanded', show);
+      document.body.classList.remove('show-search');
+      if (searchBtn) searchBtn.setAttribute('aria-expanded', 'false');
     }, { signal });
   }
 
-  // Backdrop closes TOC
+  // Backdrop closes all panels
   const backdrop = document.getElementById("backdrop");
   if (backdrop) {
     backdrop.addEventListener('click', () => {
-      document.body.classList.remove('show-toc');
+      document.body.classList.remove('show-toc', 'show-search');
       if (tocBtn) tocBtn.setAttribute('aria-expanded', 'false');
+      if (searchBtn) searchBtn.setAttribute('aria-expanded', 'false');
       closeSettingsScreen();
     }, { signal });
   }

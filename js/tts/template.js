@@ -35,6 +35,9 @@ export function ttsTemplate() {
         <button class="tts-rate-btn" data-rate="1.5" type="button">1.5×</button>
         <button class="tts-rate-btn" data-rate="2" type="button">2×</button>
       </div>
+      <button class="tts-transport-btn" id="ttsVoiceBtn" type="button" aria-label="Voice" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </button>
     </div>
     <div class="tts-toolbar">
       <button class="reader-tool" id="ttsTocBtn" type="button" aria-label="Contents" aria-expanded="false">
@@ -45,13 +48,17 @@ export function ttsTemplate() {
         <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="10" cy="8" r="2.6"/><circle cx="15" cy="16" r="2.6"/></svg>
         <span>Settings</span>
       </button>
-      <button class="reader-tool" id="ttsVoiceBtn" type="button" aria-label="Voice" aria-expanded="false">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-        <span>Voice</span>
+      <button class="reader-tool" id="ttsSearchBtn" type="button" aria-label="Search" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+        <span>Search</span>
       </button>
       <button class="reader-tool" id="ttsReadBtn" type="button" aria-label="Book mode">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6c-1.8-1.3-4.6-1.6-7-0.8v12c2.4-0.8 5.2-0.5 7 0.8 1.8-1.3 4.6-1.6 7-0.8V5.2c-2.4-0.8-5.2-0.5-7 0.8z"/><line x1="12" y1="6" x2="12" y2="18.8"/></svg>
         <span>Read</span>
+      </button>
+      <button class="reader-tool" id="ttsSpeedBtn" type="button" aria-label="Speed read mode">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/></svg>
+        <span>Speed</span>
       </button>
       <button class="reader-tool" id="ttsOpenBtn" type="button" aria-label="Open EPUB">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -61,6 +68,13 @@ export function ttsTemplate() {
   </footer>
 
   <div class="ui-backdrop" id="backdrop"></div>
+
+  <div class="reader-search-panel" id="ttsSearchPanel" role="search" aria-label="Search in book">
+    <div class="reader-search-head">
+      <input class="reader-search-input" id="ttsSearchInput" type="search" placeholder="Search in book…" autocomplete="off">
+    </div>
+    <div class="reader-search-results" id="ttsSearchResults"></div>
+  </div>
 
   <nav class="reader-toc" id="toc" role="dialog" aria-modal="true" aria-label="Table of contents">
     <div class="reader-toc-head">Contents</div>

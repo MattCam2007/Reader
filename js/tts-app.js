@@ -29,8 +29,10 @@ export function init(options = {}) {
     tocListEl:      document.getElementById('tocList'),
     ttsTocBtn:      document.getElementById('ttsTocBtn'),
     ttsSettingsBtn: document.getElementById('ttsSettingsBtn'),
+    ttsSearchBtn:   document.getElementById('ttsSearchBtn'),
     ttsVoiceBtn:    document.getElementById('ttsVoiceBtn'),
     ttsReadBtn:     document.getElementById('ttsReadBtn'),
+    ttsSpeedBtn:    document.getElementById('ttsSpeedBtn'),
     ttsOpenBtn:     document.getElementById('ttsOpenBtn'),
     ttsPlayBtn:     document.getElementById('ttsPlayBtn'),
     ttsPrevBtn:     document.getElementById('ttsPrevBtn'),
@@ -98,9 +100,10 @@ export function init(options = {}) {
   let _panelTrigger = null;
 
   function closePanels() {
-    document.body.classList.remove('show-toc', 'tts-show-voice');
+    document.body.classList.remove('show-toc', 'tts-show-voice', 'show-search');
     if (els.ttsTocBtn) els.ttsTocBtn.setAttribute('aria-expanded', 'false');
     if (els.ttsSettingsBtn) els.ttsSettingsBtn.setAttribute('aria-expanded', 'false');
+    if (els.ttsSearchBtn) els.ttsSearchBtn.setAttribute('aria-expanded', 'false');
     if (els.ttsVoiceBtn) els.ttsVoiceBtn.setAttribute('aria-expanded', 'false');
     if (_panelTrigger) { _panelTrigger.focus(); _panelTrigger = null; }
   }
@@ -602,6 +605,12 @@ export function init(options = {}) {
   // Panel buttons
   if (els.ttsTocBtn) els.ttsTocBtn.addEventListener('click', openTOC, { signal });
   if (els.ttsSettingsBtn) els.ttsSettingsBtn.addEventListener('click', openSettings, { signal });
+  if (els.ttsSearchBtn) els.ttsSearchBtn.addEventListener('click', () => {
+    closePanels();
+    closeSettingsScreen();
+    const show = document.body.classList.toggle('show-search');
+    if (els.ttsSearchBtn) els.ttsSearchBtn.setAttribute('aria-expanded', show);
+  }, { signal });
   if (els.ttsVoiceBtn) els.ttsVoiceBtn.addEventListener('click', () => {
     openVoicePanel();
     renderVoiceList();
@@ -627,6 +636,15 @@ export function init(options = {}) {
       setPlaying(false);
       savePosition();
       onModeSwitch('read', { fraction: getPositionFraction(), bookId });
+    }, { signal });
+  }
+  if (els.ttsSpeedBtn && onModeSwitch) {
+    els.ttsSpeedBtn.addEventListener('click', () => {
+      closeSettingsScreen();
+      engine.cancel();
+      setPlaying(false);
+      savePosition();
+      onModeSwitch('rsvp', { fraction: getPositionFraction(), bookId });
     }, { signal });
   }
 

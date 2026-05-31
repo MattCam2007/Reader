@@ -88,13 +88,17 @@ export function rsvpTemplate() {
     </div>
 
     <div class="reader-toolbar">
-      <button class="reader-tool" id="tocBtn" type="button" aria-label="Chapters" aria-expanded="false">
+      <button class="reader-tool" id="tocBtn" type="button" aria-label="Contents" aria-expanded="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
-        <span>Chapters</span>
+        <span>Contents</span>
       </button>
       <button class="reader-tool" id="settingsBtn" type="button" aria-label="Settings" aria-expanded="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="10" cy="8" r="2.6"/><circle cx="15" cy="16" r="2.6"/></svg>
         <span>Settings</span>
+      </button>
+      <button class="reader-tool" id="searchBtn" type="button" aria-label="Search" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+        <span>Search</span>
       </button>
       <button class="reader-tool" id="modeBtn" type="button" aria-label="Book mode">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6c-1.8-1.3-4.6-1.6-7-0.8v12c2.4-0.8 5.2-0.5 7 0.8 1.8-1.3 4.6-1.6 7-0.8V5.2c-2.4-0.8-5.2-0.5-7 0.8z"/><line x1="12" y1="6" x2="12" y2="18.8"/></svg>
@@ -113,8 +117,15 @@ export function rsvpTemplate() {
 
   <div class="ui-backdrop" id="backdrop"></div>
 
-  <nav class="reader-toc" id="toc" role="dialog" aria-modal="true" aria-label="Chapters">
-    <div class="reader-toc-head">Chapters</div>
+  <div class="reader-search-panel" id="searchPanel" role="search" aria-label="Search in book">
+    <div class="reader-search-head">
+      <input class="reader-search-input" id="searchInput" type="search" placeholder="Search in book…" autocomplete="off">
+    </div>
+    <div class="reader-search-results" id="searchResults"></div>
+  </div>
+
+  <nav class="reader-toc" id="toc" role="dialog" aria-modal="true" aria-label="Contents">
+    <div class="reader-toc-head">Contents</div>
     <div class="reader-toc-list" id="tocList">
       <div class="reader-toc-empty">Load an EPUB to see chapters.</div>
     </div>
