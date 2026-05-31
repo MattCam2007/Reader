@@ -1,4 +1,4 @@
-import { FONT_MAP, FONT_SERIF, THEME_COLORS, RESIZE_DEBOUNCE_MS, SAVE_DEBOUNCE_MS, GENERAL_DEFAULTS } from './core/constants.js';
+import { FONT_MAP, FONT_SERIF, THEME_COLORS, RESIZE_DEBOUNCE_MS, SAVE_DEBOUNCE_MS, GENERAL_DEFAULTS, ALL_THEME_NAMES } from './core/constants.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 import { PrefsManager } from './core/prefs.js';
 import { ReaderState } from './core/state.js';
@@ -185,11 +185,8 @@ export function init(options = {}) {
     const p = prefs.data;
     // Theme (reads from app-wide general prefs)
     const theme = generalPrefs.data.theme;
-    document.body.classList.remove("theme-dark", "theme-sepia", "theme-light", "theme-oled");
-    if (theme === "dark") document.body.classList.add("theme-dark");
-    else if (theme === "sepia") document.body.classList.add("theme-sepia");
-    else if (theme === "light") document.body.classList.add("theme-light");
-    else if (theme === "oled") document.body.classList.add("theme-oled");
+    document.body.classList.remove(...ALL_THEME_NAMES.map(t => `theme-${t}`));
+    if (theme !== "dark") document.body.classList.add("theme-" + theme);
 
     // Font
     els.content.style.fontFamily = FONT_MAP[p.font] || FONT_SERIF;

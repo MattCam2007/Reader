@@ -1,4 +1,4 @@
-import { FONT_MAP, FONT_MONO, THEME_COLORS, GENERAL_DEFAULTS } from './core/constants.js';
+import { FONT_MAP, FONT_MONO, THEME_COLORS, GENERAL_DEFAULTS, ALL_THEME_NAMES } from './core/constants.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 import { PrefsManager } from './core/prefs.js';
 import { EventBus } from './core/events.js';
@@ -109,7 +109,7 @@ export function init(options = {}) {
 
   // ---------- Theme ----------
   function applyTheme(name) {
-    document.body.classList.remove("theme-dark", "theme-light", "theme-sepia", "theme-oled");
+    document.body.classList.remove(...ALL_THEME_NAMES.map(t => `theme-${t}`));
     if (name !== "dark") document.body.classList.add("theme-" + name);
     const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim();
     const meta = document.querySelector('meta[name="theme-color"]');

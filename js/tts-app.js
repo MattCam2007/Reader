@@ -1,4 +1,4 @@
-import { FONT_MAP, FONT_SERIF, THEME_COLORS, GENERAL_DEFAULTS } from './core/constants.js';
+import { FONT_MAP, FONT_SERIF, THEME_COLORS, GENERAL_DEFAULTS, ALL_THEME_NAMES } from './core/constants.js';
 import { PrefsManager } from './core/prefs.js';
 import { extractSections } from './epub/extractor.js';
 import { resolveImageUrls, findCoverImage } from './epub/images.js';
@@ -384,7 +384,7 @@ export function init(options = {}) {
 
     // Theme (reads from app-wide general prefs)
     const theme = generalPrefs.data.theme;
-    document.body.classList.remove('theme-dark', 'theme-sepia', 'theme-light', 'theme-oled');
+    document.body.classList.remove(...ALL_THEME_NAMES.map(t => `theme-${t}`));
     if (theme !== 'dark') document.body.classList.add('theme-' + theme);
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta && THEME_COLORS[theme]) meta.setAttribute('content', THEME_COLORS[theme]);

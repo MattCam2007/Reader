@@ -1,4 +1,4 @@
-import { DEFAULT_PREFS, MIN_SIZE, MAX_SIZE, GENERAL_DEFAULTS } from '../core/constants.js';
+import { DEFAULT_PREFS, MIN_SIZE, MAX_SIZE, GENERAL_DEFAULTS, ALL_THEME_NAMES } from '../core/constants.js';
 import { RSVP_DEFAULTS } from '../rsvp/constants.js';
 import { TTS_DEFAULTS } from '../tts/constants.js';
 import { PrefsManager } from '../core/prefs.js';
@@ -174,7 +174,11 @@ function pickerEl(prefix, label, unit) {
 function generalTabHTML(p) {
   return [
     section('Appearance'),
-    row('Theme', seg('ss-gen-theme', 'data-theme', [['dark','Dark'],['sepia','Sepia'],['light','Light'],['oled','OLED']], p.theme)),
+    row('Theme', seg('ss-gen-theme', 'data-theme', [
+      ['dark','Dark'],['sepia','Sepia'],['light','Light'],['oled','OLED'],
+      ['terminal','Terminal'],['nebula','Nebula'],['forest','Forest'],
+      ['ember','Ember'],['nord','Nord'],
+    ], p.theme)),
   ].join('');
 }
 
