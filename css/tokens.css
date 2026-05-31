@@ -189,6 +189,8 @@ body.theme-terminal .reader-content .inline-speech,
 body.theme-terminal .tts-content .inline-speech { color: #ffe066; }
 body.theme-terminal .reader-content .inline-punct,
 body.theme-terminal .tts-content .inline-punct { color: rgba(57,211,83,0.45); }
+body.theme-terminal .reader-content .inline-punct-speech,
+body.theme-terminal .tts-content .inline-punct-speech { color: #ffae5c; }
 
 /* ── Nebula ───────────────────────────────────────────────────────────────── */
 body.theme-nebula {

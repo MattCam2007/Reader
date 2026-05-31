@@ -306,7 +306,7 @@ export function init(options = {}) {
           else inSpeech = !inSpeech;
         } else {
           const sp = document.createElement("span");
-          sp.className = inSpeech ? "inline-speech" : "inline-punct";
+          sp.className = inSpeech ? "inline-punct inline-punct-speech" : "inline-punct";
           sp.textContent = ch;
           parts.push(sp);
         }
