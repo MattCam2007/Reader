@@ -29,7 +29,9 @@ export function init(options = {}) {
     tocListEl:      document.getElementById('tocList'),
     ttsTocBtn:      document.getElementById('ttsTocBtn'),
     ttsSettingsBtn: document.getElementById('ttsSettingsBtn'),
-    ttsSearchBtn:   document.getElementById('ttsSearchBtn'),
+    ttsSearchBtn:    document.getElementById('ttsSearchBtn'),
+    ttsSearchInput:  document.getElementById('ttsSearchInput'),
+    ttsSearchResults: document.getElementById('ttsSearchResults'),
     ttsVoiceBtn:    document.getElementById('ttsVoiceBtn'),
     ttsReadBtn:     document.getElementById('ttsReadBtn'),
     ttsSpeedBtn:    document.getElementById('ttsSpeedBtn'),
@@ -59,6 +61,7 @@ export function init(options = {}) {
   let bookLoaded = false;
 
   let sentences = [];       // [{ text, blockEl, wordOffset }]
+  let _ttsSearchCache = null;
   let totalWords = 0;
   let currentSentenceIdx = 0;
   let isPlaying = false;
@@ -530,6 +533,7 @@ export function init(options = {}) {
       // Save position, build TOC, segment sentences
       requestAnimationFrame(() => {
         sentences = segmentContent();
+        _ttsSearchCache = null;
         highlighter.setSentences(sentences);
         currentSentenceIdx = restorePosition();
 
@@ -605,12 +609,86 @@ export function init(options = {}) {
   // Panel buttons
   if (els.ttsTocBtn) els.ttsTocBtn.addEventListener('click', openTOC, { signal });
   if (els.ttsSettingsBtn) els.ttsSettingsBtn.addEventListener('click', openSettings, { signal });
-  if (els.ttsSearchBtn) els.ttsSearchBtn.addEventListener('click', () => {
-    closePanels();
-    closeSettingsScreen();
-    const show = document.body.classList.toggle('show-search');
-    if (els.ttsSearchBtn) els.ttsSearchBtn.setAttribute('aria-expanded', show);
-  }, { signal });
+  function buildTtsSearchCache() {
+    if (_ttsSearchCache) return _ttsSearchCache;
+    let text = "";
+    const sentenceCharStart = [];
+    for (let i = 0; i < sentences.length; i++) {
+      sentenceCharStart.push(text.length);
+      text += sentences[i].text + " ";
+    }
+    _ttsSearchCache = { text, sentenceCharStart };
+    return _ttsSearchCache;
+  }
+
+  function runTtsSearch(query) {
+    const resultsEl = els.ttsSearchResults;
+    if (!resultsEl) return;
+    resultsEl.innerHTML = "";
+    if (!query || query.length < 2 || !sentences.length) {
+      if (query && query.length >= 2)
+        resultsEl.innerHTML = '<div class="reader-search-empty">No results</div>';
+      return;
+    }
+    const { text, sentenceCharStart } = buildTtsSearchCache();
+    const lower = text.toLowerCase();
+    const q = query.toLowerCase();
+    const hits = [];
+    let pos = 0;
+    while ((pos = lower.indexOf(q, pos)) !== -1 && hits.length < 200) {
+      hits.push(pos);
+      pos += q.length;
+    }
+    if (!hits.length) {
+      resultsEl.innerHTML = '<div class="reader-search-empty">No results</div>';
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    hits.forEach((charOff) => {
+      let si = 0;
+      for (let j = 0; j < sentenceCharStart.length; j++) {
+        if (sentenceCharStart[j] <= charOff) si = j;
+        else break;
+      }
+      const snippetStart = Math.max(0, charOff - 40);
+      const snippetEnd = Math.min(text.length, charOff + query.length + 40);
+      const before = (snippetStart > 0 ? "…" : "") + text.slice(snippetStart, charOff);
+      const match = text.slice(charOff, charOff + query.length);
+      const after = text.slice(charOff + query.length, snippetEnd) + (snippetEnd < text.length ? "…" : "");
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "reader-search-result";
+      btn.appendChild(document.createTextNode(before));
+      const mark = document.createElement("mark");
+      mark.textContent = match;
+      btn.appendChild(mark);
+      btn.appendChild(document.createTextNode(after));
+      btn.addEventListener("click", () => {
+        seekToSentence(si);
+        closePanels();
+      });
+      frag.appendChild(btn);
+    });
+    resultsEl.appendChild(frag);
+  }
+
+  if (els.ttsSearchBtn) {
+    els.ttsSearchBtn.addEventListener('click', () => {
+      const isOpen = document.body.classList.contains('show-search');
+      closePanels();
+      closeSettingsScreen();
+      if (!isOpen) {
+        document.body.classList.add('show-search');
+        els.ttsSearchBtn.setAttribute('aria-expanded', 'true');
+        if (els.ttsSearchInput) { els.ttsSearchInput.value = ''; els.ttsSearchInput.focus(); }
+        if (els.ttsSearchResults) els.ttsSearchResults.innerHTML = '';
+      }
+    }, { signal });
+  }
+
+  if (els.ttsSearchInput) {
+    els.ttsSearchInput.addEventListener('input', (e) => runTtsSearch(e.target.value.trim()), { signal });
+  }
   if (els.ttsVoiceBtn) els.ttsVoiceBtn.addEventListener('click', () => {
     openVoicePanel();
     renderVoiceList();
@@ -717,6 +795,7 @@ export function init(options = {}) {
     renderBook(buildSample());
     requestAnimationFrame(() => {
       sentences = segmentContent();
+      _ttsSearchCache = null;
       highlighter.setSentences(sentences);
       currentSentenceIdx = restorePosition();
       buildTOC([], headingToc, els.tocListEl, sectionEls,

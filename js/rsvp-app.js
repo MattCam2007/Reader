@@ -246,15 +246,95 @@ export function init(options = {}) {
 
   // Search panel
   const searchBtn = document.getElementById("searchBtn");
+  const searchInput = document.getElementById("searchInput");
+  const searchResults = document.getElementById("searchResults");
+  let _rsvpSearchCache = null;
+
+  function buildRsvpSearchCache() {
+    if (_rsvpSearchCache) return _rsvpSearchCache;
+    let text = "";
+    const wordCharStart = [];
+    for (let i = 0; i < state.wordTokenIndices.length; i++) {
+      wordCharStart.push(text.length);
+      text += state.tokens[state.wordTokenIndices[i]] + " ";
+    }
+    _rsvpSearchCache = { text, wordCharStart };
+    return _rsvpSearchCache;
+  }
+
+  function runRsvpSearch(query) {
+    if (!searchResults) return;
+    searchResults.innerHTML = "";
+    if (!query || query.length < 2 || !state.wordTokenIndices.length) {
+      if (query && query.length >= 2)
+        searchResults.innerHTML = '<div class="reader-search-empty">No results</div>';
+      return;
+    }
+    const { text, wordCharStart } = buildRsvpSearchCache();
+    const lower = text.toLowerCase();
+    const q = query.toLowerCase();
+    const hits = [];
+    let pos = 0;
+    while ((pos = lower.indexOf(q, pos)) !== -1 && hits.length < 200) {
+      hits.push(pos);
+      pos += q.length;
+    }
+    if (!hits.length) {
+      searchResults.innerHTML = '<div class="reader-search-empty">No results</div>';
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    hits.forEach((charOff) => {
+      let wi = 0;
+      for (let j = 0; j < wordCharStart.length; j++) {
+        if (wordCharStart[j] <= charOff) wi = j;
+        else break;
+      }
+      const snippetStart = Math.max(0, charOff - 40);
+      const snippetEnd = Math.min(text.length, charOff + query.length + 40);
+      const before = (snippetStart > 0 ? "…" : "") + text.slice(snippetStart, charOff);
+      const match = text.slice(charOff, charOff + query.length);
+      const after = text.slice(charOff + query.length, snippetEnd) + (snippetEnd < text.length ? "…" : "");
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "reader-search-result";
+      btn.appendChild(document.createTextNode(before));
+      const mark = document.createElement("mark");
+      mark.textContent = match;
+      btn.appendChild(mark);
+      btn.appendChild(document.createTextNode(after));
+      btn.addEventListener("click", () => {
+        if (state.playState === 'playing') playback.pause();
+        else if (state.playState === 'countdown') playback.cancelCountdown();
+        playback.seekTo(state.ordinalToIdx(wi));
+        document.body.classList.remove('show-search');
+        if (searchBtn) searchBtn.setAttribute('aria-expanded', 'false');
+      });
+      frag.appendChild(btn);
+    });
+    searchResults.appendChild(frag);
+  }
+
   if (searchBtn) {
     searchBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const show = document.body.classList.toggle('show-search');
-      searchBtn.setAttribute('aria-expanded', show);
-      document.body.classList.remove('show-toc');
+      const isOpen = document.body.classList.contains('show-search');
+      document.body.classList.remove('show-toc', 'show-search');
       if (tocBtn) tocBtn.setAttribute('aria-expanded', 'false');
       closeSettingsScreen();
+      if (!isOpen) {
+        document.body.classList.add('show-search');
+        searchBtn.setAttribute('aria-expanded', 'true');
+        if (searchInput) { searchInput.value = ''; searchInput.focus(); }
+        if (searchResults) searchResults.innerHTML = '';
+      } else {
+        searchBtn.setAttribute('aria-expanded', 'false');
+      }
     }, { signal });
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => runRsvpSearch(e.target.value.trim()), { signal });
   }
 
   // Settings panel
@@ -343,6 +423,7 @@ export function init(options = {}) {
   function loadText(text, chapterMeta) {
     const result = tokenize(text);
     state.loadTokens(result);
+    _rsvpSearchCache = null;
 
     state.chapters = (chapterMeta || []).map(ch => ({
       title: ch.title,
