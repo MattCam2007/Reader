@@ -185,6 +185,10 @@ body.theme-terminal .tts-content .blk-h2,
 body.theme-terminal .tts-content .blk-h3 { color: #a8ff80; }
 body.theme-terminal .reader-content .blk-blockquote,
 body.theme-terminal .tts-content .blk-blockquote { color: rgba(57,211,83,0.6); }
+body.theme-terminal .reader-content .inline-speech,
+body.theme-terminal .tts-content .inline-speech { color: #ffe066; }
+body.theme-terminal .reader-content .inline-punct,
+body.theme-terminal .tts-content .inline-punct { color: rgba(57,211,83,0.45); }
 
 /* ── Nebula ───────────────────────────────────────────────────────────────── */
 body.theme-nebula {

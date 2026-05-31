@@ -254,6 +254,39 @@ export function init(options = {}) {
       frag.appendChild(wrap);
     });
     els.content.appendChild(frag);
+    annotateInlineText(els.content);
+  }
+
+  // Wrap quoted speech and punctuation in spans for per-theme coloring.
+  function annotateInlineText(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    let n;
+    while ((n = walker.nextNode())) nodes.push(n);
+    for (const node of nodes) {
+      const parent = node.parentNode;
+      if (!parent) continue;
+      if (parent.closest && parent.closest("code, pre")) continue;
+      const text = node.nodeValue;
+      // Match curly-quoted speech, straight-quoted speech, or punctuation chars
+      const re = /(“[^”]*”|"[^"\n]{0,300}")|([.,:;!?—–…()\[\]])/g;
+      let last = 0, m, hasMatch = false;
+      const parts = [];
+      while ((m = re.exec(text)) !== null) {
+        hasMatch = true;
+        if (m.index > last) parts.push(document.createTextNode(text.slice(last, m.index)));
+        const span = document.createElement("span");
+        span.className = m[1] ? "inline-speech" : "inline-punct";
+        span.textContent = m[0];
+        parts.push(span);
+        last = m.index + m[0].length;
+      }
+      if (!hasMatch) continue;
+      if (last < text.length) parts.push(document.createTextNode(text.slice(last)));
+      const frag2 = document.createDocumentFragment();
+      for (const p of parts) frag2.appendChild(p);
+      parent.replaceChild(frag2, node);
+    }
   }
 
   // ---------- EPUB loading ----------
