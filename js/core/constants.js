@@ -53,6 +53,11 @@ export const SAFE_ATTRS = {
   th: new Set(["colspan","rowspan","scope"]),
 };
 
+// General (app-wide) prefs
+export const GENERAL_DEFAULTS = {
+  theme: 'dark',
+};
+
 // Default prefs
 export const DEFAULT_PREFS = {
   v: 1,

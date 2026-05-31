@@ -1,4 +1,4 @@
-import { DEFAULT_PREFS, MIN_SIZE, MAX_SIZE } from '../core/constants.js';
+import { DEFAULT_PREFS, MIN_SIZE, MAX_SIZE, GENERAL_DEFAULTS } from '../core/constants.js';
 import { RSVP_DEFAULTS } from '../rsvp/constants.js';
 import { TTS_DEFAULTS } from '../tts/constants.js';
 import { PrefsManager } from '../core/prefs.js';
@@ -15,11 +15,14 @@ export function openSettingsScreen(config = {}) {
   const {
     initialTab = 'read',
     currentMode = 'read',
-    onReaderChange = null,  // fn(key, value, needsRepaginate)
-    onRsvpChange = null,    // fn(key, value)
-    onTtsChange = null,     // fn(key, value)
+    onGeneralChange = null,  // fn(key, value)
+    onReaderChange = null,   // fn(key, value, needsRepaginate)
+    onRsvpChange = null,     // fn(key, value)
+    onTtsChange = null,      // fn(key, value)
   } = config;
 
+  const generalPrefs = new PrefsManager({ storageKey: 'general:prefs', defaults: GENERAL_DEFAULTS });
+  generalPrefs.load();
   const readerPrefs = new PrefsManager({ storageKey: 'reader:prefs', defaults: DEFAULT_PREFS });
   readerPrefs.load();
   const rsvpPrefs = new PrefsManager({ storageKey: 'rsvp:prefs', defaults: RSVP_DEFAULTS });
@@ -43,6 +46,7 @@ export function openSettingsScreen(config = {}) {
       <span class="sscreen-title">Settings</span>
     </div>
     <nav class="sscreen-tabs" role="tablist" aria-label="Mode settings">
+      <button class="sscreen-tab" role="tab" data-tab="general" type="button">General</button>
       <button class="sscreen-tab" role="tab" data-tab="read" type="button">Read</button>
       <button class="sscreen-tab" role="tab" data-tab="rsvp" type="button">Speed</button>
       <button class="sscreen-tab" role="tab" data-tab="tts" type="button">Listen</button>
@@ -69,7 +73,10 @@ export function openSettingsScreen(config = {}) {
     const body = document.getElementById('sscreenBody');
     if (!body) return;
 
-    if (tab === 'read') {
+    if (tab === 'general') {
+      body.innerHTML = generalTabHTML(generalPrefs.data);
+      wireGeneralTab(generalPrefs, onGeneralChange);
+    } else if (tab === 'read') {
       body.innerHTML = readTabHTML(readerPrefs.data);
       wireReadTab(readerPrefs, currentMode === 'read' ? onReaderChange : null);
     } else if (tab === 'rsvp') {
@@ -162,12 +169,27 @@ function pickerEl(prefix, label, unit) {
   </div>`;
 }
 
+// ── General tab ──────────────────────────────────────────────────────────────
+
+function generalTabHTML(p) {
+  return [
+    section('Appearance'),
+    row('Theme', seg('ss-gen-theme', 'data-theme', [['dark','Dark'],['sepia','Sepia'],['light','Light'],['oled','OLED']], p.theme)),
+  ].join('');
+}
+
+function wireGeneralTab(prefs, liveApply) {
+  wireSeg('ss-gen-theme', 'data-theme', (val) => {
+    prefs.data.theme = val; prefs.save();
+    if (liveApply) liveApply('theme', val);
+  });
+}
+
 // ── Read tab ─────────────────────────────────────────────────────────────────
 
 function readTabHTML(p) {
   return [
     section('Appearance'),
-    row('Theme', seg('ss-theme', 'data-theme', [['dark','Dark'],['sepia','Sepia'],['light','Light'],['oled','OLED']], p.theme)),
     row('Brightness', slider('ss-brightness', 30, 100, Math.round((p.brightness || 1) * 100))),
     row('Warmth', slider('ss-warmth', 0, 100, Math.round((p.warmth || 0) * 100))),
     row('Text size', counter('ss-sizeDown', 'ss-sizeDisplay', 'ss-sizeUp', p.size)),
@@ -191,7 +213,6 @@ function readTabHTML(p) {
 
 function wireReadTab(prefs, liveApply) {
   const SEGS = [
-    { id: 'ss-theme',  attr: 'data-theme',  pref: 'theme',        repag: false },
     { id: 'ss-font',   attr: 'data-font',   pref: 'font',         repag: true  },
     { id: 'ss-margin', attr: 'data-margin', pref: 'margin',       repag: true  },
     { id: 'ss-para',   attr: 'data-para',   pref: 'paraSpacing',  repag: true  },
@@ -254,7 +275,6 @@ function wireReadTab(prefs, liveApply) {
 function speedTabHTML(p) {
   return [
     section('Appearance'),
-    row('Theme', seg('ss-rsvp-theme', 'data-theme', [['dark','Dark'],['light','Light'],['sepia','Sepia'],['oled','OLED']], p.theme)),
     row('Font', seg('ss-rsvp-font', 'data-font', [['sans','Sans'],['serif','Serif'],['mono','Mono'],['dyslexic','Dyslexic']], p.font)),
 
     section('Display'),
@@ -287,11 +307,6 @@ function speedTabHTML(p) {
 
 function wireSpeedTab(prefs, liveApply) {
   const pickers = [];
-
-  wireSeg('ss-rsvp-theme', 'data-theme', (val) => {
-    prefs.data.theme = val; prefs.save();
-    if (liveApply) liveApply('theme', val);
-  });
 
   wireSeg('ss-rsvp-font', 'data-font', (val) => {
     prefs.data.font = val; prefs.save();
@@ -416,7 +431,6 @@ function wireSpeedTab(prefs, liveApply) {
 function listenTabHTML(p) {
   return [
     section('Appearance'),
-    row('Theme', seg('ss-tts-theme', 'data-theme', [['dark','Dark'],['sepia','Sepia'],['light','Light'],['oled','OLED']], p.theme)),
     row('Brightness', slider('ss-tts-brightness', 30, 100, Math.round((p.brightness || 1) * 100))),
     row('Warmth', slider('ss-tts-warmth', 0, 100, Math.round((p.warmth || 0) * 100))),
     row('Text size', counter('ss-tts-sizeDown', 'ss-tts-sizeDisplay', 'ss-tts-sizeUp', p.size)),
@@ -433,11 +447,6 @@ function listenTabHTML(p) {
 }
 
 function wireListenTab(prefs, liveApply) {
-  wireSeg('ss-tts-theme', 'data-theme', (val) => {
-    prefs.data.theme = val; prefs.save();
-    if (liveApply) liveApply('theme', val);
-  });
-
   wireSeg('ss-tts-font', 'data-font', (val) => {
     prefs.data.font = val; prefs.save();
     if (liveApply) liveApply('font', val);
