@@ -258,31 +258,76 @@ export function init(options = {}) {
   }
 
   // Wrap quoted speech and punctuation in spans for per-theme coloring.
+  // Processes block by block so quote state can span inline elements (e.g. “Hello <i>world</i>!”).
   function annotateInlineText(root) {
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    root.querySelectorAll(“.blk”).forEach(annotateBlock);
+  }
+
+  function annotateBlock(blk) {
+    const walker = document.createTreeWalker(blk, NodeFilter.SHOW_TEXT);
     const nodes = [];
     let n;
     while ((n = walker.nextNode())) nodes.push(n);
+
+    let inSpeech = false;
     for (const node of nodes) {
       const parent = node.parentNode;
       if (!parent) continue;
-      if (parent.closest && parent.closest("code, pre")) continue;
+      if (parent.closest && parent.closest(“code, pre”)) continue;
       const text = node.nodeValue;
-      // Match curly-quoted speech, straight-quoted speech, or punctuation chars
-      const re = /(“[^”]*”|"[^"\n]{0,300}")|([.,:;!?—–…()\[\]])/g;
+      // Split on quote chars (curly or straight) and punctuation.
+      // Quote chars toggle inSpeech state so spans crossing inline elements work.
+      const re = /([““”])|([.,:;!?—–…()\[\]])/g;
       let last = 0, m, hasMatch = false;
       const parts = [];
+
+      const pushText = (t) => {
+        if (!t) return;
+        if (inSpeech) {
+          const sp = document.createElement(“span”);
+          sp.className = “inline-speech”;
+          sp.textContent = t;
+          parts.push(sp);
+        } else {
+          parts.push(document.createTextNode(t));
+        }
+      };
+
       while ((m = re.exec(text)) !== null) {
         hasMatch = true;
-        if (m.index > last) parts.push(document.createTextNode(text.slice(last, m.index)));
-        const span = document.createElement("span");
-        span.className = m[1] ? "inline-speech" : "inline-punct";
-        span.textContent = m[0];
-        parts.push(span);
-        last = m.index + m[0].length;
+        pushText(text.slice(last, m.index));
+        const ch = m[0];
+        if (m[1]) {
+          // Quote character — emit as speech span, then toggle state
+          const sp = document.createElement(“span”);
+          sp.className = “inline-speech”;
+          sp.textContent = ch;
+          parts.push(sp);
+          if (ch === ““”) inSpeech = true;        // “ open curly
+          else if (ch === “””) inSpeech = false;  // “ close curly
+          else inSpeech = !inSpeech;                   // straight “ toggles
+        } else {
+          // Punctuation — speech-coloured when inside quotes, dim otherwise
+          const sp = document.createElement(“span”);
+          sp.className = inSpeech ? “inline-speech” : “inline-punct”;
+          sp.textContent = ch;
+          parts.push(sp);
+        }
+        last = m.index + ch.length;
       }
-      if (!hasMatch) continue;
-      if (last < text.length) parts.push(document.createTextNode(text.slice(last)));
+
+      if (!hasMatch) {
+        // No quotes or punctuation — still need to wrap if we're inside speech
+        if (inSpeech) {
+          const sp = document.createElement(“span”);
+          sp.className = “inline-speech”;
+          sp.textContent = text;
+          parent.replaceChild(sp, node);
+        }
+        continue;
+      }
+
+      pushText(text.slice(last));
       const frag2 = document.createDocumentFragment();
       for (const p of parts) frag2.appendChild(p);
       parent.replaceChild(frag2, node);
