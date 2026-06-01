@@ -60,6 +60,10 @@ export function ttsTemplate() {
         <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/></svg>
         <span>Speed</span>
       </button>
+      <button class="reader-tool" id="ttsBookmarksBtn" type="button" aria-label="Bookmarks" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        <span>Marks</span>
+      </button>
       <button class="reader-tool" id="ttsOpenBtn" type="button" aria-label="Open EPUB">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         <span>Open</span>
@@ -68,6 +72,14 @@ export function ttsTemplate() {
   </footer>
 
   <div class="ui-backdrop" id="backdrop"></div>
+
+  <div class="bm-panel" id="ttsBookmarksPanel" role="dialog" aria-modal="true" aria-label="Bookmarks">
+    <div class="bm-panel-head">
+      <div class="bm-panel-title">Bookmarks</div>
+      <button class="bm-add-btn" id="ttsBmAddBtn" type="button">+ Add</button>
+    </div>
+    <div class="bm-panel-list" id="ttsBmList"></div>
+  </div>
 
   <div class="reader-search-panel" id="ttsSearchPanel" role="search" aria-label="Search in book">
     <div class="reader-search-head">

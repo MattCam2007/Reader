@@ -4,14 +4,14 @@ import { ttsTemplate } from './tts/template.js';
 import { closeSettingsScreen } from './settings/settings-screen.js';
 
 const READER_BODY_CLASSES = [
-  'chrome-hidden', 'loading', 'error', 'show-toc', 'show-search',
+  'chrome-hidden', 'loading', 'error', 'show-toc', 'show-search', 'show-bookmarks',
   'images-off', 'selection-on', 'layout-scroll',
 ];
 const RSVP_BODY_CLASSES = [
-  'rsvp', 'paused', 'loading', 'error', 'fs-hide-controls', 'show-toc',
+  'rsvp', 'paused', 'loading', 'error', 'fs-hide-controls', 'show-toc', 'show-bookmarks',
 ];
 const TTS_BODY_CLASSES = [
-  'tts', 'loading', 'error', 'show-toc', 'tts-show-voice', 'tts-playing',
+  'tts', 'loading', 'error', 'show-toc', 'tts-show-voice', 'tts-playing', 'show-bookmarks',
 ];
 const THEME_CLASSES = ['theme-dark', 'theme-light', 'theme-sepia', 'theme-oled'];
 

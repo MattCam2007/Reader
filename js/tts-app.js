@@ -1,5 +1,7 @@
 import { FONT_MAP, FONT_SERIF, THEME_COLORS, GENERAL_DEFAULTS, ALL_THEME_NAMES } from './core/constants.js';
 import { PrefsManager } from './core/prefs.js';
+import { BookmarkManager } from './core/bookmarks.js';
+import { initBookmarksPanel } from './bookmarks/panel.js';
 import { extractSections } from './epub/extractor.js';
 import { resolveImageUrls, findCoverImage } from './epub/images.js';
 import { flattenToc, buildTOC, resolveHref } from './epub/toc.js';
@@ -36,6 +38,7 @@ export function init(options = {}) {
     ttsReadBtn:     document.getElementById('ttsReadBtn'),
     ttsSpeedBtn:    document.getElementById('ttsSpeedBtn'),
     ttsOpenBtn:     document.getElementById('ttsOpenBtn'),
+    ttsBookmarksBtn: document.getElementById('ttsBookmarksBtn'),
     ttsPlayBtn:     document.getElementById('ttsPlayBtn'),
     ttsPrevBtn:     document.getElementById('ttsPrevBtn'),
     ttsNextBtn:     document.getElementById('ttsNextBtn'),
@@ -99,15 +102,58 @@ export function init(options = {}) {
   // ---------- Highlighter ----------
   const highlighter = new TtsHighlighter(els.content, els.viewport);
 
+  // ---------- Bookmarks ----------
+  const bookmarkManager = new BookmarkManager();
+  const bmPanel = initBookmarksPanel(
+    { panelEl: document.getElementById('ttsBookmarksPanel'), listEl: document.getElementById('ttsBmList'), addBtnEl: document.getElementById('ttsBmAddBtn') },
+    signal
+  );
+  bmPanel.setBook(bookmarkManager);
+
+  function getTtsBookmarkContext() {
+    if (!sentences.length) return null;
+    const fraction = getPositionFraction();
+    const sentence = sentences[currentSentenceIdx] || sentences[0];
+    const text = sentence ? (sentence.text || '').slice(0, 120) : '';
+    let chapterLabel = '';
+    if (headingToc.length && sentence && sentence.blockEl) {
+      for (let i = headingToc.length - 1; i >= 0; i--) {
+        const hEl = headingToc[i].el;
+        const pos = hEl.compareDocumentPosition(sentence.blockEl);
+        if (pos & Node.DOCUMENT_POSITION_FOLLOWING) { chapterLabel = headingToc[i].label; break; }
+      }
+    }
+    return { fraction, chapterLabel, text };
+  }
+
+  function navigateTtsToBookmark(item) {
+    engine.cancel();
+    setPlaying(false);
+    const idx = Math.round(item.fraction * Math.max(sentences.length - 1, 0));
+    seekToSentence(idx);
+  }
+
+  bmPanel.setCallbacks({
+    getContext: getTtsBookmarkContext,
+    onNavigate: navigateTtsToBookmark,
+    closePanel: () => {
+      document.body.classList.remove('show-bookmarks');
+      const b = document.getElementById('ttsBookmarksBtn');
+      if (b) b.setAttribute('aria-expanded', 'false');
+    },
+  });
+
   // ---------- Panels ----------
   let _panelTrigger = null;
 
   function closePanels() {
-    document.body.classList.remove('show-toc', 'tts-show-voice', 'show-search');
+    document.body.classList.remove('show-toc', 'tts-show-voice', 'show-search', 'show-bookmarks');
     if (els.ttsTocBtn) els.ttsTocBtn.setAttribute('aria-expanded', 'false');
     if (els.ttsSettingsBtn) els.ttsSettingsBtn.setAttribute('aria-expanded', 'false');
     if (els.ttsSearchBtn) els.ttsSearchBtn.setAttribute('aria-expanded', 'false');
     if (els.ttsVoiceBtn) els.ttsVoiceBtn.setAttribute('aria-expanded', 'false');
+    const bBtn = document.getElementById('ttsBookmarksBtn');
+    if (bBtn) bBtn.setAttribute('aria-expanded', 'false');
     if (_panelTrigger) { _panelTrigger.focus(); _panelTrigger = null; }
   }
 
@@ -521,6 +567,7 @@ export function init(options = {}) {
       const meta = (book.packaging && book.packaging.metadata) || {};
       const title = (meta.title || file.name).trim();
       bookId = urlParams.get('id') || title || file.name;
+      bookmarkManager.setBook(bookId);
       els.bookTitleEl.textContent = title;
       bookLoaded = true;
 
@@ -695,6 +742,23 @@ export function init(options = {}) {
   }, { signal });
   if (els.backdrop) els.backdrop.addEventListener('click', () => { closePanels(); closeSettingsScreen(); }, { signal });
 
+  // Bookmarks
+  const ttsBookmarksBtn = document.getElementById('ttsBookmarksBtn');
+  if (ttsBookmarksBtn) {
+    ttsBookmarksBtn.addEventListener('click', () => {
+      const isOpen = document.body.classList.contains('show-bookmarks');
+      closePanels();
+      closeSettingsScreen();
+      if (!isOpen) {
+        document.body.classList.add('show-bookmarks');
+        ttsBookmarksBtn.setAttribute('aria-expanded', 'true');
+        bmPanel.render();
+      } else {
+        ttsBookmarksBtn.setAttribute('aria-expanded', 'false');
+      }
+    }, { signal });
+  }
+
   // File open
   if (els.ttsOpenBtn) els.ttsOpenBtn.addEventListener('click', () => els.fileInput.click(), { signal });
   if (els.overlayBtn) els.overlayBtn.addEventListener('click', () => els.fileInput.click(), { signal });
@@ -791,6 +855,7 @@ export function init(options = {}) {
       .catch(err => showError(err && err.message ? err.message : "Couldn't fetch that book."));
   } else {
     bookId = urlParams.get('id') || 'Pride and Prejudice (sample)';
+    bookmarkManager.setBook(bookId);
     els.bookTitleEl.textContent = 'Pride and Prejudice';
     renderBook(buildSample());
     requestAnimationFrame(() => {

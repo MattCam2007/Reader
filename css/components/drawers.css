@@ -136,3 +136,193 @@ body.show-search .ui-backdrop { opacity: 1; pointer-events: auto; }
   font-size: 0.88rem;
   text-align: center;
 }
+
+/* ── Bookmarks panel ──────────────────────────────────────────────────────── */
+
+.bm-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(88vw, 26rem);
+  z-index: 50;
+  background: var(--panel-bg);
+  border-left: 1px solid var(--border);
+  box-shadow: 0 0 40px var(--shadow);
+  transform: translateX(102%);
+  transition: transform 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+body.show-bookmarks .bm-panel { transform: translateX(0); }
+body.show-bookmarks .ui-backdrop { opacity: 1; pointer-events: auto; }
+
+.bm-panel-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top, 0px) + 0.9rem) 1rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+}
+.bm-panel-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.bm-add-btn {
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.bm-add-btn:active { opacity: 0.8; }
+
+.bm-panel-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.4rem 0 calc(env(safe-area-inset-bottom, 0px) + 0.8rem);
+}
+
+/* Bookmark item */
+.bm-item {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.bm-item:last-child { border-bottom: 0; }
+
+.bm-item-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
+}
+.bm-chap {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bm-pct {
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+.bm-preview {
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--fg);
+  margin-bottom: 0.45rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.bm-note-area { margin-bottom: 0.45rem; }
+.bm-note-show {
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0.25rem 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 1.6em;
+}
+.bm-note-hint {
+  color: var(--muted);
+  font-style: italic;
+}
+.bm-note-editor { margin-top: 0.4rem; }
+.bm-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  font: inherit;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  resize: vertical;
+  min-height: 76px;
+}
+.bm-textarea:focus { outline: none; border-color: var(--accent); }
+.bm-editor-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+.bm-save-btn, .bm-cancel-btn {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  -webkit-tap-highlight-color: transparent;
+}
+.bm-save-btn { background: var(--accent); color: #fff; border-color: var(--accent); }
+.bm-save-btn:active, .bm-cancel-btn:active { opacity: 0.8; }
+
+.bm-item-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.bm-go-btn {
+  flex: 1 1 auto;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  cursor: pointer;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.bm-go-btn:active { background: var(--border); }
+.bm-del-btn {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+  font-size: 1.1rem;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  border-radius: 0.4rem;
+  -webkit-tap-highlight-color: transparent;
+}
+.bm-del-btn:active { color: var(--fg); background: var(--border); }
+
+.bm-empty {
+  padding: 2rem 1.2rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  text-align: center;
+}

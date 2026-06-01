@@ -1,5 +1,7 @@
 import { FONT_MAP, FONT_SERIF, THEME_COLORS, RESIZE_DEBOUNCE_MS, SAVE_DEBOUNCE_MS, GENERAL_DEFAULTS, ALL_THEME_NAMES } from './core/constants.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
+import { BookmarkManager } from './core/bookmarks.js';
+import { initBookmarksPanel } from './bookmarks/panel.js';
 import { PrefsManager } from './core/prefs.js';
 import { ReaderState } from './core/state.js';
 import { StorageManager } from './core/storage.js';
@@ -49,6 +51,10 @@ export function init(options = {}) {
     comfortWarm:   document.getElementById("comfortWarm"),
     toc:           document.getElementById("toc"),
     searchPanel:   document.getElementById("searchPanel"),
+    bookmarksBtn:  document.getElementById("bookmarksBtn"),
+    bookmarksPanel: document.getElementById("bookmarksPanel"),
+    bmAddBtn:      document.getElementById("bmAddBtn"),
+    bmList:        document.getElementById("bmList"),
   };
 
   // ---------- State & Prefs ----------
@@ -58,8 +64,55 @@ export function init(options = {}) {
   state.setPrefs(prefs);
   const urlParams = new URLSearchParams(location.search);
 
+  // ---------- Bookmarks ----------
+  const bookmarkManager = new BookmarkManager();
+  const bmPanel = initBookmarksPanel(
+    { panelEl: els.bookmarksPanel, listEl: els.bmList, addBtnEl: els.bmAddBtn },
+    signal
+  );
+  bmPanel.setBook(bookmarkManager);
+
+  function getBookmarkContext() {
+    if (!state.bookId || !state.doc.words.length) return null;
+    const loc = currentLocatorFn ? currentLocatorFn() : null;
+    const fraction = getPositionFraction();
+    const chapterLabel = chrome ? chrome.currentChapterLabel() : '';
+    let text = '';
+    if (loc) {
+      const wi = resolveLocator(state, loc);
+      if (wi >= 0) {
+        const charStart = state.doc.wordCharStart[wi] || 0;
+        text = state.doc.text.slice(charStart, charStart + 150).slice(0, 120).trimEnd();
+      }
+    }
+    return { fraction, chapterLabel, text, position: loc };
+  }
+
+  function navigateToBookmark(item) {
+    if (item.position && state.doc.words.length) {
+      const wi = resolveLocator(state, item.position);
+      if (wi >= 0) {
+        if (state.isScrollMode) pagination.scrollToWord(wi);
+        else pagination.goTo(pageOfWord(state, els.content, wi), false);
+        return;
+      }
+    }
+    if (state.isScrollMode) {
+      const sh = els.viewport.scrollHeight - els.viewport.clientHeight;
+      els.viewport.scrollTop = Math.round(item.fraction * sh);
+    } else {
+      pagination.goTo(Math.round(item.fraction * (state.total - 1)), false);
+    }
+  }
+
   // ---------- Chrome ----------
   const chrome = new ChromeManager(state, els);
+
+  bmPanel.setCallbacks({
+    getContext: getBookmarkContext,
+    onNavigate: navigateToBookmark,
+    closePanel: () => { document.body.classList.remove('show-bookmarks'); updateAriaExpanded(); },
+  });
 
   // ---------- Helpers ----------
   function currentLocatorFn() {
@@ -104,10 +157,11 @@ export function init(options = {}) {
     els.tocBtn.setAttribute("aria-expanded", String(document.body.classList.contains("show-toc")));
     els.settingsBtn.setAttribute("aria-expanded", String(!!document.getElementById("settingsScreen")));
     els.searchBtn.setAttribute("aria-expanded", String(document.body.classList.contains("show-search")));
+    if (els.bookmarksBtn) els.bookmarksBtn.setAttribute("aria-expanded", String(document.body.classList.contains("show-bookmarks")));
   }
 
   function closePanels() {
-    document.body.classList.remove("show-toc", "show-search");
+    document.body.classList.remove("show-toc", "show-search", "show-bookmarks");
     search.clearHighlights();
     updateAriaExpanded();
     if (_lastPanelTrigger) {
@@ -300,6 +354,7 @@ export function init(options = {}) {
       const title = (meta.title || file.name).trim();
       state.bookId = urlParams.get("id") || title || file.name;
       els.bookTitleEl.textContent = title;
+      bookmarkManager.setBook(state.bookId);
 
       renderBook(sections);
       if (coverUrl) state.blobUrls.push(coverUrl);
@@ -352,6 +407,21 @@ export function init(options = {}) {
   els.searchInput.addEventListener("input", (e) => search.run(e.target.value.trim()), { signal });
   els.tocBtn.addEventListener("click", openTOC, { signal });
   els.settingsBtn.addEventListener("click", openSettings, { signal });
+  if (els.bookmarksBtn) {
+    els.bookmarksBtn.addEventListener("click", () => {
+      _lastPanelTrigger = els.bookmarksBtn;
+      const isOpen = document.body.classList.contains("show-bookmarks");
+      closePanels();
+      closeSettingsScreen();
+      if (!isOpen) {
+        _lastPanelTrigger = els.bookmarksBtn;
+        document.body.classList.add("show-bookmarks");
+        document.body.classList.remove("chrome-hidden");
+        bmPanel.render();
+        updateAriaExpanded();
+      }
+    }, { signal });
+  }
   els.backdrop.addEventListener("click", () => { closePanels(); closeSettingsScreen(); }, { signal });
   els.openBtn.addEventListener("click", () => els.fileInput.click(), { signal });
   els.overlayBtn.addEventListener("click", () => els.fileInput.click(), { signal });
@@ -435,6 +505,7 @@ export function init(options = {}) {
     loadFromUrl(srcUrl);
   } else {
     state.bookId = urlParams.get("id") || "Pride and Prejudice (sample)";
+    bookmarkManager.setBook(state.bookId);
     els.bookTitleEl.textContent = "Pride and Prejudice";
     renderBook(buildSample());
     requestAnimationFrame(() => {
