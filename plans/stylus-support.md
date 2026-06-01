@@ -584,3 +584,305 @@ PRs, all M‑sized, no new dependencies.**
 - **Q5.** Should the pen, when *not* selecting, be allowed to **toggle chrome**
   on a tap (a gentle "do nothing but UI" affordance), or be fully inert on the
   reading surface? *Default: inert in reading mode (safest for R1).*
+
+---
+
+# 11. Samsung S Pen — making use of the hardware *(Samsung‑specific deep dive)*
+
+> This section is **additive** to the generic Android plan above (S0–S3). It
+> targets the **Samsung S Pen** specifically — the author's own device — and asks
+> the real question: *beyond "don't turn the page," what can we actually do with
+> the S Pen's hardware?* It maps each concrete S Pen capability to a reader
+> feature, and is honest about which capabilities a web app can reach today
+> versus which need a thin native bridge.
+>
+> Everything here is **planning only**. It does not modify the S0–S3 units; where
+> useful it notes how an S Pen feature *layers onto* one of them.
+
+## 11.1 The two tiers of S Pen access (the crucial framing)
+
+Not all S Pen features are reachable the same way. They split cleanly by **how
+the reader is packaged**:
+
+| Tier | Packaging | What's reachable |
+| --- | --- | --- |
+| **Tier 1 — Web** | PWA / plain Chrome on the device | Everything the **on‑screen digitizer** reports: hover, pressure, tilt/azimuth, the **barrel (side) button while in range**, and the **eraser end**. All via standard **Pointer Events** — no native code. |
+| **Tier 2 — Native bridge** | The reader wrapped in an **Android WebView / TWA** with a small native shim | Everything in Tier 1 **plus** the **BLE S Pen "Air Actions"**: the remote **button click / double‑click** and **air‑motion gestures** (swipe/circle) that work *even when the pen never touches the screen*. These come from Samsung's **S Pen Remote SDK** and must be **bridged into JavaScript**. |
+
+The single most "S Pen" feature — *clicking the pen's button like a remote to
+turn pages from across the room* — is **Tier 2 only**. It is physically a
+Bluetooth‑LE signal from the pen, invisible to a web page. So the headline
+recommendation for a Samsung‑first reader is: **package as a WebView app and add
+an `SPenBridge`** (11.5). The web code can be written against that bridge now and
+degrade to a no‑op until the native side exists.
+
+### Which S Pens have which hardware
+
+- **Passive digitizer (all Galaxy Note / S‑Ultra / Tab S pens):** hover,
+  pressure, tilt, tip + barrel button, eraser — i.e. **all of Tier 1**.
+- **BLE "Air Action" pens** (the Air Actions / Remote SDK target): Galaxy
+  **Note 10 and later**, **Tab S6 and later**, **S22 Ultra / S23 Ultra / S24
+  Ultra**, Fold S Pen Pro / Fold Edition — Android **9.0+**. Older Note pens
+  (Note 9 and earlier) and the cheapest replacement styluses are
+  passive‑only → Tier 1 features still work, **Tier 2 silently unavailable**.
+
+> **Design rule:** every S Pen feature must **feature‑detect and degrade**. A
+> passive pen, a finger, or a no‑bridge build must never break.
+
+## 11.2 What the S Pen reports — capability reference
+
+### Tier 1 — standard Pointer Events (verified against the Pointer Events spec)
+
+For a stylus contact/hover, `PointerEvent.pointerType === 'pen'`, plus:
+
+- **Hover ("Air View"):** when the pen is **near but not touching**, the
+  digitizer still fires `pointerenter` / `pointermove` / `pointerover` with
+  `pressure === 0` and `buttons === 0`. This is how we detect *where the pen is
+  pointing before it lands* — the basis for hover‑preview (11.3‑**SP1**).
+- **Buttons bitmask** (`event.buttons`):
+  - `1` (bit 0) — pen **tip** in contact
+  - `2` (bit 1) — **barrel / side button** held
+  - `32` (bit 5) — **eraser** end in contact
+  - `0` — hovering, no button
+  (`event.button` on transitions: `0` = tip, `2` = barrel, `5` = eraser, `-1` =
+  pure move/hover.)
+- **`pressure`** — `0.0–1.0`, real analog pressure under the tip (0 while
+  hovering). Drives a pressure‑sensitive highlighter / ink (S3, SP4).
+- **`tiltX` / `tiltY`** (−90°…90°), and on PE‑level‑3 engines **`altitudeAngle` /
+  `azimuthAngle`** — pen lean. For calligraphic ink / shading (S3, future).
+- **`twist`** (0–359°), **`width` / `height`** (contact geometry) — minor, noted
+  for completeness.
+
+### Tier 2 — S Pen Remote SDK (native, bridged to JS)
+
+From Samsung's **Galaxy S Pen Remote SDK** (classes `SpenRemote`,
+`SpenUnitManager`, `SpenUnit` with `TYPE_BUTTON` / `TYPE_AIR_MOTION`, events
+`ButtonEvent` and `AirMotionEvent`, listener `SpenEventListener`):
+
+- **Button events:** single **click** and **double‑click** of the physical S Pen
+  button (delivered over BLE; works with the pen anywhere, not on screen).
+- **Air‑motion gestures:** **`swipe_left` / `swipe_right` / `swipe_up` /
+  `swipe_down` / `circle_cw` / `circle_ccw`** (and `click` / `double_click`),
+  recognised from the pen's gyroscope — wave the pen in the air.
+- **Connection model:** `SpenRemote.connect()` → on success yields a
+  `SpenUnitManager`; you `getUnit(TYPE_BUTTON / TYPE_AIR_MOTION)` and
+  `registerSpenEventListener(...)`. Raw gyro data is also available
+  (`AirMotionEvent` deltas) for custom gestures.
+
+## 11.3 S Pen feature catalogue for the reader
+
+Each is an **isolated unit** (`SP*`), in the S0–S3 style. Tier noted on each.
+
+---
+
+### SP1 — Hover preview ("Air View for books") *(Tier 1)*
+
+**Goal.** When the pen **hovers** over a word (not touching), show a lightweight,
+non‑committal preview without selecting or turning the page:
+- over an ordinary word → a **dictionary/definition** tooltip (reuse the Define
+  endpoint already in `selection.js`);
+- over a **footnote/endnote reference** → a **footnote peek** (reuse
+  `footnotes.js` popover, but on hover instead of tap);
+- over an **internal link** → a small "jump to *Chapter X*" peek.
+
+**Depends on:** S0 (Pointer Events; pen gate already prevents accidental turns),
+`wordAtPoint` from S1, `footnotes.js`.
+
+**Design.**
+- Listen for `pointermove` with `pointerType === 'pen' && buttons === 0 &&
+  pressure === 0` → that's a hover. Debounce (~120 ms) and `wordAtPoint(x, y)`.
+- Show a small floating card anchored above the hovered word; **follow** the pen
+  with hysteresis; dismiss on `pointerleave` or when the pen lands/turns to
+  another word.
+- **Never** mutate selection or navigation — hover is read‑only.
+- Setting `prefs.penHover` (default **on**); a sub‑toggle per preview kind
+  (define / footnote / link) is optional.
+
+**Acceptance.** Hovering a word shows its definition card within ~150 ms; moving
+away dismisses it; touching the screen does not trigger hover; finger never
+triggers it. **Effort: M.**
+
+---
+
+### SP2 — S Pen button & Air Actions as a reading remote *(Tier 2 — needs bridge)*
+
+**This is the marquee S Pen feature.** Use the pen like a presentation clicker to
+read hands‑light.
+
+**Goal.** Map S Pen **button** and **air gestures** to reader actions, working
+even when the pen isn't touching the screen:
+
+| S Pen signal | Default action (paginated) | Default action (RSVP / TTS) |
+| --- | --- | --- |
+| **Button single‑click** | Next page | Play / Pause |
+| **Button double‑click** | Previous page | Toggle play ↔ pause (or skip) |
+| **Air swipe left / right** | Prev / Next page | Step / skip sentence |
+| **Air swipe up / down** | Scroll / chapter ± | WPM ± |
+| **Air circle cw / ccw** | Open / close TOC | — |
+
+All mappings **user‑configurable** in settings (a small action‑picker per signal).
+
+**Depends on:** the **`SPenBridge`** (11.5); S0; existing `pagination.next/prev`,
+RSVP `playback.toggle`, TTS controls — all already exist as clean methods.
+
+**Design.**
+- Native side registers `ButtonEvent` + `AirMotionEvent` listeners via the
+  S Pen Remote SDK and forwards each as a normalized event to JS through the
+  bridge (`onButtonClick`, `onButtonDoubleClick`, `onAirGesture('swipe_left')`…).
+- A single `SPenRemoteController` in JS subscribes to the bridge, looks up the
+  user's mapping, and calls the relevant existing action for the **active mode**
+  (read / rsvp / tts). Mode is already known to `mode-switcher.js`.
+- Honor `prefers-reduced-motion` only for any on‑screen feedback (a brief toast
+  "Next page" so the user knows the click registered).
+
+**Acceptance.** With the pen out of the silo and the screen at arm's length, a
+button click turns the page; double‑click goes back; air‑swipe works; remapping
+persists; **with no bridge present (PWA build) the feature is silently absent and
+nothing errors.** **Effort: M (JS) + native shim (see 11.5).**
+
+---
+
+### SP3 — Barrel‑button & eraser power gestures *(Tier 1)*
+
+**Goal.** Use the pen's **side button** and **eraser end** as direct modifiers,
+removing steps from the select→menu→highlight flow.
+
+- **Hold barrel button + drag** → **highlight immediately** in the default colour
+  (skip the selection bar). This is the fast path on top of **S2**.
+- **Barrel button + tap a word** → open the word **context menu** (Define /
+  Copy / Highlight) directly.
+- **Eraser end over a highlight** (`buttons & 32`) → **erase that highlight**
+  (delete from the S2 store); over ink (S3) → erase strokes.
+
+**Depends on:** S1 (selection), S2 (highlight store + render).
+
+**Design.** In the pen branch of `input.js`, read `e.buttons`: `& 2` = barrel
+modifier, `& 32` = eraser. Barrel+drag routes to `S2.createHighlight` live;
+eraser routes to `S2.deleteHighlightAt(wordAtPoint)`. Settings: `prefs.penBarrel`
+(default on).
+
+**Acceptance.** Button‑drag paints a highlight in one motion; eraser removes a
+highlight on contact; neither affects finger input. **Effort: S–M** (small once
+S1/S2 exist).
+
+---
+
+### SP4 — Pressure‑ & tilt‑aware highlighter / ink *(Tier 1, extends S3)*
+
+**Goal.** Make highlighting and (future) freehand ink feel like a real
+highlighter: **`pressure`** drives opacity/width, **tilt** can broaden the stroke
+(chisel‑tip effect).
+
+**Depends on:** S2 (highlight model) and the S3 ink overlay.
+
+**Design.** When laying a highlight/ink stroke with the pen, sample `pressure`
+per `pointermove` and modulate the stroke; store a representative width with the
+highlight so re‑render is stable. Pure cosmetic layer over S2/S3. **Effort: S on
+top of S3; defer until S3 exists.**
+
+---
+
+### SP5 — Pen‑detach auto‑mode *(Tier 2 — needs bridge)*
+
+**Goal.** When the user **pulls the S Pen out of the silo**, automatically enter a
+"stylus reading mode" (e.g. enable hover‑preview SP1, show the highlighter
+affordance, ensure pen‑turns‑page stays off); when re‑inserted, revert.
+
+**Depends on:** the bridge (Android broadcasts S Pen attach/detach as system
+intents the native shim can observe), S0.
+
+**Design.** Native shim listens for the detach intent and calls
+`onPenAttached(false/true)`; JS toggles a `body.spen-active` class and the
+relevant prefs. Setting `prefs.penAutoMode` (default on). **Effort: S (JS) +
+small native shim.**
+
+## 11.4 How these layer onto S0–S3 (no rework)
+
+```
+ Tier 1 (web, no native):   S0 ─► S1 ─► S2 ─► S3
+                              │     │     │     └─ SP4 pressure/tilt ink
+                              │     │     └─────── SP3 barrel+drag / eraser
+                              │     └───────────── SP1 hover preview
+                              └─────────────────── (pen gate = "don't turn page")
+
+ Tier 2 (needs SPenBridge):  SP2 reading remote (button + air gestures)
+                             SP5 pen-detach auto-mode
+```
+
+Nothing in SP1–SP5 requires changing S0–S3; they consume the same `wordAtPoint`,
+locator model, highlight store, and existing `pagination`/`playback` methods.
+
+## 11.5 The `SPenBridge` contract (enabling Tier 2)
+
+To keep the web code clean and the native code thin, define one JS‑facing
+interface now. Web features check for it and no‑op if absent.
+
+```js
+// Present only in the WebView build; undefined in PWA/Chrome → graceful no-op.
+window.SPenBridge = {
+  isAvailable(): boolean,           // BLE S Pen present & SDK connected
+  getCapabilities(): {              // so the UI can show only what works
+    button: boolean, airMotion: boolean, detachEvents: boolean
+  },
+  // Native -> web callbacks (native calls these via evaluateJavascript):
+  //   onButtonClick(), onButtonDoubleClick(),
+  //   onAirGesture('swipe_left'|'swipe_right'|'swipe_up'|'swipe_down'|'circle_cw'|'circle_ccw'),
+  //   onPenAttached(attached: boolean)
+};
+```
+
+**Native side (Android, ~one small class):** a WebView host that implements the
+S Pen Remote SDK flow — `SpenRemote.connect()` → `SpenUnitManager` →
+`registerSpenEventListener` on `TYPE_BUTTON` and `TYPE_AIR_MOTION` — and forwards
+each `ButtonEvent` / `AirMotionEvent` to the page via
+`webView.evaluateJavascript("window.__spen.onAirGesture('swipe_left')", …)`.
+Exposes capabilities and connection state back through a `@JavascriptInterface`.
+
+This is the **only** native code the whole S Pen story needs; it's small, and it
+unlocks both SP2 and SP5. Everything else (SP1, SP3, SP4) is pure web.
+
+## 11.6 Risks & notes (S Pen‑specific)
+
+| Risk / note | Mitigation |
+| --- | --- |
+| BLE button/air actions need the native SDK — invisible to a PWA | Package as WebView app + `SPenBridge`; feature‑detect and degrade in pure‑web builds. |
+| Passive / older S Pens lack BLE | `getCapabilities()` drives the UI; Tier 1 still fully works. |
+| Hover events fire continuously (battery / churn) | Debounce hover; only act on settle; disable when `prefs.penHover` off. |
+| Eraser/barrel button reporting varies by engine | Feature‑detect via observed `buttons` bits; never assume. |
+| S Pen Remote SDK requires Note 10 / Tab S6+ on Android 9+ | Documented floor; older devices get Tier 1 only. |
+| Air gestures could fire accidentally while reading | Gestures **off by default**; opt‑in per signal in settings; require pen out of silo (SP5). |
+
+## 11.7 Recommended S Pen sequencing
+
+1. **SP1 hover preview (M, Tier 1)** — immediate, delightful, web‑only; great
+   first S Pen win after S1.
+2. **SP3 barrel + eraser (S–M, Tier 1)** — pairs with S2 highlighting.
+3. **`SPenBridge` + SP2 reading remote (M + native shim, Tier 2)** — the
+   marquee feature; requires committing to the WebView packaging.
+4. **SP5 pen‑detach auto‑mode (S, Tier 2)** — small polish once the bridge exists.
+5. **SP4 pressure/tilt ink (S, Tier 1)** — only after S3 ink lands.
+
+## 11.8 Open questions (S Pen)
+
+- **QS1.** Is the reader going to be **packaged as a WebView/TWA Android app**
+  (unlocking Tier 2 / the S Pen button remote), or stay a **PWA** (Tier 1 only)?
+  This is the pivotal decision for SP2/SP5. *Recommendation: WebView build, since
+  the BLE button is the most "S Pen" feature and is otherwise unreachable.*
+- **QS2.** Default action mapping for the S Pen button — **single‑click = next
+  page** (reading remote) the right default, or play/pause TTS? *Default: next
+  page in read mode, play/pause in RSVP/TTS.*
+- **QS3.** Should **air‑motion gestures** ship enabled or strictly opt‑in?
+  *Default: opt‑in (avoid accidental turns).*
+- **QS4.** Minimum device floor — accept **Note 10 / Tab S6 (Android 9+)** for
+  Tier 2 and silently fall back below that? *Default: yes.*
+
+## 11.9 Sources
+
+- [S Pen Remote SDK — Samsung Developer](https://developer.samsung.com/galaxy-spen-remote/s-pen-remote-sdk.html)
+- [Galaxy S Pen Remote SDK — Overview](https://developer.samsung.com/galaxy-spen-remote/overview.html)
+- [Air Actions — Samsung Developer](https://developer.samsung.com/galaxy-spen-remote/air-actions.html)
+- [SpenEventListener / API reference — Samsung Developer](https://developer.samsung.com/galaxy-spen-remote/api-reference/index-all.html)
+- [Pointer events — MDN](https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events)
+- [PointerEvent — MDN](https://developer.mozilla.org/en-US/docs/Web/API/PointerEvent)
+- [Advanced stylus features — Android Developers](https://developer.android.com/develop/ui/views/touch-and-input/stylus-input/advanced-stylus-features)
+- [Pointer Events Level 3 — W3C](https://www.w3.org/TR/pointerevents3/)
