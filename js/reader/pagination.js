@@ -18,7 +18,7 @@ export class PaginationEngine {
     const { content } = els;
     content.style.transition = "none";
     content.style.setProperty("--page-offset", "0px");
-    const vpW = content.clientWidth;
+    const vpW = content.getBoundingClientRect().width;
     let cols = 1;
     const prefs = state._prefs.data;
     if (prefs.columns === "2" || (prefs.columns === "auto" && vpW > 700)) cols = 2;
