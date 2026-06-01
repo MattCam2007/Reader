@@ -10,13 +10,18 @@
 > feature is an **isolated unit of work** (one branch, one PR, one setting where
 > it changes UX), independently mergeable and revertible. Branch management is
 > handled by the user — this environment does not push code on its own.
+>
+> **Target platform: Android only** (Chrome / Android WebView). All design and
+> testing assume Android stylus hardware — S Pen, USI, Wacom AES. iOS / Apple
+> Pencil is out of scope. This rules out the `Touch.touchType` approach (Safari‑
+> only) and makes **Pointer Events the single mandated path** (see Section 4).
 
 ---
 
 ## 1. Executive summary
 
-**The ask.** Make the reader stylus‑friendly. At minimum, a stylus (Apple
-Pencil, S Pen, USI/Wacom AES, Surface Pen) must **not turn the page** when the
+**The ask.** Make the reader stylus‑friendly on Android. At minimum, a stylus
+(S Pen, USI, Wacom AES) must **not turn the page** when the
 user rests or draws on the reading surface in paginated reading mode. Beyond
 that, the user sees value in **selecting individual words** with the stylus
 (foundation for future features) and **highlighting** passages.
@@ -38,16 +43,17 @@ codebase is unusually well‑positioned for this:
   bookmarks (`js/core/bookmarks.js`, `reader:bookmarks:<bookId>`). A highlight
   store is a near‑clone.
 
-**The single biggest decision** is how to detect "this is a pen, not a finger."
-There are two viable paths (Section 4); the recommendation is to **migrate the
-reader's touch handlers to Pointer Events** so we get `pointerType` (`'pen'` vs
-`'touch'` vs `'mouse'`) plus pressure/tilt for free, while keeping a tiny
-`Touch.touchType` fallback for older Safari.
+**Detecting "this is a pen, not a finger"** is the central mechanism. On Android
+(the only target) the answer is unambiguous: **migrate the reader's touch
+handlers to Pointer Events** and gate on `pointerType === 'pen'`. Android
+Chrome/WebView reports S Pen / USI / Wacom styluses as `'pen'`, and we get
+pressure/tilt for free for future features. (The iOS‑only `Touch.touchType` trick
+does not work on Android and is rejected — see Section 4.)
 
 **Recommended sequencing:** `S0` (don't‑turn‑the‑page) → `S1` (word selection) →
 `S2` (highlighting). `S0` ships the minimum requirement on its own and lays the
 input foundation the others build on. `S3` (pressure/ink annotations) is sketched
-as future‑facing only.
+as future‑facing only. **Platform: Android only** — see the scope note above.
 
 ---
 
@@ -146,17 +152,21 @@ must do the same:** store **locators**, re‑resolve to `Range`s after every
 
 ## 4. Core technical decision — detecting "pen vs finger"
 
-There are two ways to know a contact is a stylus. We can adopt either or both.
+Since this is **Android only**, there is exactly one correct mechanism: **Pointer
+Events** and their `pointerType` field. The iOS‑only `Touch.touchType` alternative
+is recorded below solely to explain why it is rejected.
 
-### Option A (recommended): migrate reader input to **Pointer Events**
+### The mandated path: migrate reader input to **Pointer Events**
 
 Pointer Events unify mouse/touch/pen and expose **`event.pointerType`**
 (`'pen' | 'touch' | 'mouse'`), plus `pressure`, `tiltX/Y`, `twist`, and a stable
-`pointerId` for multi‑contact tracking. Browser support is universal across our
-stated targets (Chrome/Edge 90+, Firefox 90+, Safari 13+/iOS 13+).
+`pointerId` for multi‑contact tracking. On Android, Chrome and the System WebView
+report S Pen / USI / Wacom AES styluses as `pointerType: 'pen'` — this is the
+native, reliable signal.
 
 - **Page‑turn gestures gate on `pointerType !== 'pen'`.** A pen contact simply
-  never arms the swipe/tap‑zone logic in reading mode.
+  never arms the swipe/tap‑zone logic in reading mode. This *is* the minimum
+  requirement (R1).
 - We get **pressure/tilt** for free → enables the future ink/annotation track
   (`S3`) without a second rewrite.
 - `setPointerCapture(pointerId)` gives robust drag tracking for selection (`S1`).
@@ -171,35 +181,12 @@ re‑expressed on `pointerdown/move/up/cancel`. This is the one non‑trivial pa
 the whole effort. It is contained to a single ~135‑line file with a clear
 behavioural contract, and is covered by a manual test matrix (Section 8).
 
-### Option B (smaller, lower‑risk fallback): keep touch events, gate on `Touch.touchType`
+### Rejected: `Touch.touchType` (iOS‑only)
 
-iOS/iPadOS Safari exposes **`Touch.touchType === 'stylus'`** (vs `'direct'`) on
-the existing `touchstart`/`touchend` `e.touches[0]`. We could add a one‑line
-guard at the top of each touch handler:
-
-```js
-if (e.touches[0] && e.touches[0].touchType === 'stylus') return; // never navigate
-```
-
-- **Pro:** minimal diff, near‑zero regression risk to finger navigation, ships
-  R1 today on the most common stylus platform (iPad + Apple Pencil).
-- **Con:** `Touch.touchType` is non‑standard and **not implemented on Android**
-  (S Pen, USI). It does not give pressure/tilt, so it does not advance `S1`–`S3`.
-  It is a dead‑end for the richer features.
-
-### Recommendation
-
-**Do Option A.** It is the right foundation for everything the user described
-(word select, highlight, and the implied "future features"), aligns the two
-input modules, and adds no dependency. Keep a tiny **`touchType` belt‑and‑braces
-fallback** inside the migrated handler for any engine that reports a pointer as
-`'touch'` but a touch as `'stylus'`. If the user wants R1 *immediately* with the
-smallest possible change, Option B can ship first as a stop‑gap and be folded
-into A later — but the plan below assumes A.
-
-> **Open question Q1:** Ship the minimum fix as Option B first (tiny, iPad‑only)
-> and migrate to A later, or go straight to A? Default assumption: **straight to
-> A.**
+iOS/iPadOS Safari exposes `Touch.touchType === 'stylus'` on touch events, which
+would allow a one‑line guard without migrating to Pointer Events. **It is not
+implemented on Android at all**, so it cannot detect an S Pen or USI stylus and
+is useless here. Rejected.
 
 ---
 
@@ -237,12 +224,11 @@ on the viewport). Optionally a settings row (Section "Settings UI").
   (`_dragging`, `_decided`, `_startX/Y`, `_baseTx`, `_startT`, `_lastTouchEnd`)
   and the existing thresholds (`SWIPE_THRESHOLD_*`, `TAP_ZONE_*`,
   `TAP_TIMEOUT_MS`, `SYNTHETIC_CLICK_GUARD_MS`).
-- **Pen gate:** in `pointerdown`, if `e.pointerType === 'pen'` (or the
-  `touchType === 'stylus'` fallback), set a `_penContact` flag and **do not arm**
-  the drag/tap path. The pen is then free to do selection (`S1`) or — when neither
-  selection nor any stylus feature is active — simply do nothing (no page turn,
-  no chrome toggle). Behaviour for `pointerType === 'touch'`/`'mouse'` is the
-  current behaviour.
+- **Pen gate:** in `pointerdown`, if `e.pointerType === 'pen'`, set a
+  `_penContact` flag and **do not arm** the drag/tap path. The pen is then free to
+  do selection (`S1`) or — when neither selection nor any stylus feature is
+  active — simply do nothing (no page turn, no chrome toggle). Behaviour for
+  `pointerType === 'touch'`/`'mouse'` is the current behaviour.
 - Use `setPointerCapture(e.pointerId)` on the deciding pointer so a drag that
   leaves the viewport still completes correctly (fixes a latent finger‑drag edge
   case too).
@@ -264,8 +250,7 @@ on the viewport). Optionally a settings row (Section "Settings UI").
    control markup/ID to the settings screen template.
 2. Rewrite `InputHandler._bindEvents` on Pointer Events, preserving the drag/tap
    contract. Keep keyboard handler unchanged.
-3. Add the pen gate keyed on `e.pointerType` + `touchType` fallback + the
-   `penTurnsPage` pref.
+3. Add the pen gate keyed on `e.pointerType === 'pen'` + the `penTurnsPage` pref.
 4. Add `touch-action: pan-y` to the viewport CSS.
 5. Verify the synthetic‑click guard and coach‑dismiss/`closePanels` callbacks
    still fire identically.
@@ -280,13 +265,14 @@ on the viewport). Optionally a settings row (Section "Settings UI").
 - Scroll‑mode vertical scrolling with a finger still works; tap‑to‑toggle‑chrome
   still works with a finger.
 
-**Manual tests.** (No headless browser — see `upgrades.md` §5.)
-1. iPad + Apple Pencil: swipe across text → page does not turn. Finger swipe →
-   turns. Pencil tap in right zone → no turn.
-2. Android + S Pen (Chrome): same matrix.
-3. Mouse + desktop: click zones and drag unchanged.
-4. Finger on phone: swipe both directions, tap all three zones, rubber‑band at
-   ends, quick tap vs slow drag — all unchanged.
+**Manual tests.** (No headless browser — test on real Android hardware; see
+`upgrades.md` §5.)
+1. Android + S Pen (Chrome): swipe across text with the pen → page does not turn.
+   Finger swipe → turns. Pen tap in right/left zone → no turn.
+2. Android + USI / Wacom AES stylus: same matrix.
+3. Android WebView (if app is wrapped): confirm `pointerType==='pen'` is reported.
+4. Finger on the device: swipe both directions, tap all three zones, rubber‑band
+   at ends, quick tap vs slow drag — all unchanged.
 5. Two‑finger / multi‑touch start → ignored as today (`pointerType==='touch'`
    with >1 active pointer: keep the "single contact only" guard).
 6. Scroll‑mode: finger scroll works; pen does not page‑turn.
@@ -373,9 +359,9 @@ if we don't want two controls. (Open question Q2.)
 - Finger tap still clears the selection and toggles chrome / navigates; finger
   navigation unaffected.
 
-**Manual tests.** iPad/Pencil + Android/S Pen: tap several words (start, middle,
-end of lines; inside italic/bold inline spans from rich‑inline U6); drag forward
-and backward; tap whitespace/margin (should no‑op or select nearest word per
+**Manual tests.** Android + S Pen / USI: tap several words (start, middle, end of
+lines; inside italic/bold inline spans from rich‑inline U6); drag forward and
+backward; tap whitespace/margin (should no‑op or select nearest word per
 fallback); rotate device mid‑selection (selection may drop — acceptable, must not
 crash). Verify across a 2‑column page.
 
@@ -530,10 +516,10 @@ Future possibilities, each its own unit later:
   **locator**, not a live `Range`/`node`, and re‑resolve after `paginate`/
   `repaginate`/scroll relayout (Section 2.5). This is the one rule that keeps
   S1/S2 correct.
-- **Feature detection / fallback (R6).** Pointer Events (universal on targets;
-  `Touch.touchType` fallback for old Safari); `caretPositionFromPoint` ↔
-  `caretRangeFromPoint`; `CSS.highlights` ↔ `surroundContents`. No CDN; offline
-  unaffected.
+- **Feature detection / fallback (R6).** Pointer Events are universal on Android
+  Chrome/WebView (no fallback needed). `caretPositionFromPoint` ↔
+  `caretRangeFromPoint` (Chrome historically used the latter); `CSS.highlights` ↔
+  `surroundContents`. No CDN; offline unaffected.
 - **Accessibility (R7).** Keyboard users get highlight create (from a keyboard
   selection) / delete (via panel) parity; respect `prefers-reduced-motion` (no
   new animations needed); ARIA labels on new buttons/popovers; selection bar and
@@ -553,11 +539,10 @@ Future possibilities, each its own unit later:
 
 | Risk | Severity | Mitigation |
 | --- | --- | --- |
-| Touch→Pointer rewrite regresses finger navigation | Med | Preserve exact thresholds/state machine; full manual matrix (S0). Optionally ship Option B stop‑gap first. |
+| Touch→Pointer rewrite regresses finger navigation | Med | Preserve exact thresholds/state machine; full manual matrix on real Android hardware (S0). |
 | Highlights drift after repagination / detached DOM | Med | Store locators; re‑resolve on every relayout (proven `search.js` pattern). |
-| `caretPositionFromPoint` vendor differences | Low | Feature‑detect `caretRangeFromPoint` fallback. |
-| No CSS Highlight API on older Safari | Low | `surroundContents` fallback (TTS pattern). |
-| Stylus detection on Android stop‑gap (Option B only) | Low | Only relevant if B is chosen; A (pointerType) covers Android. |
+| `caretPositionFromPoint` vendor differences | Low | Feature‑detect `caretRangeFromPoint`. |
+| CSS Highlight API unavailable on old WebView | Low | `surroundContents` fallback (TTS pattern). |
 | Ink annotation reflow re‑anchoring (S3) | High | Deferred; anchor to block + relative coords when scheduled. |
 
 ---
@@ -570,7 +555,7 @@ Inherits `upgrades.md` §5:
   (S0 `penTurnsPage=false`); migration‑safe (additive).
 - All referenced element IDs exist; modules parse.
 - Manual test checklist in the PR (no headless browser available — must test on
-  at least one real pen device: iPad+Pencil or Android+S Pen).
+  a real Android pen device: S Pen / USI / Wacom AES).
 - No new CDN/runtime dependency; offline still works.
 - Position/resume + existing search highlighting remain correct (no regression).
 
@@ -590,8 +575,6 @@ PRs, all M‑sized, no new dependencies.**
 
 ## 10. Open questions to confirm before building
 
-- **Q1.** Ship Option B (tiny iPad‑only stop‑gap) first, or go straight to the
-  Pointer Events migration (Option A)? *Default: straight to A.*
 - **Q2.** One **Selection** toggle, or a separate **"Pen selects words"**
   sub‑option? *Default: sub‑option under Selection, on by default.*
 - **Q3.** Highlights in the **existing bookmarks panel** (merged or tabbed) or a
