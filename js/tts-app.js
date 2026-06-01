@@ -8,6 +8,7 @@ import { flattenToc, buildTOC, resolveHref } from './epub/toc.js';
 import { buildSample } from '../fixtures/sample.js';
 import { TtsEngine } from './tts/engine.js';
 import { TtsHighlighter } from './tts/highlighter.js';
+import { SelectionToolbar } from './shared/selection-toolbar.js';
 import { TTS_DEFAULTS } from './tts/constants.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 
@@ -101,6 +102,37 @@ export function init(options = {}) {
 
   // ---------- Highlighter ----------
   const highlighter = new TtsHighlighter(els.content, els.viewport);
+
+  // ---------- Selection → mode switch ----------
+  // Map the start of a selection to the sentence it falls in, then express that
+  // as a book fraction so Read/Speed can resume from the selected words.
+  function sentenceFractionFromRange(range) {
+    if (!sentences.length || !totalWords) return null;
+    const node = range.startContainer;
+    let idx = sentences.findIndex(s =>
+      s.highlightEl && s.highlightEl !== s.blockEl && s.highlightEl.contains(node));
+    if (idx < 0) idx = sentences.findIndex(s => s.blockEl && s.blockEl.contains(node));
+    if (idx < 0) return null;
+    currentSentenceIdx = idx;
+    return sentences[idx].wordOffset / totalWords;
+  }
+
+  const selection = new SelectionToolbar({
+    signal,
+    isEnabled: () => true,
+    resolveFraction: sentenceFractionFromRange,
+    fallbackFraction: () => getPositionFraction(),
+    getBookId: () => bookId,
+    onModeSwitch: onModeSwitch
+      ? (mode, info) => { engine.cancel(); setPlaying(false); savePosition(); onModeSwitch(mode, info); }
+      : null,
+    modes: onModeSwitch
+      ? [
+          { mode: 'read', label: '📄 Read' },
+          { mode: 'rsvp', label: '⚡ Speed' },
+        ]
+      : [],
+  });
 
   // ---------- Bookmarks ----------
   const bookmarkManager = new BookmarkManager();
@@ -965,6 +997,7 @@ export function init(options = {}) {
   return {
     teardown() {
       closeSettingsScreen();
+      selection.dismiss();
       engine.cancel();
       setPlaying(false);
       savePosition();

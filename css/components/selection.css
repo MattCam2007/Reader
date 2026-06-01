@@ -30,6 +30,14 @@ body.selection-on .reader-content {
 }
 .reader-sel-bar button:active { background: var(--border); }
 
+/* Mode-jump actions ("Speed" / "Listen" / "Read") use the accent colour and a
+   divider to read as "continue from here in another mode". */
+.reader-sel-bar .sel-mode-btn {
+  color: var(--accent);
+  border-left: 1px solid var(--border);
+}
+.reader-sel-bar .sel-mode-btn:active { background: var(--accent-dim); }
+
 ::highlight(search-results) {
   background-color: rgba(231, 76, 60, 0.3);
   color: inherit;

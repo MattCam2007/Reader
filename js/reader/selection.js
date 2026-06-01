@@ -1,69 +1,71 @@
-import { SELECTION_DEBOUNCE_MS } from '../core/constants.js';
+import { SelectionToolbar } from '../shared/selection-toolbar.js';
 
+// Reader-side wrapper around the shared SelectionToolbar. Adds "Speed" and
+// "Listen" actions that resolve the start of the selection to a global word
+// index, so switching modes resumes from the selected word rather than the
+// top of the current page.
 export class SelectionManager {
-  constructor(state, signal) {
+  constructor(state, signal, opts = {}) {
     this.state = state;
-    this._signal = signal;
-    this._selBar = null;
-    this._timer = null;
-    this._bindEvents();
+    const modes = opts.onModeSwitch
+      ? [
+          { mode: 'rsvp', label: '⚡ Speed' },
+          { mode: 'tts', label: '🔊 Listen' },
+        ]
+      : [];
+    this._toolbar = new SelectionToolbar({
+      signal,
+      isEnabled: () => !!(state._prefs && state._prefs.data && state._prefs.data.selection),
+      resolveFraction: (range) => this._fractionFromRange(range),
+      fallbackFraction: opts.getFallbackFraction,
+      getBookId: opts.getBookId,
+      onModeSwitch: opts.onModeSwitch,
+      modes,
+    });
   }
 
-  _bindEvents() {
-    document.addEventListener("selectionchange", () => {
-      if (!this.state._prefs.data.selection) return;
-      const sel = window.getSelection();
-      if (!sel || sel.isCollapsed) { this.dismiss(); return; }
-      clearTimeout(this._timer);
-      this._timer = setTimeout(() => this._show(), SELECTION_DEBOUNCE_MS);
-    }, { signal: this._signal });
+  // Map the start of a DOM range to a fraction (0..1) of the way through the book,
+  // using the document model's word→textNode mapping.
+  _fractionFromRange(range) {
+    const words = this.state.doc && this.state.doc.words;
+    if (!words || !words.length) return null;
+    const wi = this._wordIndexFromRange(range, words);
+    if (wi < 0) return null;
+    return wi / words.length;
   }
 
-  _show() {
-    this.dismiss();
-    const sel = window.getSelection();
-    if (!sel || sel.isCollapsed || !sel.rangeCount) return;
-    const range = sel.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    if (!rect.width && !rect.height) return;
+  _wordIndexFromRange(range, words) {
+    let node = range.startContainer;
+    let offset = range.startOffset;
+    if (node && node.nodeType === Node.ELEMENT_NODE) {
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      const first = walker.nextNode();
+      if (first) { node = first; offset = 0; }
+    }
+    if (!node) return -1;
 
-    this._selBar = document.createElement("div");
-    this._selBar.className = "reader-sel-bar";
-
-    const copyBtn = document.createElement("button");
-    copyBtn.textContent = "Copy";
-    copyBtn.type = "button";
-    copyBtn.addEventListener("click", () => {
-      try { navigator.clipboard.writeText(sel.toString()); } catch (_) {
-        document.execCommand("copy");
+    // A single text node can hold several words; pick the one covering the offset.
+    let firstOnNode = -1;
+    for (let i = 0; i < words.length; i++) {
+      if (words[i].node === node) {
+        if (firstOnNode < 0) firstOnNode = i;
+        if (offset < words[i].end) return i;
+      } else if (firstOnNode >= 0) {
+        return i - 1; // offset is past the last word on this node
       }
-      this.dismiss();
-    });
-    this._selBar.appendChild(copyBtn);
+    }
+    if (firstOnNode >= 0) return words.length - 1;
 
-    const defineBtn = document.createElement("button");
-    defineBtn.textContent = "Define";
-    defineBtn.type = "button";
-    defineBtn.addEventListener("click", () => {
-      const text = sel.toString().trim().split(/\s+/)[0];
-      if (text) window.open("https://en.wiktionary.org/wiki/" + encodeURIComponent(text), "_blank");
-      this.dismiss();
-    });
-    this._selBar.appendChild(defineBtn);
-
-    document.body.appendChild(this._selBar);
-
-    const barRect = this._selBar.getBoundingClientRect();
-    let top = rect.top - barRect.height - 6;
-    let left = rect.left + rect.width / 2 - barRect.width / 2;
-    if (top < 4) top = rect.bottom + 6;
-    if (left < 4) left = 4;
-    if (left + barRect.width > window.innerWidth - 4) left = window.innerWidth - barRect.width - 4;
-    this._selBar.style.top = top + "px";
-    this._selBar.style.left = left + "px";
+    // The selection started in a node with no indexed words (whitespace, a
+    // punctuation-only span, etc.): use the first word at or after it in DOM order.
+    for (let i = 0; i < words.length; i++) {
+      const pos = node.compareDocumentPosition(words[i].node);
+      if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return i;
+    }
+    return -1;
   }
 
   dismiss() {
-    if (this._selBar) { this._selBar.remove(); this._selBar = null; }
+    this._toolbar.dismiss();
   }
 }

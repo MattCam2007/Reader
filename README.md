@@ -32,7 +32,7 @@ reader.html?src=books/path/to/book.epub&id=my-book-id
 - **Multi-column pagination** with CSS columns and swipe/tap/keyboard navigation
 - **Table of contents** from EPUB metadata or auto-generated from headings
 - **Full-text search** with CSS Highlight API and context snippets
-- **Text selection** toolbar with copy and dictionary lookup
+- **Text selection** toolbar with copy, dictionary lookup, and **jump-to-mode** actions (select a word/sentence, then continue in Speed or Listen mode from exactly there)
 - **Footnote popovers** for inline note references
 - **Reading position persistence** via word-level locators (survives repagination)
 - **Customizable typography**: 4 fonts (serif, sans, dyslexic, mono), adjustable size, line height, margins, paragraph spacing, text alignment
@@ -55,7 +55,8 @@ reader.html?src=books/path/to/book.epub&id=my-book-id
 ### Shared
 - **4 themes**: dark, sepia, light, OLED black
 - **EPUB support** with rich extraction (images, tables, footnotes) and plain-text extraction
-- **Mode switching** with book and position transfer between reader and RSVP
+- **Mode switching** with book and position transfer between reader, RSVP, and listen modes
+- **Selection-anchored switching**: select a word or sentence in the reader or listen view and tap Speed/Listen/Read to resume from the selected words rather than the top of the page
 - **Respects OS preferences**: `prefers-color-scheme` and `prefers-reduced-motion`
 - **Mobile-first** with safe-area insets and touch-friendly controls
 - **Self-test suite** (`?selftest=1`) for core module verification
@@ -110,6 +111,7 @@ js/
     template.js            RSVP HTML template
   shared/                Shared components
     picker.js              Scroll-snap picker factory
+    selection-toolbar.js   Floating selection bar with copy/define + jump-to-mode actions
   test/
     selftest.js            Per-module test suite with UI reporter
 

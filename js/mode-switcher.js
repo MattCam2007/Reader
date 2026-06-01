@@ -49,6 +49,8 @@ async function switchMode(targetMode, posInfo) {
   }
   clearBodyClasses();
   appEl.innerHTML = '';
+  // The selection toolbar lives on <body>, outside #app, so clear it explicitly.
+  document.querySelectorAll('.reader-sel-bar').forEach((el) => el.remove());
   currentMode = null;
 
   // Update URL without reload
@@ -92,20 +94,27 @@ async function switchMode(targetMode, posInfo) {
   currentMode = targetMode;
 
   // Transfer book and position
+  const fraction = posInfo && typeof posInfo.fraction === 'number' ? posInfo.fraction : 0;
+  const seekLater = () => {
+    if (fraction <= 0) return;
+    // Defer seeking to let the book finish loading/rendering.
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        try { currentHandle.seekFraction(fraction); } catch (_) {}
+      }, 150);
+    });
+  };
   if (posInfo && cachedBook) {
     try {
       await currentHandle.loadFromBuffer(cachedBook.buffer.slice(0), cachedBook.fileName);
-      if (typeof posInfo.fraction === 'number' && posInfo.fraction > 0) {
-        // Defer seeking to let the book finish loading/rendering
-        requestAnimationFrame(() => {
-          setTimeout(() => {
-            try { currentHandle.seekFraction(posInfo.fraction); } catch (_) {}
-          }, 100);
-        });
-      }
+      seekLater();
     } catch (e) {
       console.warn('switcher:transfer', e);
     }
+  } else if (posInfo) {
+    // No transferable buffer (e.g. the built-in sample): the target mode loads
+    // its own copy, so just seek into it once it has rendered.
+    seekLater();
   }
 }
 

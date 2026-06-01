@@ -144,7 +144,12 @@ export function init(options = {}) {
   const search = new SearchManager(state, els, goToLocator, closePanels);
 
   // ---------- Selection ----------
-  const selection = new SelectionManager(state, signal);
+  // Select a word/sentence, then jump to that exact spot in Speed or Listen mode.
+  const selection = new SelectionManager(state, signal, {
+    onModeSwitch,
+    getBookId: () => state.bookId,
+    getFallbackFraction: () => getPositionFraction(),
+  });
 
   // ---------- Focus traps ----------
   trapFocus(els.toc, signal);
