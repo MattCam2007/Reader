@@ -20,6 +20,8 @@ export class InputHandler {
     this._baseTx = 0;
     this._startT = 0;
     this._lastTouchEnd = 0;
+    this._downX = 0;
+    this._downY = 0;
 
     this._bindEvents();
   }
@@ -78,9 +80,20 @@ export class InputHandler {
       }
     }, { passive: true, signal });
 
+    // Track mouse-press origin so a drag-to-select isn't treated as a tap.
+    viewport.addEventListener("mousedown", (e) => {
+      this._downX = e.clientX;
+      this._downY = e.clientY;
+    }, { signal });
+
     viewport.addEventListener("click", (e) => {
       this.callbacks.dismissCoach();
       if (Date.now() - this._lastTouchEnd < SYNTHETIC_CLICK_GUARD_MS) return;
+      // A click that ends a drag (text selection on desktop) must not clear the
+      // selection or turn the page — leave it so the selection toolbar can show.
+      const moved = Math.abs(e.clientX - this._downX) > 8 || Math.abs(e.clientY - this._downY) > 8;
+      const sel = window.getSelection();
+      if (moved && sel && !sel.isCollapsed) return;
       this._handleTap(e.clientX);
     }, { signal });
 
