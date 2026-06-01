@@ -55,6 +55,8 @@ export function init(options = {}) {
     bookmarksPanel: document.getElementById("bookmarksPanel"),
     bmAddBtn:      document.getElementById("bmAddBtn"),
     bmList:        document.getElementById("bmList"),
+    bmMarkersEl:   document.getElementById("bmMarkers"),
+    bmPageIndicatorEl: document.getElementById("bmPageIndicator"),
   };
 
   // ---------- State & Prefs ----------
@@ -112,6 +114,7 @@ export function init(options = {}) {
     getContext: getBookmarkContext,
     onNavigate: navigateToBookmark,
     closePanel: () => { document.body.classList.remove('show-bookmarks'); updateAriaExpanded(); },
+    onBookmarksChange: () => chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark),
   });
 
   // ---------- Helpers ----------
@@ -120,7 +123,10 @@ export function init(options = {}) {
   }
   function buildChapterIndexFn() { buildChapterIndex(state, els.content); }
   function savePosMain() { storage.savePos(currentLocatorFn); }
-  function updateProgressFn() { chrome.updateProgress(); }
+  function updateProgressFn() {
+    chrome.updateProgress();
+    chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
+  }
 
   // ---------- Pagination ----------
   const pagination = new PaginationEngine(state, els, currentLocatorFn, buildChapterIndexFn, updateProgressFn, savePosMain);
@@ -483,6 +489,21 @@ export function init(options = {}) {
   els.settingsBtn.addEventListener("click", openSettings, { signal });
   if (els.bookmarksBtn) {
     els.bookmarksBtn.addEventListener("click", () => {
+      _lastPanelTrigger = els.bookmarksBtn;
+      const isOpen = document.body.classList.contains("show-bookmarks");
+      closePanels();
+      closeSettingsScreen();
+      if (!isOpen) {
+        _lastPanelTrigger = els.bookmarksBtn;
+        document.body.classList.add("show-bookmarks");
+        document.body.classList.remove("chrome-hidden");
+        bmPanel.render();
+        updateAriaExpanded();
+      }
+    }, { signal });
+  }
+  if (els.bmPageIndicatorEl) {
+    els.bmPageIndicatorEl.addEventListener("click", () => {
       _lastPanelTrigger = els.bookmarksBtn;
       const isOpen = document.body.classList.contains("show-bookmarks");
       closePanels();
