@@ -49,6 +49,20 @@ export function rsvpTemplate() {
         <span class="rsvp-drawer-pip"></span>
       </button>
 
+      <div class="rsvp-panel" id="panelPurple">
+        <div class="rsvp-panel-inner">
+          <div class="picker" aria-label="Reading speed">
+            <div class="picker-display"><span id="wpmValue">400</span><span class="picker-unit">WPM</span></div>
+            <div class="strip-wrap">
+              <div class="picker-strip" id="wpmStrip">
+                <div class="picker-track" id="wpmTrack"></div>
+              </div>
+              <div class="picker-pointer"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="rsvp-panel" id="panelBlue">
         <div class="rsvp-panel-inner">
           <div class="rsvp-seek">
@@ -68,20 +82,6 @@ export function rsvpTemplate() {
             <button class="rsvp-nav-btn" id="stepNext" type="button" aria-label="Step forward">
               <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9,18 15,12 9,6"/></svg>
             </button>
-          </div>
-        </div>
-      </div>
-
-      <div class="rsvp-panel" id="panelPurple">
-        <div class="rsvp-panel-inner">
-          <div class="picker" aria-label="Reading speed">
-            <div class="picker-display"><span id="wpmValue">400</span><span class="picker-unit">WPM</span></div>
-            <div class="strip-wrap">
-              <div class="picker-strip" id="wpmStrip">
-                <div class="picker-track" id="wpmTrack"></div>
-              </div>
-              <div class="picker-pointer"></div>
-            </div>
           </div>
         </div>
       </div>
