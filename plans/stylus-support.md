@@ -616,6 +616,23 @@ recommendation for a Samsung‑first reader is: **package as a WebView app and a
 an `SPenBridge`** (11.5). The web code can be written against that bridge now and
 degrade to a no‑op until the native side exists.
 
+### Confirmed deployment phasing
+
+The app today ships as a **PWA** (a normal browser tab or the "Add to Home
+screen" Chrome wrapper). The **native WebView app is a planned next phase**, not
+the current one. That fixes the build order:
+
+- **Now (PWA):** everything is **Tier 1**. SP1, SP3, SP4 are buildable today; the
+  generic S0–S3 units all work. Tier 2 hooks should be **written defensively**
+  (feature‑detect `window.SPenBridge`, no‑op when absent) so nothing breaks in
+  the browser and the code is ready when the app lands.
+- **Next phase (native WebView app):** add the `SPenBridge` native shim (11.5),
+  which **switches on** the already‑written SP2 (button/air‑gesture reading
+  remote) and SP5 (pen‑detach auto‑mode) with no web rewrite.
+
+So **QS1 is answered: PWA now → WebView app later.** Plan Tier 2 as
+*bridge‑ready, dormant code* rather than something to defer entirely.
+
 ### Which S Pens have which hardware
 
 - **Passive digitizer (all Galaxy Note / S‑Ultra / Tab S pens):** hover,
@@ -854,20 +871,23 @@ unlocks both SP2 and SP5. Everything else (SP1, SP3, SP4) is pure web.
 
 ## 11.7 Recommended S Pen sequencing
 
-1. **SP1 hover preview (M, Tier 1)** — immediate, delightful, web‑only; great
-   first S Pen win after S1.
-2. **SP3 barrel + eraser (S–M, Tier 1)** — pairs with S2 highlighting.
-3. **`SPenBridge` + SP2 reading remote (M + native shim, Tier 2)** — the
-   marquee feature; requires committing to the WebView packaging.
-4. **SP5 pen‑detach auto‑mode (S, Tier 2)** — small polish once the bridge exists.
-5. **SP4 pressure/tilt ink (S, Tier 1)** — only after S3 ink lands.
+**Phase 1 — now (PWA, Tier 1, no native code):**
+1. **SP1 hover preview (M)** — immediate, delightful, web‑only; great first S Pen
+   win after S1.
+2. **SP3 barrel + eraser (S–M)** — pairs with S2 highlighting.
+3. **SP4 pressure/tilt ink (S)** — only after S3 ink lands.
+
+**Phase 2 — next (native WebView app, Tier 2):**
+4. **`SPenBridge` + SP2 reading remote (M + native shim)** — the marquee feature;
+   arrives with the WebView packaging. Write the JS controller in Phase 1 as
+   dormant/bridge‑ready so this is just "add the shim + flip it on."
+5. **SP5 pen‑detach auto‑mode (S)** — small polish once the bridge exists.
 
 ## 11.8 Open questions (S Pen)
 
-- **QS1.** Is the reader going to be **packaged as a WebView/TWA Android app**
-  (unlocking Tier 2 / the S Pen button remote), or stay a **PWA** (Tier 1 only)?
-  This is the pivotal decision for SP2/SP5. *Recommendation: WebView build, since
-  the BLE button is the most "S Pen" feature and is otherwise unreachable.*
+- **QS1. — Answered.** PWA **now**; native WebView app is the **next phase** (see
+  11.1 "Confirmed deployment phasing"). Build Tier 1 (SP1/SP3/SP4) today; write
+  Tier 2 (SP2/SP5) as dormant, bridge‑ready code that the future app turns on.
 - **QS2.** Default action mapping for the S Pen button — **single‑click = next
   page** (reading remote) the right default, or play/pause TTS? *Default: next
   page in read mode, play/pause in RSVP/TTS.*
