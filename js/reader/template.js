@@ -19,7 +19,10 @@ export function readerTemplate() {
 
   <footer class="reader-bottombar" id="bottombar">
     <div class="reader-scrub">
-      <input type="range" class="reader-progress" id="progress" min="0" max="0" value="0" step="1" aria-label="Reading position">
+      <div class="bm-track-wrap">
+        <input type="range" class="reader-progress" id="progress" min="0" max="0" value="0" step="1" aria-label="Reading position">
+        <div class="bm-markers" id="bmMarkers" aria-hidden="true"></div>
+      </div>
       <div class="reader-progress-label" id="progressLabel" aria-live="polite">&nbsp;</div>
     </div>
     <div class="reader-toolbar">
@@ -53,6 +56,10 @@ export function readerTemplate() {
       </button>
     </div>
   </footer>
+
+  <button class="bm-page-indicator" id="bmPageIndicator" type="button" aria-label="Bookmarked page — view bookmarks">
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="currentColor" stroke="none"><path d="M17 3H7a2 2 0 0 0-2 2v16l7-4 7 4V5a2 2 0 0 0-2-2z"/></svg>
+  </button>
 
   <div class="ui-backdrop" id="backdrop"></div>
 

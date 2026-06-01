@@ -40,13 +40,15 @@ export function initBookmarksPanel({ panelEl, listEl, addBtnEl }, signal) {
   let _getContext = null;
   let _onNavigate = null;
   let _closePanel = null;
+  let _onBookmarksChange = null;
 
   function setBook(bm) { _bm = bm; }
 
-  function setCallbacks({ getContext, onNavigate, closePanel }) {
+  function setCallbacks({ getContext, onNavigate, closePanel, onBookmarksChange }) {
     _getContext = getContext;
     _onNavigate = onNavigate;
     _closePanel = closePanel;
+    _onBookmarksChange = onBookmarksChange || null;
   }
 
   function render() {
@@ -74,6 +76,7 @@ export function initBookmarksPanel({ panelEl, listEl, addBtnEl }, signal) {
     if (!ctx) return;
     _bm.add(ctx);
     render();
+    if (_onBookmarksChange) _onBookmarksChange();
   }
 
   function handleListClick(e) {
@@ -93,6 +96,7 @@ export function initBookmarksPanel({ panelEl, listEl, addBtnEl }, signal) {
     } else if (delBtn) {
       _bm.remove(delBtn.dataset.id);
       render();
+      if (_onBookmarksChange) _onBookmarksChange();
     } else if (showNote) {
       const id = showNote.dataset.showId;
       const editor = document.getElementById('bm-editor-' + id);

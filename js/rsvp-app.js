@@ -610,7 +610,7 @@ This was invitation enough.
 "Oh! Single, my dear, to be sure! A single man of large fortune; four or five thousand a year. What a fine thing for our girls!"`;
 
   // ---------- Init ----------
-  state.bookId = new URLSearchParams(location.search).get('id') || 'Pride and Prejudice (sample)';
+  state.bookId = 'Pride and Prejudice (sample)';
   bookmarkManager.setBook(state.bookId);
   loadText(sampleText, []);
 

@@ -140,3 +140,79 @@ input[type="range"].reader-progress::-moz-range-thumb {
   background: var(--accent);
   box-shadow: 0 1px 5px var(--shadow);
 }
+
+/* Bookmark markers on progress bar */
+.bm-track-wrap {
+  position: relative;
+}
+.bm-markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.bm-marker {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--bm-f, 0) * (100% - 26px) + 13px);
+  transform: translate(-50%, 0);
+  width: 22px;
+  height: 14px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+.bm-marker::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid var(--accent);
+  opacity: 0.85;
+  transition: opacity 120ms, border-top-width 120ms;
+}
+.bm-marker:hover::before,
+.bm-marker:focus-visible::before {
+  opacity: 1;
+  border-top-width: 9px;
+}
+.bm-marker:focus-visible {
+  outline: none;
+}
+
+/* Page bookmark indicator (right-edge tab) */
+.bm-page-indicator {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%) translateX(calc(100% + 2px));
+  z-index: 25;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px 0 0 6px;
+  padding: 0.65rem 0.5rem;
+  cursor: pointer;
+  transition: transform 240ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 240ms ease;
+  -webkit-tap-highlight-color: transparent;
+  display: flex;
+  align-items: center;
+  box-shadow: -2px 0 10px var(--shadow);
+  opacity: 0;
+}
+.bm-page-indicator.visible {
+  transform: translateY(-50%) translateX(0);
+  opacity: 1;
+}
+body.show-bookmarks .bm-page-indicator,
+body.show-toc .bm-page-indicator,
+body.show-search .bm-page-indicator {
+  opacity: 0;
+  pointer-events: none;
+}

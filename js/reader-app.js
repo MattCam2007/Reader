@@ -55,6 +55,8 @@ export function init(options = {}) {
     bookmarksPanel: document.getElementById("bookmarksPanel"),
     bmAddBtn:      document.getElementById("bmAddBtn"),
     bmList:        document.getElementById("bmList"),
+    bmMarkersEl:   document.getElementById("bmMarkers"),
+    bmPageIndicatorEl: document.getElementById("bmPageIndicator"),
   };
 
   // ---------- State & Prefs ----------
@@ -112,6 +114,7 @@ export function init(options = {}) {
     getContext: getBookmarkContext,
     onNavigate: navigateToBookmark,
     closePanel: () => { document.body.classList.remove('show-bookmarks'); updateAriaExpanded(); },
+    onBookmarksChange: () => chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark),
   });
 
   // ---------- Helpers ----------
@@ -120,7 +123,10 @@ export function init(options = {}) {
   }
   function buildChapterIndexFn() { buildChapterIndex(state, els.content); }
   function savePosMain() { storage.savePos(currentLocatorFn); }
-  function updateProgressFn() { chrome.updateProgress(); }
+  function updateProgressFn() {
+    chrome.updateProgress();
+    chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
+  }
 
   // ---------- Pagination ----------
   const pagination = new PaginationEngine(state, els, currentLocatorFn, buildChapterIndexFn, updateProgressFn, savePosMain);
@@ -496,6 +502,21 @@ export function init(options = {}) {
       }
     }, { signal });
   }
+  if (els.bmPageIndicatorEl) {
+    els.bmPageIndicatorEl.addEventListener("click", () => {
+      _lastPanelTrigger = els.bookmarksBtn;
+      const isOpen = document.body.classList.contains("show-bookmarks");
+      closePanels();
+      closeSettingsScreen();
+      if (!isOpen) {
+        _lastPanelTrigger = els.bookmarksBtn;
+        document.body.classList.add("show-bookmarks");
+        document.body.classList.remove("chrome-hidden");
+        bmPanel.render();
+        updateAriaExpanded();
+      }
+    }, { signal });
+  }
   els.backdrop.addEventListener("click", () => { closePanels(); closeSettingsScreen(); }, { signal });
   els.openBtn.addEventListener("click", () => els.fileInput.click(), { signal });
   els.overlayBtn.addEventListener("click", () => els.fileInput.click(), { signal });
@@ -578,7 +599,7 @@ export function init(options = {}) {
   if (srcUrl) {
     loadFromUrl(srcUrl);
   } else {
-    state.bookId = urlParams.get("id") || "Pride and Prejudice (sample)";
+    state.bookId = "Pride and Prejudice (sample)";
     bookmarkManager.setBook(state.bookId);
     els.bookTitleEl.textContent = "Pride and Prejudice";
     renderBook(buildSample());

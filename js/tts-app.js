@@ -926,7 +926,7 @@ export function init(options = {}) {
       })
       .catch(err => showError(err && err.message ? err.message : "Couldn't fetch that book."));
   } else {
-    bookId = urlParams.get('id') || 'Pride and Prejudice (sample)';
+    bookId = 'Pride and Prejudice (sample)';
     bookmarkManager.setBook(bookId);
     els.bookTitleEl.textContent = 'Pride and Prejudice';
     renderBook(buildSample());
