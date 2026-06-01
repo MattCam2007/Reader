@@ -1,214 +1,299 @@
 # Reader
 
-> **Under Construction**
-> The following files are not yet refactored and are excluded from current documentation and review scope:
-> - `library.html` — Bookshelf UI (standalone monolith, pending modular extraction)
+A browser-based EPUB reader with three reading modes. Open `reader.html` in any modern browser — no build step, no server, no install required.
 
-A browser-based EPUB reader with two reading modes: a **paginated reader** for traditional book-style reading and an **RSVP speed reader** for rapid serial visual presentation. No build step, no server required — open `reader.html` in any modern browser.
+Ships with the opening of *Pride and Prejudice* as sample text. Load any `.epub` file to start reading your own books.
 
-Ships with the opening of *Pride and Prejudice* as sample text. Load any `.epub` file to read your own books.
+**Three ways to read:**
+- **Reader** — paginated book-style reading with full typography controls (default)
+- **RSVP** — speed reading with words flashed one at a time at your chosen pace
+- **TTS** — listen with text-to-speech while the app highlights along
+
+---
 
 ## Quick Start
 
 ```sh
-# Option 1: open directly
+# Option 1: open directly (works in most browsers)
 open reader.html
 
-# Option 2: serve locally (required for some browsers' module security)
+# Option 2: serve locally (required for some browsers' ES module security)
 python3 -m http.server
-# visit http://localhost:8000/reader.html
+# then visit http://localhost:8000/reader.html
 ```
 
-The app loads in **paginated reader** mode by default. To start in RSVP mode, visit `reader.html?mode=rsvp` or use the mode-switch button in the toolbar.
+The app opens in **Reader** (paginated) mode. Switch modes anytime using the mode button in the toolbar, or go directly to a mode via URL:
 
-To load a specific book from your library:
+```
+reader.html           → Reader mode (default)
+reader.html?mode=rsvp → RSVP speed reader
+reader.html?mode=tts  → Text-to-speech
+```
+
+To load a specific EPUB:
 ```
 reader.html?src=books/path/to/book.epub&id=my-book-id
 ```
 
+---
+
+## Install as an App (PWA)
+
+Reader is a Progressive Web App — you can install it on your device like a native app, with its own icon and full-screen window.
+
+### Chrome / Edge on Desktop
+1. Serve the app over HTTP (e.g. `python3 -m http.server`)
+2. Visit `http://localhost:8000/reader.html` in Chrome or Edge
+3. Look for the **install icon** in the address bar (a computer with a down-arrow), or open the browser menu and choose **"Install Reader"** / **"Add to Home Screen"**
+4. Click **Install** — Reader opens in its own standalone window from now on
+
+### Chrome on Android
+1. Open Reader in Chrome on your phone
+2. Tap the **three-dot menu** (top right)
+3. Choose **"Add to Home Screen"** or **"Install app"**
+4. Tap **Add** — the Reader icon appears on your home screen
+
+### Safari on iPhone / iPad
+1. Open Reader in Safari
+2. Tap the **Share button** (the box with an up-arrow)
+3. Scroll down and tap **"Add to Home Screen"**
+4. Tap **Add** — Reader appears as an icon on your home screen
+
+Once installed, Reader opens full-screen with no browser UI, just like a native app. Your reading progress and preferences are stored locally on your device.
+
+---
+
 ## Features
 
-### Paginated Reader (`?mode=read`)
-- **Multi-column pagination** with CSS columns and swipe/tap/keyboard navigation
-- **Table of contents** from EPUB metadata or auto-generated from headings
-- **Full-text search** with CSS Highlight API and context snippets
-- **Text selection** toolbar with copy and dictionary lookup
-- **Footnote popovers** for inline note references
-- **Reading position persistence** via word-level locators (survives repagination)
-- **Customizable typography**: 4 fonts (serif, sans, dyslexic, mono), adjustable size, line height, margins, paragraph spacing, text alignment
-- **Comfort controls**: brightness dimming and warmth overlay
-- **Scroll mode** alternative to paginated layout
+### Reader — Paginated Mode (`?mode=read`)
 
-### RSVP Speed Reader (`?mode=rsvp`)
-- **ORP-aligned word display** with visual guide markers
-- **Adjustable speed** from 100-800 WPM via scroll-snap picker
-- **Smart pacing**: word-length scaling, punctuation pauses, paragraph breaks
-- **Ease-in ramp** on resume (half-speed to full over 5 words)
-- **Multi-word chunks** (1, 2, or 3 words at a time)
-- **Context line** showing the current sentence with the active word bolded
-- **Chapter navigation** with dropdown and prev/next buttons
-- **Session stats**: words read, play time, average WPM
-- **Training mode**: auto-increment WPM after configurable word intervals
-- **Countdown timer** (3-2-1) before resume
-- **Fullscreen mode** with auto-hiding controls
+The default mode. Text is laid out in columns like a book, and you turn pages by swiping or tapping.
 
-### Shared
-- **4 themes**: dark, sepia, light, OLED black
-- **EPUB support** with rich extraction (images, tables, footnotes) and plain-text extraction
-- **Mode switching** with book and position transfer between reader and RSVP
-- **Respects OS preferences**: `prefers-color-scheme` and `prefers-reduced-motion`
-- **Mobile-first** with safe-area insets and touch-friendly controls
-- **Self-test suite** (`?selftest=1`) for core module verification
+**Navigation**
+- Swipe left/right or tap the edges of the screen to turn pages
+- The progress bar at the bottom shows where you are in the book
+- Drag the progress bar thumb to jump to any position
+- Open the Table of Contents from the toolbar to jump to any chapter
 
-## Architecture
+**Typography & Display**
+- Choose from four fonts: Serif, Sans-serif, OpenDyslexic, Monospace
+- Adjust text size (14–30px) with the size slider in settings
+- Change line height, paragraph spacing, and text alignment (left or justified)
+- Three margin widths: narrow, normal, or wide
+- Toggle images on or off
+- Switch between 1 and 2 columns, or let the app decide based on screen width
 
-```
-reader.html              Unified entry point (25 lines)
-index.html               Redirect to reader.html?mode=rsvp
-library.html             Bookshelf UI (under construction)
+**Themes**
+- Four themes: Dark, Light, Sepia, OLED Black
+- Respects your OS dark/light preference by default
+- Comfort controls in settings: reduce brightness or add a warm amber overlay
 
-js/
-  mode-switcher.js       Orchestrates mode detection, switching, teardown
-  reader-app.js          Paginated reader (exports init())
-  rsvp-app.js            RSVP speed reader (exports init())
-  core/                  Shared infrastructure
-    constants.js           Font stacks, thresholds, settings metadata, defaults
-    events.js              EventBus pub/sub
-    prefs.js               PrefsManager with localStorage persistence
-    state.js               ReaderState (paginated reader state container)
-    storage.js             Position save/restore with word-level locators
-  epub/                  EPUB processing
-    extractor.js           Rich section extraction + plain text extraction
-    images.js              Blob URL resolution + cover image detection
-    toc.js                 TOC flattening, rendering, href resolution
-  model/                 Document model and geometry
-    doc-model.js           Word/block/section indexing from DOM
-    locator.js             Portable position encoding (section, block, word)
-    geometry.js            Page-to-word mapping, binary search, scroll tracking
-  reader/                Paginated reader modules
-    pagination.js          Column layout, page navigation, DOM detach optimization
-    chrome.js              Topbar/bottombar updates, chapter labels
-    input.js               Touch swipes, tap zones, keyboard shortcuts
-    search.js              Full-text search with highlighting
-    selection.js           Text selection floating toolbar
-    footnotes.js           Footnote/endnote popovers
-    chapters.js            Chapter index builder
-    focus-trap.js          Modal focus trapping
-    template.js            Reader HTML template
-  rsvp/                  RSVP speed reader modules
-    constants.js           RSVP-specific tuning parameters and defaults
-    tokenizer.js           Text-to-token pipeline with sentence/paragraph indices
-    timing.js              Duration calculation (length, punctuation, ramp)
-    state.js               RsvpState with play state machine
-    navigation.js          Step by word/sentence/paragraph, rewind
-    playback.js            PlaybackEngine (timer loop, chunks, countdown)
-    display.js             Word rendering, context line, seek UI, ETA
-    input.js               Touch/keyboard/fullscreen input handling
-    stats.js               Session statistics tracker
-    training.js            Auto WPM ramp manager
-    chapters.js            Chapter dropdown management
-    template.js            RSVP HTML template
-  shared/                Shared components
-    picker.js              Scroll-snap picker factory
-  test/
-    selftest.js            Per-module test suite with UI reporter
+**Search**
+- Tap the search icon in the toolbar to open full-text search
+- Results are highlighted throughout the book, with context snippets in the results list
+- Tap a result to jump to that location
+- Uses the CSS Highlight API for crisp highlighting
 
-css/
-  tokens.css             Unified design tokens (4 themes, fonts, spacing)
-  reader.css             Paginated reader imports
-  rsvp.css               RSVP-specific styles
-  components/
-    chrome.css             Topbar, bottombar, toolbar, progress slider
-    content.css            Reading surface, typography, tables, footnotes
-    controls.css           Segmented buttons, settings sliders
-    drawers.css            TOC drawer, settings sheet, search panel
-    overlay.css            Loading/error, skip-link, coach hint, comfort
-    picker.css             Scroll-snap picker component
-    selection.css          Selection bar, search highlights
+**Text Selection**
+- Tap and hold any text to select it
+- A toolbar appears with options to copy or look up the selected text
 
-fixtures/
-  sample.js              Pride & Prejudice sample text
+**Footnotes**
+- Footnote references appear as tappable superscripts
+- Tapping shows the footnote content in a popover without leaving the page
 
-plans/                   Implementation plans and investigations
-```
+**Bookmarks**
+- Bookmark any page using the bookmark button in the toolbar
+- Add optional notes to your bookmarks
+- View and manage all bookmarks in the bookmarks panel
 
-## Controls
+**Position Persistence**
+- Your position is saved automatically using a word-level locator
+- Position survives screen rotation, resizing, and font changes — not just page numbers
 
-### Paginated Reader
+**Scroll Mode**
+- Prefer continuous scrolling? Switch from paginated to scroll layout in settings
+
+---
+
+### RSVP — Speed Reader (`?mode=rsvp`)
+
+Words are displayed one at a time in the center of the screen, aligned at the Optimal Reading Point (ORP) — the position where your eye naturally lands for fastest recognition.
+
+**Playback**
+- Tap the word display or press `Space` to play/pause
+- A 3–2–1 countdown appears before playback resumes after a pause
+- On resume, the speed ramps up from half-speed to full over the first 5 words (ease-in)
+
+**Speed**
+- Default: 300 WPM. Range: 100–800 WPM
+- Adjust with the scroll-snap WPM picker (swipe up/down on it, or press `+`/`-`)
+- Smart pacing: longer words display slightly longer; punctuation adds a natural pause; paragraph breaks add a longer pause
+
+**Multi-word Chunks**
+- Display 1, 2, or 3 words at a time — set this in RSVP settings
+- Useful for training your brain to read in groups
+
+**Context Line**
+- Below the main word display, the current sentence is shown with the active word in bold
+- Gives you context without slowing you down
+
+**Navigation**
+- Swipe left/right (or `←`/`→`) to step one word at a time
+- `↑`/`↓` jumps by paragraph
+- Chapter dropdown in the toolbar to jump to any chapter
+- Scrub the progress slider to jump to any position in the book
+
+**Session Statistics**
+- Tracks words read, active play time, and average WPM for the current session
+- Displayed in the stats bar during playback
+
+**Training Mode**
+- Automatically increases your WPM at a configurable interval (every N words)
+- Gradually pushes your reading speed upward over a session
+
+**Fullscreen**
+- Tap the fullscreen button or press `F` to go fullscreen
+- Controls auto-hide when fullscreen and not interacting
+
+---
+
+### TTS — Text-to-Speech (`?mode=tts`)
+
+The app reads the book aloud using your device's built-in speech synthesis, highlighting the active text as it speaks.
+
+**Playback**
+- Tap Play to start — the app reads sentence by sentence
+- Pause and resume at any point; playback resumes at the exact sentence where you stopped
+
+**Highlighting**
+- Three highlight modes: word-by-word, sentence-by-sentence, or paragraph-by-paragraph
+- The active text scrolls into view automatically
+
+**Voice & Speed**
+- Choose any voice available on your device from the voice selector
+- Adjust speech rate from 0.75× to 2×
+
+**Navigation**
+- Previous/next sentence buttons to step through the text
+- Chapter navigation to jump to any section
+
+**Position Persistence**
+- Your playback position is saved automatically and restored when you return to the book
+
+---
+
+### Shared Features (All Modes)
+
+- **4 themes**: Dark, Light, Sepia, OLED Black — switch anytime from the settings panel
+- **EPUB support**: rich extraction preserving images, tables, footnotes, and formatting
+- **Mode switching**: switch between Reader, RSVP, and TTS without losing your position — the book and position transfer automatically
+- **Bookmarks**: save bookmarks with optional notes, backed by localStorage
+- **OS preferences**: follows `prefers-color-scheme` and `prefers-reduced-motion` by default
+- **Mobile-first**: safe-area insets, touch-friendly controls, swipe gestures throughout
+
+---
+
+## Controls Reference
+
+### Reader (Paginated)
 
 | Action | Touch | Keyboard |
 |--------|-------|----------|
-| Next page | Tap right edge or swipe left | `→`, `Space`, `PageDown` |
-| Previous page | Tap left edge or swipe right | `←`, `PageUp` |
-| Toggle chrome | Tap center | |
+| Next page | Tap right edge / swipe left | `→`, `Space`, `PageDown` |
+| Previous page | Tap left edge / swipe right | `←`, `PageUp` |
+| Toggle toolbar | Tap center | |
 | Open TOC | Toolbar button | |
+| Open search | Toolbar button | |
+| Open bookmarks | Toolbar button | |
 | Open settings | Toolbar button | |
-| Search | Toolbar button | |
-| Close panel | Tap backdrop | `Escape` |
+| Close any panel | Tap backdrop | `Escape` |
 
-### RSVP Speed Reader
+### RSVP (Speed Reader)
 
 | Action | Touch | Keyboard |
 |--------|-------|----------|
-| Play/pause | Tap word area | `Space` |
-| Step word | Swipe left/right | `←` / `→` |
-| Step paragraph | | `↑` / `↓` |
-| Adjust WPM | Swipe up/down | `+` / `-` |
-| Fullscreen | Button | `F` |
-| Scrub position | Drag slider | |
-| Step (hold to fly) | Hold prev/next buttons | |
+| Play / pause | Tap word display area | `Space` |
+| Step one word back/forward | Swipe right / left | `←` / `→` |
+| Step by paragraph | — | `↑` / `↓` |
+| Adjust WPM | Swipe up/down on picker | `+` / `-` |
+| Toggle fullscreen | Fullscreen button | `F` |
+| Scrub position | Drag progress slider | |
+| Hold-to-fly step | Hold prev / next buttons | |
+
+### TTS (Text-to-Speech)
+
+| Action | Touch | Keyboard |
+|--------|-------|----------|
+| Play / pause | Play button | `Space` |
+| Previous sentence | Prev button | `←` |
+| Next sentence | Next button | `→` |
+| Open chapter list | TOC button | |
+
+---
+
+## URL Parameters
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `mode` | Starting mode: `read` (default), `rsvp`, or `tts` | `?mode=rsvp` |
+| `src` | Path or URL to an EPUB file | `?src=books/book.epub` |
+| `id` | Book identifier for position storage | `?id=my-book` |
+| `title` | Display title override | `?title=My+Book` |
+| `selftest` | Run the self-test suite | `?selftest=1` |
+
+---
 
 ## Dependencies
 
-Loaded from CDN at runtime — no install or build step:
+No install required. Two libraries are loaded from CDN at runtime:
 
 - [epub.js](https://github.com/futurepress/epub.js) v0.3.93 — EPUB parsing and spine traversal
-- [JSZip](https://stuk.github.io/jszip/) v3.10.1 — ZIP archive extraction for EPUB files
+- [JSZip](https://stuk.github.io/jszip/) v3.10.1 — ZIP archive extraction
 
 Self-hosted font:
-- [OpenDyslexic](https://opendyslexic.org/) — dyslexia-friendly typeface (woff2, in css/)
+- [OpenDyslexic](https://opendyslexic.org/) — dyslexia-friendly typeface (woff2, in `css/`)
+
+---
 
 ## Browser Support
 
 Requires ES modules, CSS custom properties, CSS multi-column layout, and `AbortController`. Tested on:
-- Chrome/Edge 90+
+
+- Chrome / Edge 90+
 - Firefox 90+
 - Safari 15+
 - Mobile Safari (iOS 15+)
 - Chrome for Android
 
-Optional enhancements (graceful fallback):
-- CSS Highlight API (search highlighting)
-- Fullscreen API
-- `navigator.clipboard` (selection copy)
+Optional enhancements with graceful fallback when unavailable:
+- CSS Highlight API — search result highlighting
+- Fullscreen API — RSVP fullscreen mode
+- `navigator.clipboard` — selection copy
+- SpeechSynthesis API — TTS mode
 
-## Documentation
+---
 
-See the [`docs/`](docs/) directory for detailed documentation:
+## Developer Documentation
 
-- [Architecture](docs/architecture.md) — System design, data flow, module relationships
-- [Features](docs/features.md) — Detailed feature descriptions and how they work
-- [Module Reference](docs/module-reference.md) — Per-file API documentation
-- [CSS Architecture](docs/css-architecture.md) — Theming system, component styles, design tokens
-- [Recommendations](docs/recommendations.md) — Issues found during code review and proposed fixes
+See the [`docs/`](docs/) directory for full developer documentation:
 
-## Development
+| Document | Contents |
+|----------|----------|
+| [Architecture](docs/ARCHITECTURE.md) | System design, directory structure, entry points, boot sequence |
+| [Modules](docs/MODULES.md) | Every module documented: purpose, exports, key APIs |
+| [Data Flows](docs/DATA-FLOWS.md) | Step-by-step flows for every major operation |
+| [State & Storage](docs/STATE.md) | State structures, localStorage schema, locator system |
+| [CSS Architecture](docs/CSS.md) | Theme system, design tokens, component file breakdown |
 
 ### Running the self-test
+
 ```
 reader.html?selftest=1
 ```
-Runs ~40 assertions across core modules (doc-model, locator, geometry, extractor, events, prefs, chapters) with a visual pass/fail report overlay.
 
-### URL parameters
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `mode` | `read` (default) or `rsvp` | `?mode=rsvp` |
-| `src` | Path or URL to an EPUB file | `?src=books/book.epub` |
-| `id` | Book identifier for position storage | `?id=my-book` |
-| `title` | Display title override | `?title=My+Book` |
-| `selftest` | Run self-test suite | `?selftest=1` |
+Runs assertions across core modules (doc-model, locator, geometry, extractor, events, prefs, chapters) and shows a visual pass/fail report.
 
-## License
+---
 
-No license file is currently included. Add one if you intend to share or distribute this project.
+> **Note:** `library.html` (bookshelf UI) is not yet refactored into modular components and is excluded from current documentation scope.
