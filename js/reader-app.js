@@ -238,81 +238,6 @@ export function init(options = {}) {
     return marked.split('\x00').map(s => s.trim()).filter(Boolean);
   }
 
-  function splitTextNodesAt(el, sortedPositions) {
-    if (!sortedPositions.length) return;
-    let charCount = 0;
-    const nodeSplits = [];
-    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-    let node;
-    let posIdx = 0;
-    while ((node = walker.nextNode()) && posIdx < sortedPositions.length) {
-      const len = node.textContent.length;
-      const local = [];
-      while (posIdx < sortedPositions.length && sortedPositions[posIdx] <= charCount + len) {
-        const off = sortedPositions[posIdx] - charCount;
-        if (off > 0 && off < len) local.push(off);
-        posIdx++;
-      }
-      if (local.length) nodeSplits.push([node, local]);
-      charCount += len;
-    }
-    for (const [textNode, offsets] of nodeSplits) {
-      for (let i = offsets.length - 1; i >= 0; i--) {
-        textNode.splitText(offsets[i]);
-      }
-    }
-  }
-
-  function charOffsetToRange(el, startChar, endChar) {
-    const range = document.createRange();
-    let charCount = 0;
-    let startSet = false, endSet = false;
-    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-    let node;
-    while ((node = walker.nextNode())) {
-      const len = node.textContent.length;
-      if (!startSet && charCount + len > startChar) {
-        range.setStart(node, startChar - charCount);
-        startSet = true;
-      }
-      if (startSet && !endSet && charCount + len >= endChar) {
-        range.setEnd(node, endChar - charCount);
-        endSet = true;
-        break;
-      }
-      charCount += len;
-    }
-    return (startSet && endSet) ? range : null;
-  }
-
-  function wrapBlockSentences(blockEl, sentenceTexts) {
-    const fullText = blockEl.textContent;
-    const boundaries = [];
-    let searchFrom = 0;
-    for (const s of sentenceTexts) {
-      const idx = fullText.indexOf(s, searchFrom);
-      if (idx < 0) return sentenceTexts.map(() => blockEl);
-      boundaries.push([idx, idx + s.length]);
-      searchFrom = idx + s.length;
-    }
-    const allPositions = [...new Set(boundaries.flat())].sort((a, b) => a - b);
-    splitTextNodesAt(blockEl, allPositions);
-    const spans = [];
-    for (const [start, end] of boundaries) {
-      const range = charOffsetToRange(blockEl, start, end);
-      if (!range) return sentenceTexts.map(() => blockEl);
-      try {
-        const span = document.createElement('span');
-        span.className = 'tts-sent';
-        range.surroundContents(span);
-        spans.push(span);
-      } catch (_) {
-        return sentenceTexts.map(() => blockEl);
-      }
-    }
-    return spans;
-  }
-
   function segmentContent() {
     const blockSel = '.blk-p, .blk-h1, .blk-h2, .blk-h3, .blk-h4, .blk-h5, .blk-h6, .blk-blockquote, .blk-li';
     const blocks = Array.from(els.content.querySelectorAll(blockSel));
@@ -322,10 +247,9 @@ export function init(options = {}) {
       const text = blockEl.textContent.trim();
       if (!text) continue;
       const parts = splitSentences(text);
-      const highlightEls = parts.length > 1 ? wrapBlockSentences(blockEl, parts) : [blockEl];
       for (let i = 0; i < parts.length; i++) {
         const wc = parts[i].split(/\s+/).filter(Boolean).length;
-        result.push({ text: parts[i], blockEl, highlightEl: highlightEls[i] || blockEl, wordOffset });
+        result.push({ text: parts[i], blockEl, highlightEl: blockEl, wordOffset });
         wordOffset += wc;
       }
     }
@@ -493,13 +417,13 @@ export function init(options = {}) {
     if (els.ttsVoiceBtn) els.ttsVoiceBtn.setAttribute('aria-expanded', 'false');
 
     if (!listenWasScrollMode) {
-      // Capture word index before un-scroll
-      const wordIndex = listenSentences[listenSentenceIdx]?.wordOffset || 0;
+      const currentSent = listenSentences[listenSentenceIdx];
+      const targetEl = currentSent ? currentSent.blockEl : null;
       document.body.classList.remove('layout-scroll');
       requestAnimationFrame(() => {
         pagination.paginateQuick();
-        if (state.doc.words.length) {
-          pagination.goTo(pageOfWord(state, els.content, wordIndex), false);
+        if (targetEl) {
+          pagination.goTo(pageOfElement(state, els.content, targetEl), false);
         }
       });
     }
