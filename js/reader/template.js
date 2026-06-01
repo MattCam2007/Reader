@@ -24,6 +24,9 @@ export function readerTemplate() {
     </div>
 
     <div class="reader-tts-transport" id="ttsTransport">
+      <button class="reader-tts-stop" id="ttsStopBtn" type="button" aria-label="Stop listening">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
       <button class="tts-transport-btn" id="ttsPrevBtn" type="button" aria-label="Previous sentence">
         <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="19,20 9,12 19,4"/><line x1="5" y1="4" x2="5" y2="20"/></svg>
       </button>

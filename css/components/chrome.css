@@ -116,6 +116,32 @@ body.chrome-hidden .reader-bottombar { opacity: 0; transform: translateY(100%); 
 body.reader-tts-active .reader-tts-transport { display: flex; }
 body.reader-tts-active .reader-tts-toggle { color: var(--accent); }
 
+.reader-tts-stop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: var(--control-bg);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  margin-right: 0.2rem;
+}
+.reader-tts-stop svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+.reader-tts-stop:active { background: var(--control-bg-active); }
+
 /* Chunky scrubber */
 input[type="range"].reader-progress {
   -webkit-appearance: none;

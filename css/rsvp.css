@@ -255,10 +255,13 @@ body:not(.paused):not(.loading):not(.error) .rsvp-topbar {
   opacity: 0;
   pointer-events: none;
 }
-body:not(.paused):not(.loading):not(.error) .rsvp-bottombar {
-  transform: translateY(100%);
+
+/* When playing: only collapse the controls panel, keep toolbar (with Read button) visible */
+body:not(.paused):not(.loading):not(.error) .rsvp-controls {
+  max-height: 0;
   opacity: 0;
   pointer-events: none;
+  overflow: hidden;
 }
 
 /* ===== Controls panel ===== */
@@ -267,6 +270,9 @@ body:not(.paused):not(.loading):not(.error) .rsvp-bottombar {
   flex-direction: column;
   gap: 0;
   padding: 0 0.9rem 0.4rem;
+  max-height: 400px;
+  overflow: hidden;
+  transition: max-height 300ms ease, opacity 200ms ease;
 }
 
 /* ===== Drawer handle ===== */

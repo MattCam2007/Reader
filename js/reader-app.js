@@ -67,6 +67,7 @@ export function init(options = {}) {
     ttsRateSeg:    document.getElementById("ttsRateSeg"),
     ttsVoiceBtn:   document.getElementById("ttsVoiceBtn"),
     ttsVoiceList:  document.getElementById("ttsVoiceList"),
+    ttsStopBtn:    document.getElementById("ttsStopBtn"),
   };
 
   // ---------- State & Prefs ----------
@@ -472,11 +473,12 @@ export function init(options = {}) {
 
     if (els.listenBtn) els.listenBtn.setAttribute('aria-pressed', 'true');
 
-    // Load voices asynchronously
+    // Load voices, then auto-play
     ttsEngine.loadVoices().then(vs => {
       listenVoices = vs;
       restoreVoice();
       renderVoiceList();
+      ttsPlay();
     });
   }
 
@@ -826,6 +828,7 @@ export function init(options = {}) {
   }
 
   // TTS transport controls
+  if (els.ttsStopBtn) els.ttsStopBtn.addEventListener("click", deactivateListen, { signal });
   if (els.ttsPlayBtn) els.ttsPlayBtn.addEventListener("click", ttsPlayPause, { signal });
   if (els.ttsPrevBtn) els.ttsPrevBtn.addEventListener("click", ttsPrevSentence, { signal });
   if (els.ttsNextBtn) els.ttsNextBtn.addEventListener("click", ttsNextSentence, { signal });
