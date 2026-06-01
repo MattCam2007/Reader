@@ -272,6 +272,7 @@ export function init(options = {}) {
       e.stopPropagation();
       closeSettingsScreen();
       playback.pause();
+      savePosition();
       onModeSwitch("read", { fraction: getPositionFraction(), bookId: state.bookId });
     }, { signal });
   }
@@ -281,6 +282,7 @@ export function init(options = {}) {
       e.stopPropagation();
       closeSettingsScreen();
       playback.pause();
+      savePosition();
       onModeSwitch("tts", { fraction: getPositionFraction(), bookId: state.bookId });
     }, { signal });
   }
@@ -547,6 +549,7 @@ export function init(options = {}) {
       state.bookId = bookTitle || file.name;
       bookmarkManager.setBook(state.bookId);
       loadText(text, chapterMeta);
+      restorePosition();
       const bookTitleEl = document.getElementById("bookTitle");
       if (bookTitleEl) bookTitleEl.textContent = bookTitle;
       if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId: state.bookId });
@@ -613,11 +616,33 @@ This was invitation enough.
   state.bookId = 'Pride and Prejudice (sample)';
   bookmarkManager.setBook(state.bookId);
   loadText(sampleText, []);
+  restorePosition();
 
   // ---------- Handle ----------
   function getPositionFraction() {
     if (!state.totalWords) return 0;
     return state.wordOrdinalAt(state.currentIdx) / state.totalWords;
+  }
+
+  function seekFrac(f) {
+    if (!state.totalWords) return;
+    const ord = Math.round(f * (state.totalWords - 1));
+    playback.seekTo(state.ordinalToIdx(ord));
+  }
+
+  function savePosition() {
+    if (!state.bookId || !state.totalWords) return;
+    try { localStorage.setItem('book:pos:' + state.bookId, JSON.stringify({ f: getPositionFraction() })); } catch (_) {}
+  }
+
+  function restorePosition() {
+    if (!state.bookId) return;
+    try {
+      const raw = localStorage.getItem('book:pos:' + state.bookId);
+      if (!raw) return;
+      const { f } = JSON.parse(raw);
+      if (typeof f === 'number' && f > 0) seekFrac(f);
+    } catch (_) {}
   }
 
   return {
@@ -626,15 +651,12 @@ This was invitation enough.
       playback.clearPending();
       playback.cancelCountdown();
       stats.destroy();
+      savePosition();
     },
     getPositionFraction,
     getBookId() { return state.bookId; },
     isBookLoaded() { return state.isEpubLoaded; },
-    seekFraction(f) {
-      if (!state.totalWords) return;
-      const ord = Math.round(f * (state.totalWords - 1));
-      playback.seekTo(state.ordinalToIdx(ord));
-    },
+    seekFraction(f) { seekFrac(f); },
     loadFromBuffer(buffer, fileName) {
       const file = new File([buffer], fileName, { type: "application/epub+zip" });
       return loadEpub(file);

@@ -689,18 +689,20 @@ export function init(options = {}) {
   }
 
   // ---------- Position persistence ----------
-  function posKey() { return 'tts:pos:' + bookId; }
+  function posKey() { return 'book:pos:' + bookId; }
 
   function savePosition() {
     if (!bookId || !sentences.length) return;
-    try { localStorage.setItem(posKey(), String(currentSentenceIdx)); } catch (_) {}
+    try { localStorage.setItem(posKey(), JSON.stringify({ f: getPositionFraction() })); } catch (_) {}
   }
 
   function restorePosition() {
     if (!bookId) return 0;
     try {
-      const saved = parseInt(localStorage.getItem(posKey()) || '0', 10);
-      return Math.max(0, Math.min(sentences.length - 1, saved || 0));
+      const raw = localStorage.getItem(posKey());
+      if (!raw) return 0;
+      const { f } = JSON.parse(raw);
+      return Math.max(0, Math.min(sentences.length - 1, Math.round((f || 0) * (sentences.length - 1))));
     } catch (_) { return 0; }
   }
 
