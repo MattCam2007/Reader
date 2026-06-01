@@ -22,6 +22,30 @@ export function readerTemplate() {
       <input type="range" class="reader-progress" id="progress" min="0" max="0" value="0" step="1" aria-label="Reading position">
       <div class="reader-progress-label" id="progressLabel" aria-live="polite">&nbsp;</div>
     </div>
+
+    <div class="reader-tts-transport" id="ttsTransport">
+      <button class="tts-transport-btn" id="ttsPrevBtn" type="button" aria-label="Previous sentence">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="19,20 9,12 19,4"/><line x1="5" y1="4" x2="5" y2="20"/></svg>
+      </button>
+      <button class="tts-play-btn" id="ttsPlayBtn" type="button" aria-label="Play">
+        <svg class="tts-play-icon" viewBox="0 0 24 24" aria-hidden="true"><polygon points="5,3 19,12 5,21"/></svg>
+        <svg class="tts-pause-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      </button>
+      <button class="tts-transport-btn" id="ttsNextBtn" type="button" aria-label="Next sentence">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="19" y1="4" x2="19" y2="20"/><polyline points="5,4 15,12 5,20"/></svg>
+      </button>
+      <div class="tts-rate-seg" id="ttsRateSeg" role="group" aria-label="Reading speed">
+        <button class="tts-rate-btn" data-rate="0.75" type="button">0.75×</button>
+        <button class="tts-rate-btn active" data-rate="1" type="button">1×</button>
+        <button class="tts-rate-btn" data-rate="1.25" type="button">1.25×</button>
+        <button class="tts-rate-btn" data-rate="1.5" type="button">1.5×</button>
+        <button class="tts-rate-btn" data-rate="2" type="button">2×</button>
+      </div>
+      <button class="tts-transport-btn" id="ttsVoiceBtn" type="button" aria-label="Voice" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </button>
+    </div>
+
     <div class="reader-toolbar">
       <button class="reader-tool" id="tocBtn" type="button" aria-label="Contents" aria-expanded="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
@@ -39,7 +63,7 @@ export function readerTemplate() {
         <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/></svg>
         <span>Speed</span>
       </button>
-      <button class="reader-tool" id="ttsModeBtn" type="button" aria-label="Listen with TTS">
+      <button class="reader-tool reader-tts-toggle" id="listenBtn" type="button" aria-label="Listen" aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
         <span>Listen</span>
       </button>
@@ -71,14 +95,19 @@ export function readerTemplate() {
 
   <div class="reader-search-panel" id="searchPanel" role="search" aria-label="Search in book">
     <div class="reader-search-head">
-      <input class="reader-search-input" id="searchInput" type="search" placeholder="Search in book\u2026" autocomplete="off">
+      <input class="reader-search-input" id="searchInput" type="search" placeholder="Search in book…" autocomplete="off">
     </div>
     <div class="reader-search-results" id="searchResults"></div>
   </div>
 
+  <div class="tts-voice-panel" id="ttsVoicePanel" role="dialog" aria-modal="true" aria-label="Voice selection">
+    <div class="tts-voice-panel-head">Voice</div>
+    <div id="ttsVoiceList"></div>
+  </div>
+
   <div class="reader-overlay" id="overlay">
     <div class="reader-spinner" id="spinner"></div>
-    <div class="reader-overlay-msg" id="overlayMsg">Loading\u2026</div>
+    <div class="reader-overlay-msg" id="overlayMsg">Loading…</div>
     <button class="ui-chip" id="overlayBtn" type="button" hidden>Open EPUB</button>
   </div>
 

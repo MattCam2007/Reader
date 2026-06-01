@@ -275,16 +275,6 @@ export function init(options = {}) {
       onModeSwitch("read", { fraction: getPositionFraction(), bookId: state.bookId });
     }, { signal });
   }
-  const ttsModeBtn = document.getElementById("ttsModeBtn");
-  if (ttsModeBtn && onModeSwitch) {
-    ttsModeBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      closeSettingsScreen();
-      playback.pause();
-      onModeSwitch("tts", { fraction: getPositionFraction(), bookId: state.bookId });
-    }, { signal });
-  }
-
   // Search panel
   const searchBtn = document.getElementById("searchBtn");
   const searchInput = document.getElementById("searchInput");

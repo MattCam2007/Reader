@@ -20,6 +20,10 @@ import { FootnoteManager } from './reader/footnotes.js';
 import { buildSample } from '../fixtures/sample.js';
 import { runSelftest } from './test/selftest.js';
 import { trapFocus } from './reader/focus-trap.js';
+import { TtsEngine } from './tts/engine.js';
+import { TtsHighlighter } from './tts/highlighter.js';
+
+const LISTEN_DEFAULTS = { rate: 1.0, pitch: 1.0, voiceName: '', autoScroll: true, highlightMode: 'sentence' };
 
 export function init(options = {}) {
   const signal = options.signal || new AbortController().signal;
@@ -55,6 +59,14 @@ export function init(options = {}) {
     bookmarksPanel: document.getElementById("bookmarksPanel"),
     bmAddBtn:      document.getElementById("bmAddBtn"),
     bmList:        document.getElementById("bmList"),
+    // Listen mode
+    listenBtn:     document.getElementById("listenBtn"),
+    ttsPlayBtn:    document.getElementById("ttsPlayBtn"),
+    ttsPrevBtn:    document.getElementById("ttsPrevBtn"),
+    ttsNextBtn:    document.getElementById("ttsNextBtn"),
+    ttsRateSeg:    document.getElementById("ttsRateSeg"),
+    ttsVoiceBtn:   document.getElementById("ttsVoiceBtn"),
+    ttsVoiceList:  document.getElementById("ttsVoiceList"),
   };
 
   // ---------- State & Prefs ----------
@@ -150,6 +162,352 @@ export function init(options = {}) {
   trapFocus(els.toc, signal);
   trapFocus(els.searchPanel, signal);
 
+  // ---------- Listen mode (TTS) ----------
+  let listenActive = false;
+  let listenWasScrollMode = false;
+  let listenSentences = [];
+  let listenSentenceIdx = 0;
+  let listenPlaying = false;
+  let listenVoices = [];
+  let listenRate = LISTEN_DEFAULTS.rate;
+  let listenPitch = LISTEN_DEFAULTS.pitch;
+  let listenVoiceName = LISTEN_DEFAULTS.voiceName;
+  let listenHighlightMode = LISTEN_DEFAULTS.highlightMode;
+  let listenAutoScroll = LISTEN_DEFAULTS.autoScroll;
+
+  // Load persisted listen prefs
+  try {
+    const saved = JSON.parse(localStorage.getItem('reader:listen:prefs') || '{}');
+    if (saved.rate) listenRate = saved.rate;
+    if (saved.pitch) listenPitch = saved.pitch;
+    if (saved.voiceName) listenVoiceName = saved.voiceName;
+    if (saved.highlightMode) listenHighlightMode = saved.highlightMode;
+    if (saved.autoScroll !== undefined) listenAutoScroll = saved.autoScroll;
+  } catch (_) {}
+
+  function saveListenPrefs() {
+    try {
+      localStorage.setItem('reader:listen:prefs', JSON.stringify({
+        rate: listenRate, pitch: listenPitch, voiceName: listenVoiceName,
+        highlightMode: listenHighlightMode, autoScroll: listenAutoScroll,
+      }));
+    } catch (_) {}
+  }
+
+  const ttsEngine = new TtsEngine({
+    onSentenceStart(index) {
+      listenSentenceIdx = index;
+      ttsHighlighter.clearWordHighlight();
+      if (listenHighlightMode === 'off') return;
+      if (listenHighlightMode === 'paragraph') ttsHighlighter.highlightParagraph(index);
+      else ttsHighlighter.highlightSentence(index);
+    },
+    onSentenceEnd(index) {
+      listenSentenceIdx = index + 1;
+    },
+    onBoundary({ sentenceIndex, charIndex, charLength }) {
+      if (listenHighlightMode === 'word') {
+        ttsHighlighter.highlightWord(sentenceIndex, charIndex, charLength);
+      }
+    },
+    onEnd() {
+      setListenPlaying(false);
+      ttsHighlighter.clearHighlight();
+    },
+    onError(e) {
+      console.warn('reader:tts-error', e);
+      setListenPlaying(false);
+    },
+  });
+
+  const ttsHighlighter = new TtsHighlighter(els.content, els.viewport);
+
+  function setListenPlaying(val) {
+    listenPlaying = val;
+    document.body.classList.toggle('tts-playing', val);
+    if (els.ttsPlayBtn) {
+      els.ttsPlayBtn.setAttribute('aria-label', val ? 'Pause' : 'Play');
+    }
+  }
+
+  // ---- Sentence segmentation ----
+
+  function splitSentences(text) {
+    const marked = text.replace(/([.!?…])\s+/g, '$1\x00');
+    return marked.split('\x00').map(s => s.trim()).filter(Boolean);
+  }
+
+  function splitTextNodesAt(el, sortedPositions) {
+    if (!sortedPositions.length) return;
+    let charCount = 0;
+    const nodeSplits = [];
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let node;
+    let posIdx = 0;
+    while ((node = walker.nextNode()) && posIdx < sortedPositions.length) {
+      const len = node.textContent.length;
+      const local = [];
+      while (posIdx < sortedPositions.length && sortedPositions[posIdx] <= charCount + len) {
+        const off = sortedPositions[posIdx] - charCount;
+        if (off > 0 && off < len) local.push(off);
+        posIdx++;
+      }
+      if (local.length) nodeSplits.push([node, local]);
+      charCount += len;
+    }
+    for (const [textNode, offsets] of nodeSplits) {
+      for (let i = offsets.length - 1; i >= 0; i--) {
+        textNode.splitText(offsets[i]);
+      }
+    }
+  }
+
+  function charOffsetToRange(el, startChar, endChar) {
+    const range = document.createRange();
+    let charCount = 0;
+    let startSet = false, endSet = false;
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      const len = node.textContent.length;
+      if (!startSet && charCount + len > startChar) {
+        range.setStart(node, startChar - charCount);
+        startSet = true;
+      }
+      if (startSet && !endSet && charCount + len >= endChar) {
+        range.setEnd(node, endChar - charCount);
+        endSet = true;
+        break;
+      }
+      charCount += len;
+    }
+    return (startSet && endSet) ? range : null;
+  }
+
+  function wrapBlockSentences(blockEl, sentenceTexts) {
+    const fullText = blockEl.textContent;
+    const boundaries = [];
+    let searchFrom = 0;
+    for (const s of sentenceTexts) {
+      const idx = fullText.indexOf(s, searchFrom);
+      if (idx < 0) return sentenceTexts.map(() => blockEl);
+      boundaries.push([idx, idx + s.length]);
+      searchFrom = idx + s.length;
+    }
+    const allPositions = [...new Set(boundaries.flat())].sort((a, b) => a - b);
+    splitTextNodesAt(blockEl, allPositions);
+    const spans = [];
+    for (const [start, end] of boundaries) {
+      const range = charOffsetToRange(blockEl, start, end);
+      if (!range) return sentenceTexts.map(() => blockEl);
+      try {
+        const span = document.createElement('span');
+        span.className = 'tts-sent';
+        range.surroundContents(span);
+        spans.push(span);
+      } catch (_) {
+        return sentenceTexts.map(() => blockEl);
+      }
+    }
+    return spans;
+  }
+
+  function segmentContent() {
+    const blockSel = '.blk-p, .blk-h1, .blk-h2, .blk-h3, .blk-h4, .blk-h5, .blk-h6, .blk-blockquote, .blk-li';
+    const blocks = Array.from(els.content.querySelectorAll(blockSel));
+    const result = [];
+    let wordOffset = 0;
+    for (const blockEl of blocks) {
+      const text = blockEl.textContent.trim();
+      if (!text) continue;
+      const parts = splitSentences(text);
+      const highlightEls = parts.length > 1 ? wrapBlockSentences(blockEl, parts) : [blockEl];
+      for (let i = 0; i < parts.length; i++) {
+        const wc = parts[i].split(/\s+/).filter(Boolean).length;
+        result.push({ text: parts[i], blockEl, highlightEl: highlightEls[i] || blockEl, wordOffset });
+        wordOffset += wc;
+      }
+    }
+    return result;
+  }
+
+  function findSentenceForWord(wordIndex) {
+    let best = 0;
+    for (let i = 0; i < listenSentences.length; i++) {
+      if (listenSentences[i].wordOffset <= wordIndex) best = i;
+      else break;
+    }
+    return best;
+  }
+
+  // ---- Listen mode control ----
+
+  function ttsPlay() {
+    if (!listenSentences.length) return;
+    if (ttsEngine.paused) {
+      ttsEngine.resume();
+      setListenPlaying(true);
+      return;
+    }
+    const texts = listenSentences.map(s => s.text);
+    ttsEngine.speakSentences(texts, listenSentenceIdx);
+    setListenPlaying(true);
+  }
+
+  function ttsPause() {
+    ttsEngine.pause();
+    setListenPlaying(false);
+  }
+
+  function ttsPlayPause() {
+    if (listenPlaying) ttsPause();
+    else ttsPlay();
+  }
+
+  function ttsPrevSentence() {
+    const wasPlaying = listenPlaying;
+    ttsEngine.cancel();
+    setListenPlaying(false);
+    ttsHighlighter.clearHighlight();
+    listenSentenceIdx = Math.max(0, listenSentenceIdx - 1);
+    scrollToListenSentence(listenSentenceIdx);
+    if (wasPlaying) ttsPlay();
+  }
+
+  function ttsNextSentence() {
+    const wasPlaying = listenPlaying;
+    ttsEngine.cancel();
+    setListenPlaying(false);
+    ttsHighlighter.clearHighlight();
+    listenSentenceIdx = Math.min(listenSentences.length - 1, listenSentenceIdx + 1);
+    scrollToListenSentence(listenSentenceIdx);
+    if (wasPlaying) ttsPlay();
+  }
+
+  function scrollToListenSentence(index) {
+    const sent = listenSentences[index];
+    if (sent) {
+      const el = sent.highlightEl || sent.blockEl;
+      try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      catch (_) { el.scrollIntoView(false); }
+    }
+  }
+
+  function applyListenRateButtons() {
+    if (!els.ttsRateSeg) return;
+    els.ttsRateSeg.querySelectorAll('.tts-rate-btn').forEach(btn => {
+      btn.classList.toggle('active', parseFloat(btn.dataset.rate) === listenRate);
+    });
+  }
+
+  function renderVoiceList() {
+    if (!els.ttsVoiceList) return;
+    els.ttsVoiceList.innerHTML = '';
+    if (!listenVoices.length) {
+      const msg = document.createElement('div');
+      msg.className = 'tts-voice-empty';
+      msg.textContent = 'No voices available.';
+      els.ttsVoiceList.appendChild(msg);
+      return;
+    }
+    const sorted = [...listenVoices].sort((a, b) => {
+      if (a.localService && !b.localService) return -1;
+      if (!a.localService && b.localService) return 1;
+      return a.name.localeCompare(b.name);
+    });
+    sorted.forEach(voice => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tts-voice-item' + (voice.name === listenVoiceName ? ' active' : '');
+      btn.textContent = voice.name + ' (' + voice.lang + ')';
+      if (voice.localService) {
+        const badge = document.createElement('span');
+        badge.className = 'tts-voice-local';
+        badge.textContent = 'local';
+        btn.appendChild(badge);
+      }
+      btn.addEventListener('click', () => {
+        listenVoiceName = voice.name;
+        ttsEngine.setVoice(voice);
+        saveListenPrefs();
+        els.ttsVoiceList.querySelectorAll('.tts-voice-item').forEach(b => {
+          b.classList.toggle('active', b === btn);
+        });
+        document.body.classList.remove('tts-show-voice');
+        if (els.ttsVoiceBtn) els.ttsVoiceBtn.setAttribute('aria-expanded', 'false');
+      });
+      els.ttsVoiceList.appendChild(btn);
+    });
+  }
+
+  function restoreVoice() {
+    if (!listenVoiceName || !listenVoices.length) return;
+    const v = listenVoices.find(v => v.name === listenVoiceName);
+    if (v) ttsEngine.setVoice(v);
+  }
+
+  function activateListen() {
+    listenActive = true;
+    document.body.classList.add('reader-tts-active');
+
+    // Force scroll mode if needed, remember so we can restore
+    listenWasScrollMode = prefs.data.layout === 'scroll';
+    if (!listenWasScrollMode) {
+      document.body.classList.add('layout-scroll');
+    }
+
+    // Capture position before segmentation mutates the DOM
+    const loc = currentLocatorFn();
+    const wi = loc ? resolveLocator(state, loc) : 0;
+
+    listenSentences = segmentContent();
+    ttsHighlighter.setSentences(listenSentences);
+    ttsHighlighter.setAutoScroll(listenAutoScroll);
+    listenSentenceIdx = findSentenceForWord(wi);
+    scrollToListenSentence(listenSentenceIdx);
+
+    ttsEngine.setRate(listenRate);
+    ttsEngine.setPitch(listenPitch);
+    applyListenRateButtons();
+
+    if (els.listenBtn) els.listenBtn.setAttribute('aria-pressed', 'true');
+
+    // Load voices asynchronously
+    ttsEngine.loadVoices().then(vs => {
+      listenVoices = vs;
+      restoreVoice();
+      renderVoiceList();
+    });
+  }
+
+  function deactivateListen() {
+    ttsEngine.cancel();
+    setListenPlaying(false);
+    ttsHighlighter.clearHighlight();
+    listenActive = false;
+    document.body.classList.remove('reader-tts-active', 'tts-show-voice');
+
+    if (els.listenBtn) els.listenBtn.setAttribute('aria-pressed', 'false');
+    if (els.ttsVoiceBtn) els.ttsVoiceBtn.setAttribute('aria-expanded', 'false');
+
+    if (!listenWasScrollMode) {
+      // Capture word index before un-scroll
+      const wordIndex = listenSentences[listenSentenceIdx]?.wordOffset || 0;
+      document.body.classList.remove('layout-scroll');
+      requestAnimationFrame(() => {
+        pagination.paginateQuick();
+        if (state.doc.words.length) {
+          pagination.goTo(pageOfWord(state, els.content, wordIndex), false);
+        }
+      });
+    }
+  }
+
+  function toggleListen() {
+    if (listenActive) deactivateListen();
+    else activateListen();
+  }
+
   // ---------- Panels ----------
   let _lastPanelTrigger = null;
 
@@ -161,9 +519,10 @@ export function init(options = {}) {
   }
 
   function closePanels() {
-    document.body.classList.remove("show-toc", "show-search", "show-bookmarks");
+    document.body.classList.remove("show-toc", "show-search", "show-bookmarks", "tts-show-voice");
     search.clearHighlights();
     updateAriaExpanded();
+    if (els.ttsVoiceBtn) els.ttsVoiceBtn.setAttribute('aria-expanded', 'false');
     if (_lastPanelTrigger) {
       _lastPanelTrigger.focus();
       _lastPanelTrigger = null;
@@ -234,46 +593,35 @@ export function init(options = {}) {
     document.body.classList.remove("loading", "error");
   }
 
-  // ---------- Prefs application (Phase 4: each concern subscribes) ----------
+  // ---------- Prefs application ----------
   function applyPrefs() {
     const p = prefs.data;
-    // Theme (reads from app-wide general prefs)
     const theme = generalPrefs.data.theme;
     document.body.classList.remove(...ALL_THEME_NAMES.map(t => `theme-${t}`));
     if (theme !== "dark") document.body.classList.add("theme-" + theme);
 
-    // Font
     els.content.style.fontFamily = FONT_MAP[p.font] || FONT_SERIF;
     els.content.style.fontSize = p.size + "px";
-
-    // Line height
     els.content.style.setProperty("--reading-line-height", String(p.lineHeight));
 
-    // Margins via CSS class
     els.viewport.classList.remove("margin-narrow", "margin-normal", "margin-wide");
     els.viewport.classList.add("margin-" + (p.margin || "normal"));
 
-    // Paragraph spacing
     els.content.classList.toggle("para-spaced", p.paraSpacing === "spaced");
-
-    // Alignment
     els.content.style.textAlign = p.align === "left" ? "left" : "justify";
 
-    // Images
     document.body.classList.toggle("images-off", !p.images);
-
-    // Selection
     document.body.classList.toggle("selection-on", !!p.selection);
 
-    // Layout mode
-    document.body.classList.toggle("layout-scroll", p.layout === "scroll");
+    // Only apply layout-scroll when not in listen mode (listen mode manages it separately)
+    if (!listenActive) {
+      document.body.classList.toggle("layout-scroll", p.layout === "scroll");
+    }
 
-    // Meta theme color
     const tc = THEME_COLORS[theme];
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta && tc) meta.setAttribute("content", tc);
 
-    // Comfort overlay
     if (els.comfortDim) els.comfortDim.style.opacity = String(1 - (p.brightness || 1));
     if (els.comfortWarm) els.comfortWarm.style.opacity = String(p.warmth || 0);
   }
@@ -286,6 +634,13 @@ export function init(options = {}) {
     state.sectionEls.clear();
     state.headingToc = [];
     state.docModelBuilt = false;
+    // Reset listen state when new book loads
+    if (listenActive) {
+      ttsEngine.cancel();
+      setListenPlaying(false);
+      ttsHighlighter.clearHighlight();
+      listenSentences = [];
+    }
     const frag = document.createDocumentFragment();
     sections.forEach((sec) => {
       const wrap = document.createElement("div");
@@ -312,7 +667,7 @@ export function init(options = {}) {
 
   // ---------- EPUB loading ----------
   async function loadEpub(file) {
-    showLoading("Loading " + file.name + "\u2026");
+    showLoading("Loading " + file.name + "…");
     closePanels();
     let book = null;
     try {
@@ -372,6 +727,11 @@ export function init(options = {}) {
           (p) => pagination.goTo(p, false),
           (loc) => resolveLocator(state, loc)
         );
+        if (listenActive) {
+          listenSentences = segmentContent();
+          ttsHighlighter.setSentences(listenSentences);
+          listenSentenceIdx = 0;
+        }
         if (urlParams.get("selftest") === "1") {
           requestAnimationFrame(() => runSelftest(state));
         }
@@ -387,7 +747,7 @@ export function init(options = {}) {
   }
 
   async function loadFromUrl(url) {
-    showLoading("Fetching book\u2026");
+    showLoading("Fetching book…");
     closePanels();
     try {
       const resp = await fetch(url);
@@ -433,7 +793,7 @@ export function init(options = {}) {
   els.progressEl.addEventListener("input", () => pagination.goTo(parseInt(els.progressEl.value, 10) || 0, false), { signal });
   els.content.addEventListener("click", (e) => footnotes.handleContentClick(e), { signal });
 
-  // Scroll mode progress tracking (storage.savePos has its own debounce)
+  // Scroll mode progress tracking
   els.viewport.addEventListener("scroll", () => {
     if (!state.isScrollMode) return;
     chrome.updateProgress();
@@ -447,28 +807,66 @@ export function init(options = {}) {
     resizeTimer = setTimeout(() => pagination.paginateQuick(), RESIZE_DEBOUNCE_MS);
   }, { signal });
 
-  // Mode switch buttons
+  // Mode switch to RSVP
   const modeBtn = document.getElementById("modeBtn");
   if (modeBtn && onModeSwitch) {
     modeBtn.addEventListener("click", () => {
       closeSettingsScreen();
+      if (listenActive) deactivateListen();
       onModeSwitch("rsvp", { fraction: getPositionFraction(), bookId: state.bookId });
     }, { signal });
   }
-  const ttsModeBtn = document.getElementById("ttsModeBtn");
-  if (ttsModeBtn && onModeSwitch) {
-    ttsModeBtn.addEventListener("click", () => {
+
+  // Listen mode toggle
+  if (els.listenBtn) {
+    els.listenBtn.addEventListener("click", () => {
       closeSettingsScreen();
-      onModeSwitch("tts", { fraction: getPositionFraction(), bookId: state.bookId });
+      toggleListen();
     }, { signal });
   }
+
+  // TTS transport controls
+  if (els.ttsPlayBtn) els.ttsPlayBtn.addEventListener("click", ttsPlayPause, { signal });
+  if (els.ttsPrevBtn) els.ttsPrevBtn.addEventListener("click", ttsPrevSentence, { signal });
+  if (els.ttsNextBtn) els.ttsNextBtn.addEventListener("click", ttsNextSentence, { signal });
+
+  if (els.ttsRateSeg) {
+    els.ttsRateSeg.addEventListener("click", (e) => {
+      const btn = e.target.closest('[data-rate]');
+      if (!btn) return;
+      listenRate = parseFloat(btn.dataset.rate);
+      ttsEngine.setRate(listenRate);
+      saveListenPrefs();
+      applyListenRateButtons();
+    }, { signal });
+  }
+
+  if (els.ttsVoiceBtn) {
+    els.ttsVoiceBtn.addEventListener("click", () => {
+      const isOpen = document.body.classList.contains('tts-show-voice');
+      closePanels();
+      if (!isOpen) {
+        document.body.classList.add('tts-show-voice');
+        els.ttsVoiceBtn.setAttribute('aria-expanded', 'true');
+        renderVoiceList();
+      }
+    }, { signal });
+  }
+
+  // Keyboard shortcuts for listen mode
+  window.addEventListener("keydown", (e) => {
+    if (!listenActive) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); ttsPlayPause(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); ttsNextSentence(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); ttsPrevSentence(); }
+  }, { signal });
 
   // ---------- Init ----------
   prefs.load();
   generalPrefs.load();
   applyPrefs();
 
-  // Respect prefers-color-scheme on first load (no stored general prefs)
   if (!localStorage.getItem("general:prefs")) {
     const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
     if (prefersLight) {
@@ -478,7 +876,6 @@ export function init(options = {}) {
     }
   }
 
-  // Respect prefers-reduced-motion
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   if (reduceMotion.matches && !localStorage.getItem("reader:prefs")) {
     prefs.data.pageAnim = "none";
@@ -538,6 +935,9 @@ export function init(options = {}) {
   return {
     teardown() {
       closeSettingsScreen();
+      ttsEngine.cancel();
+      setListenPlaying(false);
+      document.body.classList.remove('reader-tts-active', 'tts-playing', 'tts-show-voice');
       state.blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (_) {} });
       state.blobUrls = [];
       if (resizeTimer) clearTimeout(resizeTimer);

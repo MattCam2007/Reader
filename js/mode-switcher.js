@@ -1,17 +1,13 @@
 import { readerTemplate } from './reader/template.js';
 import { rsvpTemplate } from './rsvp/template.js';
-import { ttsTemplate } from './tts/template.js';
 import { closeSettingsScreen } from './settings/settings-screen.js';
 
 const READER_BODY_CLASSES = [
   'chrome-hidden', 'loading', 'error', 'show-toc', 'show-search', 'show-bookmarks',
-  'images-off', 'selection-on', 'layout-scroll',
+  'images-off', 'selection-on', 'layout-scroll', 'reader-tts-active', 'tts-playing', 'tts-show-voice',
 ];
 const RSVP_BODY_CLASSES = [
   'rsvp', 'paused', 'loading', 'error', 'fs-hide-controls', 'show-toc', 'show-bookmarks',
-];
-const TTS_BODY_CLASSES = [
-  'tts', 'loading', 'error', 'show-toc', 'tts-show-voice', 'tts-playing', 'show-bookmarks',
 ];
 const THEME_CLASSES = ['theme-dark', 'theme-light', 'theme-sepia', 'theme-oled'];
 
@@ -27,7 +23,6 @@ function clearBodyClasses() {
   document.body.classList.remove(
     ...READER_BODY_CLASSES,
     ...RSVP_BODY_CLASSES,
-    ...TTS_BODY_CLASSES,
     ...THEME_CLASSES,
   );
 }
@@ -69,16 +64,8 @@ async function switchMode(targetMode, posInfo) {
       onModeSwitch: (mode, info) => switchMode(mode, info),
       onBookLoaded,
     });
-  } else if (targetMode === 'tts') {
-    document.body.classList.add('tts');
-    appEl.innerHTML = ttsTemplate();
-    const mod = await import('./tts-app.js');
-    currentHandle = mod.init({
-      signal,
-      onModeSwitch: (mode, info) => switchMode(mode, info),
-      onBookLoaded,
-    });
   } else {
+    // Default: paginated reader (handles 'read' and any unknown mode including legacy 'tts')
     document.body.classList.add('chrome-hidden');
     appEl.innerHTML = readerTemplate();
     const mod = await import('./reader-app.js');
@@ -96,7 +83,6 @@ async function switchMode(targetMode, posInfo) {
     try {
       await currentHandle.loadFromBuffer(cachedBook.buffer.slice(0), cachedBook.fileName);
       if (typeof posInfo.fraction === 'number' && posInfo.fraction > 0) {
-        // Defer seeking to let the book finish loading/rendering
         requestAnimationFrame(() => {
           setTimeout(() => {
             try { currentHandle.seekFraction(posInfo.fraction); } catch (_) {}
@@ -111,5 +97,5 @@ async function switchMode(targetMode, posInfo) {
 
 // ---------- Boot ----------
 const modeParam = urlParams.get('mode');
-const initialMode = modeParam === 'rsvp' ? 'rsvp' : modeParam === 'tts' ? 'tts' : 'read';
+const initialMode = modeParam === 'rsvp' ? 'rsvp' : 'read';
 switchMode(initialMode);

@@ -104,11 +104,7 @@ export function rsvpTemplate() {
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6c-1.8-1.3-4.6-1.6-7-0.8v12c2.4-0.8 5.2-0.5 7 0.8 1.8-1.3 4.6-1.6 7-0.8V5.2c-2.4-0.8-5.2-0.5-7 0.8z"/><line x1="12" y1="6" x2="12" y2="18.8"/></svg>
         <span>Read</span>
       </button>
-      <button class="reader-tool" id="ttsModeBtn" type="button" aria-label="Listen with TTS">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-        <span>Listen</span>
-      </button>
-      <button class="reader-tool" id="bookmarksBtn" type="button" aria-label="Bookmarks" aria-expanded="false">
+<button class="reader-tool" id="bookmarksBtn" type="button" aria-label="Bookmarks" aria-expanded="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
         <span>Marks</span>
       </button>

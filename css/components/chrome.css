@@ -103,6 +103,19 @@ body.chrome-hidden .reader-bottombar { opacity: 0; transform: translateY(100%); 
 }
 .ui-chip:active { opacity: 0.85; }
 
+/* TTS transport bar (shown when listen mode is active) */
+.reader-tts-transport {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.45rem 1rem 0.3rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
+body.reader-tts-active .reader-tts-transport { display: flex; }
+body.reader-tts-active .reader-tts-toggle { color: var(--accent); }
+
 /* Chunky scrubber */
 input[type="range"].reader-progress {
   -webkit-appearance: none;
