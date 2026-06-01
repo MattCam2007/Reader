@@ -599,7 +599,7 @@ export function init(options = {}) {
   if (srcUrl) {
     loadFromUrl(srcUrl);
   } else {
-    state.bookId = urlParams.get("id") || "Pride and Prejudice (sample)";
+    state.bookId = "Pride and Prejudice (sample)";
     bookmarkManager.setBook(state.bookId);
     els.bookTitleEl.textContent = "Pride and Prejudice";
     renderBook(buildSample());
