@@ -4,7 +4,7 @@ import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
 import { PrefsManager } from './core/prefs.js';
 import { EventBus } from './core/events.js';
-import { extractPlainText } from './epub/extractor.js';
+import { extractSections } from './epub/extractor.js';
 import { RSVP_DEFAULTS } from './rsvp/constants.js';
 import { RsvpState } from './rsvp/state.js';
 import { tokenize } from './rsvp/tokenizer.js';
@@ -14,6 +14,24 @@ import { RsvpInput } from './rsvp/input.js';
 import { StatsTracker } from './rsvp/stats.js';
 import { TrainingManager } from './rsvp/training.js';
 import { createPicker } from './shared/picker.js';
+
+// Convert extractSections() output to the plain-text format the tokenizer expects.
+// Using the same extractor as Reader guarantees identical word lists and exact position transfer.
+function sectionsToText(sections) {
+  const parts = [];
+  const chapters = [];
+  let wordOffset = 0;
+  for (const sec of sections) {
+    const blockTexts = sec.blocks.map(b => b.text).filter(t => t && t.trim());
+    if (!blockTexts.length) continue;
+    const heading = sec.blocks.find(b => /^h[1-6]$/.test(b.type));
+    chapters.push({ title: heading ? heading.text : '', wordOffset });
+    const secText = blockTexts.join('\n\n');
+    wordOffset += secText.split(/\s+/).filter(Boolean).length;
+    parts.push(secText);
+  }
+  return { text: parts.join('\n\n'), chapters };
+}
 
 export function init(options = {}) {
   const signal = options.signal || new AbortController().signal;
@@ -272,6 +290,7 @@ export function init(options = {}) {
       e.stopPropagation();
       closeSettingsScreen();
       playback.pause();
+      savePosition();
       onModeSwitch("read", { fraction: getPositionFraction(), bookId: state.bookId });
     }, { signal });
   }
@@ -281,6 +300,7 @@ export function init(options = {}) {
       e.stopPropagation();
       closeSettingsScreen();
       playback.pause();
+      savePosition();
       onModeSwitch("tts", { fraction: getPositionFraction(), bookId: state.bookId });
     }, { signal });
   }
@@ -538,15 +558,17 @@ export function init(options = {}) {
       const bookTitle = (book.packaging && book.packaging.metadata && book.packaging.metadata.title)
         || file.name.replace(/\.epub$/i, '');
 
-      const { text, chapters: chapterMeta } = await extractPlainText(book, (i, total) => {
-        els.statusMsg.textContent = "Parsing\u2026 " + i + " / " + total;
+      const { sections } = await extractSections(book, (msg) => {
+        els.statusMsg.textContent = msg;
       });
+      const { text, chapters: chapterMeta } = sectionsToText(sections);
       if (!text || text.length < 32) {
         throw new Error("No readable text found in this EPUB (it may be image-only or DRM-protected).");
       }
       state.bookId = bookTitle || file.name;
       bookmarkManager.setBook(state.bookId);
       loadText(text, chapterMeta);
+      restorePosition();
       const bookTitleEl = document.getElementById("bookTitle");
       if (bookTitleEl) bookTitleEl.textContent = bookTitle;
       if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId: state.bookId });
@@ -613,11 +635,38 @@ This was invitation enough.
   state.bookId = 'Pride and Prejudice (sample)';
   bookmarkManager.setBook(state.bookId);
   loadText(sampleText, []);
+  restorePosition();
 
   // ---------- Handle ----------
   function getPositionFraction() {
-    if (!state.totalWords) return 0;
-    return state.wordOrdinalAt(state.currentIdx) / state.totalWords;
+    if (state.totalWords < 2) return 0;
+    // Scan backward so a paragraph-break token maps to the last word read,
+    // not the first word of the next paragraph (which could be on the next page).
+    let i = Math.max(0, Math.min(state.currentIdx, state.tokens.length - 1));
+    while (i > 0 && state.tokenToWordOrdinal[i] < 0) i--;
+    const ord = state.tokenToWordOrdinal[i] >= 0 ? state.tokenToWordOrdinal[i] : 0;
+    return ord / (state.totalWords - 1);
+  }
+
+  function seekFrac(f) {
+    if (!state.totalWords) return;
+    const ord = Math.round(f * (state.totalWords - 1));
+    playback.seekTo(state.ordinalToIdx(ord));
+  }
+
+  function savePosition() {
+    if (!state.bookId || !state.totalWords) return;
+    try { localStorage.setItem('book:pos:' + state.bookId, JSON.stringify({ f: getPositionFraction() })); } catch (_) {}
+  }
+
+  function restorePosition() {
+    if (!state.bookId) return;
+    try {
+      const raw = localStorage.getItem('book:pos:' + state.bookId);
+      if (!raw) return;
+      const { f } = JSON.parse(raw);
+      if (typeof f === 'number' && f > 0) seekFrac(f);
+    } catch (_) {}
   }
 
   return {
@@ -626,15 +675,12 @@ This was invitation enough.
       playback.clearPending();
       playback.cancelCountdown();
       stats.destroy();
+      savePosition();
     },
     getPositionFraction,
     getBookId() { return state.bookId; },
     isBookLoaded() { return state.isEpubLoaded; },
-    seekFraction(f) {
-      if (!state.totalWords) return;
-      const ord = Math.round(f * (state.totalWords - 1));
-      playback.seekTo(state.ordinalToIdx(ord));
-    },
+    seekFraction(f) { seekFrac(f); },
     loadFromBuffer(buffer, fileName) {
       const file = new File([buffer], fileName, { type: "application/epub+zip" });
       return loadEpub(file);

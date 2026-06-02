@@ -122,7 +122,7 @@ export function init(options = {}) {
     return currentLocator(state, els.content, els.viewport, (wi) => toLocator(state, wi));
   }
   function buildChapterIndexFn() { buildChapterIndex(state, els.content); }
-  function savePosMain() { storage.savePos(currentLocatorFn); }
+  function savePosMain() { storage.savePos(currentLocatorFn, getPositionFraction); }
   function updateProgressFn() {
     chrome.updateProgress();
     chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
@@ -623,16 +623,17 @@ export function init(options = {}) {
 
   // ---------- Handle object ----------
   function getPositionFraction() {
-    if (!state.doc.words.length) return 0;
+    if (state.doc.words.length < 2) return 0;
     const loc = currentLocatorFn();
     if (!loc) return 0;
     const wi = resolveLocator(state, loc);
-    return wi >= 0 ? wi / state.doc.words.length : 0;
+    return wi >= 0 ? wi / (state.doc.words.length - 1) : 0;
   }
 
   return {
     teardown() {
       closeSettingsScreen();
+      storage.flushPos(currentLocatorFn, getPositionFraction);
       state.blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (_) {} });
       state.blobUrls = [];
       if (resizeTimer) clearTimeout(resizeTimer);
