@@ -7,27 +7,35 @@ export class StorageManager {
     this._saveTimer = null;
   }
 
+  _writePosNow(currentLocatorFn) {
+    const { state, els } = this;
+    if (!state.bookId) return;
+    let f;
+    if (state.isScrollMode) {
+      const sh = els.viewport.scrollHeight - els.viewport.clientHeight;
+      f = sh > 0 ? els.viewport.scrollTop / sh : 0;
+    } else {
+      f = state.total > 1 ? state.page / (state.total - 1) : 0;
+    }
+    try { localStorage.setItem("book:pos:" + state.bookId, JSON.stringify({ f })); }
+    catch (e) { console.warn("storage:savePos", e); }
+    if (state.doc.words.length && currentLocatorFn) {
+      try {
+        const loc = currentLocatorFn();
+        if (loc) localStorage.setItem("reader:loc:" + state.bookId, JSON.stringify(loc));
+      } catch (e) { console.warn("storage:saveLoc", e); }
+    }
+  }
+
   savePos(currentLocatorFn) {
     clearTimeout(this._saveTimer);
-    this._saveTimer = setTimeout(() => {
-      const { state, els } = this;
-      if (!state.bookId) return;
-      let f;
-      if (state.isScrollMode) {
-        const sh = els.viewport.scrollHeight - els.viewport.clientHeight;
-        f = sh > 0 ? els.viewport.scrollTop / sh : 0;
-      } else {
-        f = state.total > 1 ? state.page / (state.total - 1) : 0;
-      }
-      try { localStorage.setItem("book:pos:" + state.bookId, JSON.stringify({ f })); }
-      catch (e) { console.warn("storage:savePos", e); }
-      if (state.doc.words.length && currentLocatorFn) {
-        try {
-          const loc = currentLocatorFn();
-          if (loc) localStorage.setItem("reader:loc:" + state.bookId, JSON.stringify(loc));
-        } catch (e) { console.warn("storage:saveLoc", e); }
-      }
-    }, SAVE_DEBOUNCE_MS);
+    this._saveTimer = setTimeout(() => this._writePosNow(currentLocatorFn), SAVE_DEBOUNCE_MS);
+  }
+
+  flushPos(currentLocatorFn) {
+    clearTimeout(this._saveTimer);
+    this._saveTimer = null;
+    this._writePosNow(currentLocatorFn);
   }
 
   restorePos(goToWordFn, scrollToWordFn, goToPageFn, resolveLocatorFn) {

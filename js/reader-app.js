@@ -633,6 +633,7 @@ export function init(options = {}) {
   return {
     teardown() {
       closeSettingsScreen();
+      storage.flushPos(currentLocatorFn);
       state.blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (_) {} });
       state.blobUrls = [];
       if (resizeTimer) clearTimeout(resizeTimer);
