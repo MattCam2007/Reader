@@ -14,6 +14,7 @@ import { RsvpInput } from './rsvp/input.js';
 import { StatsTracker } from './rsvp/stats.js';
 import { TrainingManager } from './rsvp/training.js';
 import { createPicker } from './shared/picker.js';
+import { deriveBookId, buildPosition, resolvePosition } from './core/position.js';
 
 // Convert extractSections() output to the plain-text format the tokenizer expects.
 // Using the same extractor as Reader guarantees identical word lists and exact position transfer.
@@ -25,7 +26,7 @@ function sectionsToText(sections) {
     const blockTexts = sec.blocks.map(b => b.text).filter(t => t && t.trim());
     if (!blockTexts.length) continue;
     const heading = sec.blocks.find(b => /^h[1-6]$/.test(b.type));
-    chapters.push({ title: heading ? heading.text : '', wordOffset });
+    chapters.push({ title: heading ? heading.text : '', wordOffset, href: sec.href || '' });
     const secText = blockTexts.join('\n\n');
     wordOffset += secText.split(/\s+/).filter(Boolean).length;
     parts.push(secText);
@@ -37,6 +38,7 @@ export function init(options = {}) {
   const signal = options.signal || new AbortController().signal;
   const onModeSwitch = options.onModeSwitch;
   const onBookLoaded = options.onBookLoaded;
+  const urlParams = new URLSearchParams(location.search);
 
   // ---------- DOM elements ----------
   const els = {
@@ -94,7 +96,8 @@ export function init(options = {}) {
 
   function getRsvpBookmarkContext() {
     if (!state.tokens.length) return null;
-    const fraction = getPositionFraction();
+    const pos = getCanonicalPosition();
+    const fraction = pos ? pos.f : 0;
     let chapterLabel = '';
     if (state.chapters.length) {
       for (let i = state.chapters.length - 1; i >= 0; i--) {
@@ -106,15 +109,15 @@ export function init(options = {}) {
       const tok = state.tokens[i];
       if (tok && tok !== '\n') words.push(tok);
     }
-    return { fraction, chapterLabel, text: words.join(' ').slice(0, 120) };
+    return { fraction, chapterLabel, text: words.join(' ').slice(0, 120), position: pos };
   }
 
   function navigateRsvpToBookmark(item) {
     if (state.playState === 'playing') playback.pause();
     else if (state.playState === 'countdown') playback.cancelCountdown();
-    if (state.totalWords) {
-      playback.seekTo(state.ordinalToIdx(Math.round(item.fraction * (state.totalWords - 1))));
-    }
+    if (!state.totalWords) return;
+    if (item.position) applyCanonicalPosition(item.position);
+    else playback.seekTo(state.ordinalToIdx(Math.round((item.fraction || 0) * (state.totalWords - 1))));
   }
 
   bmPanel.setCallbacks({
@@ -291,7 +294,7 @@ export function init(options = {}) {
       closeSettingsScreen();
       playback.pause();
       savePosition();
-      onModeSwitch("read", { fraction: getPositionFraction(), bookId: state.bookId });
+      onModeSwitch("read", { pos: getCanonicalPosition(), bookId: state.bookId });
     }, { signal });
   }
   const ttsModeBtn = document.getElementById("ttsModeBtn");
@@ -301,7 +304,7 @@ export function init(options = {}) {
       closeSettingsScreen();
       playback.pause();
       savePosition();
-      onModeSwitch("tts", { fraction: getPositionFraction(), bookId: state.bookId });
+      onModeSwitch("tts", { pos: getCanonicalPosition(), bookId: state.bookId });
     }, { signal });
   }
 
@@ -511,6 +514,8 @@ export function init(options = {}) {
 
     state.chapters = (chapterMeta || []).map(ch => ({
       title: ch.title,
+      href: ch.href || '',
+      wordOffset: ch.wordOffset,
       tokenIdx: ch.wordOffset < state.wordTokenIndices.length
         ? state.wordTokenIndices[ch.wordOffset]
         : state.tokens.length - 1,
@@ -565,7 +570,8 @@ export function init(options = {}) {
       if (!text || text.length < 32) {
         throw new Error("No readable text found in this EPUB (it may be image-only or DRM-protected).");
       }
-      state.bookId = bookTitle || file.name;
+      const meta = (book.packaging && book.packaging.metadata) || {};
+      state.bookId = deriveBookId(urlParams.get('id'), meta.title, file.name);
       bookmarkManager.setBook(state.bookId);
       loadText(text, chapterMeta);
       restorePosition();
@@ -637,26 +643,39 @@ This was invitation enough.
   loadText(sampleText, []);
   restorePosition();
 
-  // ---------- Handle ----------
-  function getPositionFraction() {
-    if (state.totalWords < 2) return 0;
+  // ---------- Canonical position ----------
+  // Section table keyed by stable spine href — shared anchor across modes.
+  function rsvpSections() {
+    const chs = state.chapters;
+    const total = state.totalWords;
+    return chs.map((c, i) => {
+      const start = c.wordOffset || 0;
+      const end = i + 1 < chs.length ? (chs[i + 1].wordOffset || 0) : total;
+      return { href: c.href || '', wordStart: start, wordCount: Math.max(0, end - start) };
+    });
+  }
+  function currentOrdinal() {
     // Scan backward so a paragraph-break token maps to the last word read,
     // not the first word of the next paragraph (which could be on the next page).
     let i = Math.max(0, Math.min(state.currentIdx, state.tokens.length - 1));
     while (i > 0 && state.tokenToWordOrdinal[i] < 0) i--;
-    const ord = state.tokenToWordOrdinal[i] >= 0 ? state.tokenToWordOrdinal[i] : 0;
-    return ord / (state.totalWords - 1);
+    return state.tokenToWordOrdinal[i] >= 0 ? state.tokenToWordOrdinal[i] : 0;
   }
-
-  function seekFrac(f) {
+  function getCanonicalPosition() {
+    if (state.totalWords < 1) return null;
+    return buildPosition(rsvpSections(), state.totalWords, currentOrdinal());
+  }
+  function applyCanonicalPosition(pos) {
     if (!state.totalWords) return;
-    const ord = Math.round(f * (state.totalWords - 1));
+    const ord = resolvePosition(pos, rsvpSections(), state.totalWords);
     playback.seekTo(state.ordinalToIdx(ord));
   }
 
+  // ---------- Handle ----------
   function savePosition() {
     if (!state.bookId || !state.totalWords) return;
-    try { localStorage.setItem('book:pos:' + state.bookId, JSON.stringify({ f: getPositionFraction() })); } catch (_) {}
+    const pos = getCanonicalPosition();
+    if (pos) try { localStorage.setItem('book:pos:' + state.bookId, JSON.stringify(pos)); } catch (_) {}
   }
 
   function restorePosition() {
@@ -664,8 +683,7 @@ This was invitation enough.
     try {
       const raw = localStorage.getItem('book:pos:' + state.bookId);
       if (!raw) return;
-      const { f } = JSON.parse(raw);
-      if (typeof f === 'number' && f > 0) seekFrac(f);
+      applyCanonicalPosition(JSON.parse(raw));
     } catch (_) {}
   }
 
@@ -677,10 +695,10 @@ This was invitation enough.
       stats.destroy();
       savePosition();
     },
-    getPositionFraction,
+    getPosition: getCanonicalPosition,
     getBookId() { return state.bookId; },
     isBookLoaded() { return state.isEpubLoaded; },
-    seekFraction(f) { seekFrac(f); },
+    applyPosition(pos) { applyCanonicalPosition(pos); },
     loadFromBuffer(buffer, fileName) {
       const file = new File([buffer], fileName, { type: "application/epub+zip" });
       return loadEpub(file);

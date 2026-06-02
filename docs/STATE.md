@@ -248,43 +248,50 @@ class RsvpState {
 
 ---
 
-## Position Locator System
+## Canonical Position System
 
-The locator is a compact, schema-stable encoding of reading position that survives:
-- Font changes (different line breaks → different page numbers)
-- Window resizing and rotation
-- Column count changes
-- Theme changes
+`js/core/position.js` defines a single, **mode-independent** position representation shared by Reader, RSVP, and TTS. It replaced the old approach where each mode persisted a scalar fraction in its own unit (Reader/RSVP measured words, TTS measured sentences) and cross-mode transfer rounded through a whole-book fraction — which drifted by a page or more on every mode switch.
 
-### Locator format
+All three modes derive their content from the same EPUB extraction and can each compute an exact **global word ordinal**. That ordinal is the shared currency, anchored to the section's stable spine **href** (not its index).
+
+### Why it survives everything
+
+| Change | How it survives |
+|--------|-----------------|
+| Switching Reader ↔ RSVP ↔ TTS | All modes build/resolve the same canonical object |
+| A cover page prepended in some modes but not others | Anchored on `href`, not section index — a 0-word cover never shifts the anchor |
+| Re-pagination, font / column / theme changes | Position is a word ordinal, not a page number |
+| One mode tokenising words slightly differently | Reconciled via the within-section word fraction; any residual error is bounded to a single chapter |
+
+### Canonical position format
 
 ```js
 {
-  s: number,   // section (chapter) index
-  b: number,   // block index within the section
-  w: number,   // word index within the block
+  v: 1,             // schema version
+  href: string,     // stable spine href of the section the position is in
+  wordInSec: number,// word ordinal within that section (primary precision)
+  secWords: number, // that section's word count as the SAVING mode counted it
+  ord: number,      // global word ordinal (fallback)
+  words: number,    // total words as the saving mode counted them (fallback denominator)
+  f: number,        // global progress fraction [0,1] (progress bar + ultimate fallback)
 }
 ```
 
-All three values are 0-based and bounded by the book's content. If the book structure changes slightly (e.g., a block is split), `resolveLocator` clamps each component to the valid range, so it always returns a valid word index rather than failing.
+### Core functions
 
-### When locators are created
+- `deriveBookId(urlId, metaTitle, fileName)` — one identifier used by **every** mode (`?id=` → metadata title → filename), so the shared storage key matches across modes and sessions.
+- `buildPosition(sections, totalWords, globalOrd)` — build the object from a `[{ href, wordStart, wordCount }]` section table and the current global word ordinal.
+- `resolvePosition(pos, sections, totalWords)` → global word ordinal in *this* mode, falling through three levels: (1) match section by `href` and reconcile the within-section offset; (2) scale the global ordinal by the ratio of word counts; (3) the fraction (this also reads the legacy `{ f }` format).
 
-- **On page turn** (debounced 500ms): `toLocator(state, getFirstWordOnPage(state, state.page))`
-- **On scroll** (scroll mode, debounced 500ms): same, using the first visible word
-- **On bookmark creation**: locator of the first word on the current page
+### How each mode plugs in
 
-### When locators are resolved
+| Mode | Section table source | Global ordinal source |
+|------|----------------------|-----------------------|
+| Reader | `state.doc.sections` (`href`, `wordStart`, `wordEnd`) | `wordAtPageStart(page)` / scroll locator |
+| RSVP | `state.chapters` (`href`, `wordOffset`) | `state.wordOrdinalAt(currentIdx)` |
+| TTS | section table built in `segmentContent()` from `.chap[data-href]` | `sentences[currentSentenceIdx].wordOffset` |
 
-- **On book load**: `resolveLocator(state, savedLocator)` → word index → `goToWord(wi)`
-- **On bookmark jump**: same process
-
-### Fraction fallback
-
-If no locator is saved (first visit) or resolution fails (book structure changed substantially), a simple fraction is used:
-
-- **Save**: `f = page / (total - 1)` or `scrollTop / (scrollHeight - clientHeight)`
-- **Restore**: `goToPage(Math.round(f * (total - 1)))`
+Each mode's handle exposes `getPosition()` and `applyPosition(pos)`; the mode switcher passes the canonical object directly between modes.
 
 ---
 
@@ -292,20 +299,14 @@ If no locator is saved (first visit) or resolution fails (book structure changed
 
 All keys are namespaced by scope and book ID to prevent collisions.
 
-### Position storage (Reader)
+### Position storage (all modes)
 
 ```
-reader:pos:{bookId}    → { "f": 0.423 }
-reader:loc:{bookId}    → { "s": 3, "b": 12, "w": 7 }
+book:pos:{bookId}      → { "v": 1, "href": "chapter03.xhtml", "wordInSec": 412,
+                           "secWords": 1840, "ord": 9573, "words": 51230, "f": 0.187 }
 ```
 
-`bookId` is derived from the book's metadata (author + title slug) or the `?id=` URL parameter. Falls back to the filename.
-
-### Position storage (TTS)
-
-```
-tts:pos:{bookId}       → { "sentenceIdx": 148 }
-```
+A single shared key, written and read by Reader, RSVP, and TTS alike. `bookId` comes from `deriveBookId()` — `?id=` URL parameter, else metadata title, else filename (sans `.epub`).
 
 ### Preferences
 
@@ -321,28 +322,32 @@ tts:prefs              → { "v": 1, "rate": 1.25, "highlightMode": "word", ... 
 ```
 reader:bookmarks:{bookId}   → [
   {
-    "id": "a1b2c3d4-...",
-    "fraction": 0.312,
-    "loc": { "s": 2, "b": 5, "w": 0 },
-    "note": "Great passage about Bingley",
-    "createdAt": "2025-06-01T14:22:00.000Z"
+    "id": "bm_...",
+    "fraction": 0.312,                          // used only for sorting
+    "position": { "v": 1, "href": "...", ... }, // canonical position (cover-proof)
+    "chapterLabel": "Chapter 5",
+    "text": "Great passage about Bingley",
+    "note": "",
+    "createdAt": 1717250520000
   },
   ...
 ]
 ```
 
+Each mode now stores the canonical `position` in its bookmarks, so bookmarks are cover-proof and portable across modes.
+
 ### Full key listing
 
 | Key pattern | Contents | Created by |
 |-------------|----------|------------|
-| `reader:pos:{id}` | Page fraction `{ f }` | `StorageManager.savePos()` |
-| `reader:loc:{id}` | Word locator `{ s, b, w }` | `StorageManager.savePos()` |
-| `reader:bookmarks:{id}` | Bookmark array | `BookmarkManager.save()` |
-| `tts:pos:{id}` | Sentence index | `tts-app.js` |
+| `book:pos:{id}` | Canonical position object | `StorageManager` / each app's `savePosition()` |
+| `reader:bookmarks:{id}` | Bookmark array | `BookmarkManager` |
 | `general:prefs` | General prefs | `PrefsManager.save()` |
 | `reader:prefs` | Reader prefs | `PrefsManager.save()` |
 | `rsvp:prefs` | RSVP prefs | `PrefsManager.save()` |
 | `tts:prefs` | TTS prefs | `PrefsManager.save()` |
+
+> **Note:** The Reader still uses the structural `{ s, b, w }` locator (`js/model/locator.js`) internally to preserve position across live re-pagination and for search-result jumps. It is no longer persisted — the canonical position above is the only stored position.
 
 ---
 
@@ -352,12 +357,12 @@ reader:bookmarks:{bookId}   → [
 
 ```js
 let currentMode       // 'read' | 'rsvp' | 'tts' | null
-let currentHandle     // { teardown, seekFraction, loadFromBuffer, getBookId, isBookLoaded }
+let currentHandle     // { teardown, getPosition, applyPosition, loadFromBuffer, getBookId, isBookLoaded }
 let currentController // AbortController — aborted on mode switch
 let cachedBook        // { buffer: ArrayBuffer, fileName: string } | null
 ```
 
-`cachedBook` is the mechanism for mode transfer. It holds a slice of the most recently loaded book's `ArrayBuffer`. When switching modes, `mode-switcher.js` passes `cachedBook.buffer.slice(0)` to the new mode's `loadFromBuffer()` — creating a fresh copy each time so the new mode can parse it independently.
+`cachedBook` is the mechanism for mode transfer. It holds a slice of the most recently loaded book's `ArrayBuffer`. When switching modes, `mode-switcher.js` passes `cachedBook.buffer.slice(0)` to the new mode's `loadFromBuffer()` — creating a fresh copy each time so the new mode can parse it independently. The outgoing mode's canonical position (`{ pos }` from `getPosition()`) rides along and is handed to the new mode's `applyPosition()` once it finishes rendering.
 
 ---
 

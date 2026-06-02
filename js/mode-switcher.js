@@ -91,15 +91,17 @@ async function switchMode(targetMode, posInfo) {
 
   currentMode = targetMode;
 
-  // Transfer book and position
+  // Transfer book and position. Both modes speak the same canonical position
+  // object (section href + word ordinal), so the handoff is word-exact rather
+  // than rounded through a whole-book fraction.
   if (posInfo && cachedBook) {
     try {
       await currentHandle.loadFromBuffer(cachedBook.buffer.slice(0), cachedBook.fileName);
-      if (typeof posInfo.fraction === 'number' && posInfo.fraction > 0) {
+      if (posInfo.pos) {
         // Defer seeking to let the book finish loading/rendering
         requestAnimationFrame(() => {
           setTimeout(() => {
-            try { currentHandle.seekFraction(posInfo.fraction); } catch (_) {}
+            try { currentHandle.applyPosition(posInfo.pos); } catch (_) {}
           }, 100);
         });
       }

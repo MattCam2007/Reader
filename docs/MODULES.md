@@ -25,7 +25,7 @@ let cachedBook      // { buffer: ArrayBuffer, fileName: string } | null
 ```
 
 **`switchMode(targetMode, posInfo?)`** — async  
-Tears down current mode, sets up new mode. If `posInfo` is provided and a book is cached, loads the book into the new mode and seeks to `posInfo.fraction`.
+Tears down current mode, sets up new mode. If `posInfo` is provided and a book is cached, loads the book into the new mode and seeks to `posInfo.pos` (the canonical position) via `applyPosition()`.
 
 **`onBookLoaded({ buffer, fileName, bookId })`**  
 Callback passed to each mode's `init()`. Called when a book finishes loading. Stores a slice of the buffer in `cachedBook` so mode switches can re-use it.
@@ -42,7 +42,8 @@ Entry point for the paginated reader mode. Orchestrates all reader sub-modules.
 ```js
 {
   teardown(): void
-  seekFraction(fraction: number): void
+  getPosition(): CanonicalPosition | null   // current position (see js/core/position.js)
+  applyPosition(pos: CanonicalPosition): void
   loadFromBuffer(buf: ArrayBuffer, fileName: string): Promise<void>
   getBookId(): string | null
   isBookLoaded(): boolean
@@ -89,7 +90,7 @@ Entry point for the text-to-speech mode.
 3. Loads and renders book content (rich HTML, same as reader mode)
 4. Segments content into sentences and wraps them in `<span class="tts-sent">` elements
 5. Sets up voice/rate pickers and playback controls
-6. Restores saved position from `tts:pos:{bookId}`
+6. Restores saved position from the shared `book:pos:{bookId}` canonical position
 
 ---
 
@@ -265,23 +266,26 @@ applyAll(): void
 
 ---
 
+### `js/core/position.js`
+
+The shared, mode-independent position layer. See [STATE.md → Canonical Position System](STATE.md#canonical-position-system) for the full design.
+
+- `deriveBookId(urlId, metaTitle, fileName)` — one book identifier used by every mode.
+- `buildPosition(sections, totalWords, globalOrd)` → canonical position object.
+- `resolvePosition(pos, sections, totalWords)` → global word ordinal for this mode.
+- `loadStoredPosition(bookId)` / `saveStoredPosition(bookId, pos)` — read/write `book:pos:{bookId}`.
+
 ### `js/core/storage.js`
 
-Saves and restores reading position. Prefers the word-level locator; falls back to a scroll/page fraction.
+Thin debounced wrapper that persists the Reader's canonical position via `js/core/position.js`.
 
 **Class: `StorageManager`**
 
-**Constructor:** `new StorageManager(state: ReaderState, els: { viewport: Element })`
+**Constructor:** `new StorageManager(state: ReaderState)`
 
-**`savePos(currentLocatorFn: () => LocatorObject | null)`**  
-Debounced (500ms). Saves:
-- `reader:pos:{bookId}` — `{ f: number }` (0–1 fraction)
-- `reader:loc:{bookId}` — `{ s, b, w }` locator object (if words are indexed)
-
-**`restorePos(goToWordFn, scrollToWordFn, goToPageFn, resolveLocatorFn)`**  
-On restoration:
-1. Tries `reader:loc:{bookId}` — resolves the locator to a word index, calls `goToWordFn` or `scrollToWordFn`
-2. If no locator or resolution fails, reads `reader:pos:{bookId}` and calls `goToPageFn` with the corresponding page number
+**`savePos(getPosFn: () => CanonicalPosition | null)`** — debounced (500ms); writes `book:pos:{bookId}`.
+**`flushPos(getPosFn)`** — immediate write (used on teardown).
+**`restorePos(applyPosFn: (pos: CanonicalPosition) => void)`** — reads `book:pos:{bookId}` and applies it.
 
 ---
 

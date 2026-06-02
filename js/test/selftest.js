@@ -1,5 +1,6 @@
 import { wordRange, pageOfWord, wordAtPageStart } from '../model/geometry.js';
 import { toLocator, resolveLocator, exportTokens } from '../model/locator.js';
+import { deriveBookId, buildPosition, resolvePosition } from '../core/position.js';
 import { blocksFromDoc, sanitizeInline } from '../epub/extractor.js';
 import { EventBus } from '../core/events.js';
 import { FONT_MAP, SETTINGS, DEFAULT_PREFS } from '../core/constants.js';
@@ -57,6 +58,46 @@ export function runSelftest(state) {
   const tokens = exportTokens(state);
   const wordTokens = tokens.filter(t => t.kind === "word");
   assert("locator", "exportTokens word count matches", wordTokens.length === doc.words.length);
+
+  // --- core/position (canonical, cross-mode position) ---
+  {
+    // Section table: c1[0..99], c2[100..299], c3[300..399]
+    const secs = [
+      { href: 'c1', wordStart: 0,   wordCount: 100 },
+      { href: 'c2', wordStart: 100, wordCount: 200 },
+      { href: 'c3', wordStart: 300, wordCount: 100 },
+    ];
+    const total = 400;
+    // Round-trips exactly within the same stream.
+    [0, 50, 100, 250, 399].forEach(ord => {
+      const pos = buildPosition(secs, total, ord);
+      assert('position', 'round-trip ord ' + ord, resolvePosition(pos, secs, total) === ord);
+    });
+    // Anchors to stable href, not index: prepend a 0-word cover (shifts indices).
+    const withCover = [{ href: '__cover__', wordStart: 0, wordCount: 0 },
+      { href: 'c1', wordStart: 0, wordCount: 100 },
+      { href: 'c2', wordStart: 100, wordCount: 200 },
+      { href: 'c3', wordStart: 300, wordCount: 100 }];
+    const posC2 = buildPosition(secs, total, 250);
+    assert('position', 'href anchor survives cover insertion',
+      resolvePosition(posC2, withCover, total) === 250);
+    // Reconciles when another mode counts a section's words differently.
+    const otherSecs = [
+      { href: 'c1', wordStart: 0,   wordCount: 100 },
+      { href: 'c2', wordStart: 100, wordCount: 220 }, // 20 more words here
+      { href: 'c3', wordStart: 320, wordCount: 100 },
+    ];
+    const r = resolvePosition(posC2, otherSecs, 420);
+    assert('position', 'reconciles differing word counts (in c2)', r >= 100 && r < 320);
+    // Falls back gracefully when href is unknown.
+    const orphan = { v: 1, href: 'gone', wordInSec: 5, secWords: 10, ord: 200, words: 400, f: 0.5 };
+    const fb = resolvePosition(orphan, secs, total);
+    assert('position', 'unknown href falls back via ordinal', fb === 200);
+    // deriveBookId precedence: id > title > filename(sans .epub).
+    assert('position', 'bookId prefers ?id', deriveBookId('the-id', 'Title', 'f.epub') === 'the-id');
+    assert('position', 'bookId falls to title', deriveBookId('', 'Title', 'f.epub') === 'Title');
+    assert('position', 'bookId falls to filename', deriveBookId('', '', 'My Book.epub') === 'My Book');
+  }
 
   // --- model/geometry ---
   if (doc.words.length > 0) {

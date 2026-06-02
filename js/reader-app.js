@@ -9,7 +9,8 @@ import { extractSections } from './epub/extractor.js';
 import { resolveImageUrls, findCoverImage } from './epub/images.js';
 import { flattenToc, buildTOC, resolveHref } from './epub/toc.js';
 import { toLocator, resolveLocator } from './model/locator.js';
-import { currentLocator, pageOfElement, pageOfWord } from './model/geometry.js';
+import { currentLocator, pageOfElement, pageOfWord, wordAtPageStart } from './model/geometry.js';
+import { deriveBookId, buildPosition, resolvePosition } from './core/position.js';
 import { buildChapterIndex } from './reader/chapters.js';
 import { PaginationEngine } from './reader/pagination.js';
 import { ChromeManager } from './reader/chrome.js';
@@ -76,34 +77,27 @@ export function init(options = {}) {
 
   function getBookmarkContext() {
     if (!state.bookId || !state.doc.words.length) return null;
-    const loc = currentLocatorFn ? currentLocatorFn() : null;
-    const fraction = getPositionFraction();
+    const pos = getCanonicalPosition();
     const chapterLabel = chrome ? chrome.currentChapterLabel() : '';
     let text = '';
-    if (loc) {
-      const wi = resolveLocator(state, loc);
-      if (wi >= 0) {
-        const charStart = state.doc.wordCharStart[wi] || 0;
-        text = state.doc.text.slice(charStart, charStart + 150).slice(0, 120).trimEnd();
-      }
+    const wi = currentWordIndex();
+    if (wi >= 0) {
+      const charStart = state.doc.wordCharStart[wi] || 0;
+      text = state.doc.text.slice(charStart, charStart + 150).slice(0, 120).trimEnd();
     }
-    return { fraction, chapterLabel, text, position: loc };
+    return { fraction: pos ? pos.f : 0, chapterLabel, text, position: pos };
   }
 
   function navigateToBookmark(item) {
     if (item.position && state.doc.words.length) {
-      const wi = resolveLocator(state, item.position);
-      if (wi >= 0) {
-        if (state.isScrollMode) pagination.scrollToWord(wi);
-        else pagination.goTo(pageOfWord(state, els.content, wi), false);
-        return;
-      }
+      applyCanonicalPosition(item.position);
+      return;
     }
     if (state.isScrollMode) {
       const sh = els.viewport.scrollHeight - els.viewport.clientHeight;
-      els.viewport.scrollTop = Math.round(item.fraction * sh);
+      els.viewport.scrollTop = Math.round((item.fraction || 0) * sh);
     } else {
-      pagination.goTo(Math.round(item.fraction * (state.total - 1)), false);
+      pagination.goTo(Math.round((item.fraction || 0) * (state.total - 1)), false);
     }
   }
 
@@ -122,17 +116,47 @@ export function init(options = {}) {
     return currentLocator(state, els.content, els.viewport, (wi) => toLocator(state, wi));
   }
   function buildChapterIndexFn() { buildChapterIndex(state, els.content); }
-  function savePosMain() { storage.savePos(currentLocatorFn, getPositionFraction); }
+  function savePosMain() { storage.savePos(getCanonicalPosition); }
   function updateProgressFn() {
     chrome.updateProgress();
     chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
+  }
+
+  // ---------- Canonical position ----------
+  // Section table keyed by stable spine href — the shared anchor across modes.
+  function readerSections() {
+    return state.doc.sections.map(s => ({
+      href: s.href,
+      wordStart: s.wordStart,
+      wordCount: s.wordEnd - s.wordStart,
+    }));
+  }
+  // Global word index of the first word currently on screen.
+  function currentWordIndex() {
+    if (!state.doc.words.length) return 0;
+    if (state.isScrollMode) {
+      const loc = currentLocatorFn();
+      const wi = loc ? resolveLocator(state, loc) : 0;
+      return wi >= 0 ? wi : 0;
+    }
+    return wordAtPageStart(state, els.content, state.page);
+  }
+  function getCanonicalPosition() {
+    if (!state.doc.words.length) return null;
+    return buildPosition(readerSections(), state.doc.words.length, currentWordIndex());
+  }
+  function applyCanonicalPosition(pos) {
+    if (!state.doc.words.length) return;
+    const wi = resolvePosition(pos, readerSections(), state.doc.words.length);
+    if (state.isScrollMode) pagination.scrollToWord(wi);
+    else pagination.goTo(pageOfWord(state, els.content, wi), false);
   }
 
   // ---------- Pagination ----------
   const pagination = new PaginationEngine(state, els, currentLocatorFn, buildChapterIndexFn, updateProgressFn, savePosMain);
 
   // ---------- Storage ----------
-  const storage = new StorageManager(state, els);
+  const storage = new StorageManager(state);
 
   // ---------- Footnotes ----------
   const footnotes = new FootnoteManager(state, els, (targetEl) => {
@@ -432,7 +456,7 @@ export function init(options = {}) {
 
       const meta = (book.packaging && book.packaging.metadata) || {};
       const title = (meta.title || file.name).trim();
-      state.bookId = urlParams.get("id") || title || file.name;
+      state.bookId = deriveBookId(urlParams.get("id"), meta.title, file.name);
       els.bookTitleEl.textContent = title;
       bookmarkManager.setBook(state.bookId);
 
@@ -446,12 +470,7 @@ export function init(options = {}) {
           (el) => pagination.goTo(pageOfElement(state, els.content, el), false),
           closePanels,
           (href) => resolveHref(href, els.content, state.sectionEls));
-        storage.restorePos(
-          (wi) => pagination.goTo(pageOfWord(state, els.content, wi), false),
-          (wi) => pagination.scrollToWord(wi),
-          (p) => pagination.goTo(p, false),
-          (loc) => resolveLocator(state, loc)
-        );
+        storage.restorePos(applyCanonicalPosition);
         if (urlParams.get("selftest") === "1") {
           requestAnimationFrame(() => runSelftest(state));
         }
@@ -547,14 +566,14 @@ export function init(options = {}) {
   if (modeBtn && onModeSwitch) {
     modeBtn.addEventListener("click", () => {
       closeSettingsScreen();
-      onModeSwitch("rsvp", { fraction: getPositionFraction(), bookId: state.bookId });
+      onModeSwitch("rsvp", { pos: getCanonicalPosition(), bookId: state.bookId });
     }, { signal });
   }
   const ttsModeBtn = document.getElementById("ttsModeBtn");
   if (ttsModeBtn && onModeSwitch) {
     ttsModeBtn.addEventListener("click", () => {
       closeSettingsScreen();
-      onModeSwitch("tts", { fraction: getPositionFraction(), bookId: state.bookId });
+      onModeSwitch("tts", { pos: getCanonicalPosition(), bookId: state.bookId });
     }, { signal });
   }
 
@@ -609,12 +628,7 @@ export function init(options = {}) {
         (el) => pagination.goTo(pageOfElement(state, els.content, el), false),
         closePanels,
         (href) => resolveHref(href, els.content, state.sectionEls));
-      storage.restorePos(
-        (wi) => pagination.goTo(pageOfWord(state, els.content, wi), false),
-        (wi) => pagination.scrollToWord(wi),
-        (p) => pagination.goTo(p, false),
-        (loc) => resolveLocator(state, loc)
-      );
+      storage.restorePos(applyCanonicalPosition);
       if (urlParams.get("selftest") === "1") {
         requestAnimationFrame(() => runSelftest(state));
       }
@@ -622,31 +636,18 @@ export function init(options = {}) {
   }
 
   // ---------- Handle object ----------
-  function getPositionFraction() {
-    if (state.doc.words.length < 2) return 0;
-    const loc = currentLocatorFn();
-    if (!loc) return 0;
-    const wi = resolveLocator(state, loc);
-    return wi >= 0 ? wi / (state.doc.words.length - 1) : 0;
-  }
-
   return {
     teardown() {
       closeSettingsScreen();
-      storage.flushPos(currentLocatorFn, getPositionFraction);
+      storage.flushPos(getCanonicalPosition);
       state.blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (_) {} });
       state.blobUrls = [];
       if (resizeTimer) clearTimeout(resizeTimer);
     },
-    getPositionFraction,
+    getPosition: getCanonicalPosition,
     getBookId() { return state.bookId; },
     isBookLoaded() { return state.bookId && state.bookId !== "Pride and Prejudice (sample)"; },
-    seekFraction(f) {
-      if (!state.doc.words.length) return;
-      const wi = Math.round(f * (state.doc.words.length - 1));
-      if (state.isScrollMode) pagination.scrollToWord(wi);
-      else pagination.goTo(pageOfWord(state, els.content, wi), false);
-    },
+    applyPosition(pos) { applyCanonicalPosition(pos); },
     loadFromBuffer(buffer, fileName) {
       const file = new File([buffer], fileName, { type: "application/epub+zip" });
       return loadEpub(file);
