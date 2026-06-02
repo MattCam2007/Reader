@@ -640,7 +640,12 @@ This was invitation enough.
   // ---------- Handle ----------
   function getPositionFraction() {
     if (state.totalWords < 2) return 0;
-    return state.wordOrdinalAt(state.currentIdx) / (state.totalWords - 1);
+    // Scan backward so a paragraph-break token maps to the last word read,
+    // not the first word of the next paragraph (which could be on the next page).
+    let i = Math.max(0, Math.min(state.currentIdx, state.tokens.length - 1));
+    while (i > 0 && state.tokenToWordOrdinal[i] < 0) i--;
+    const ord = state.tokenToWordOrdinal[i] >= 0 ? state.tokenToWordOrdinal[i] : 0;
+    return ord / (state.totalWords - 1);
   }
 
   function seekFrac(f) {
