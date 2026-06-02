@@ -6,7 +6,7 @@ import { PrefsManager } from './core/prefs.js';
 import { ReaderState } from './core/state.js';
 import { StorageManager } from './core/storage.js';
 import { extractSections } from './epub/extractor.js';
-import { resolveImageUrls, findCoverImage } from './epub/images.js';
+import { resolveImageUrls } from './epub/images.js';
 import { flattenToc, buildTOC, resolveHref } from './epub/toc.js';
 import { toLocator, resolveLocator } from './model/locator.js';
 import { currentLocator, pageOfElement, pageOfWord, wordAtPageStart } from './model/geometry.js';
@@ -445,15 +445,6 @@ export function init(options = {}) {
         await resolveImageUrls(allImgUrls, book, state.blobUrls);
       }
 
-      const coverUrl = await findCoverImage(book);
-      if (coverUrl) {
-        const img = document.createElement("img");
-        img.src = coverUrl;
-        const frag = document.createDocumentFragment();
-        frag.appendChild(img);
-        sections.unshift({ href: "__cover__", blocks: [{ type: "figure", text: "", id: "cover", frag }] });
-      }
-
       const meta = (book.packaging && book.packaging.metadata) || {};
       const title = (meta.title || file.name).trim();
       state.bookId = deriveBookId(urlParams.get("id"), meta.title, file.name);
@@ -461,7 +452,6 @@ export function init(options = {}) {
       bookmarkManager.setBook(state.bookId);
 
       renderBook(sections);
-      if (coverUrl) state.blobUrls.push(coverUrl);
       clearOverlay();
       if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId: state.bookId });
       requestAnimationFrame(() => {

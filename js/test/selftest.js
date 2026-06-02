@@ -73,14 +73,7 @@ export function runSelftest(state) {
       const pos = buildPosition(secs, total, ord);
       assert('position', 'round-trip ord ' + ord, resolvePosition(pos, secs, total) === ord);
     });
-    // Anchors to stable href, not index: prepend a 0-word cover (shifts indices).
-    const withCover = [{ href: '__cover__', wordStart: 0, wordCount: 0 },
-      { href: 'c1', wordStart: 0, wordCount: 100 },
-      { href: 'c2', wordStart: 100, wordCount: 200 },
-      { href: 'c3', wordStart: 300, wordCount: 100 }];
     const posC2 = buildPosition(secs, total, 250);
-    assert('position', 'href anchor survives cover insertion',
-      resolvePosition(posC2, withCover, total) === 250);
     // Reconciles when another mode counts a section's words differently.
     const otherSecs = [
       { href: 'c1', wordStart: 0,   wordCount: 100 },
