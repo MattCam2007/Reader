@@ -441,10 +441,6 @@ export function init(options = {}) {
         throw new Error("No readable text found (this EPUB may be image-only or DRM-protected).");
       }
 
-      if (allImgUrls.length && book.archive) {
-        await resolveImageUrls(allImgUrls, book, state.blobUrls);
-      }
-
       const meta = (book.packaging && book.packaging.metadata) || {};
       const title = (meta.title || file.name).trim();
       state.bookId = deriveBookId(urlParams.get("id"), meta.title, file.name);
@@ -452,6 +448,9 @@ export function init(options = {}) {
       bookmarkManager.setBook(state.bookId);
 
       renderBook(sections);
+      if (allImgUrls.length && book.archive) {
+        await resolveImageUrls(allImgUrls, book, state.blobUrls);
+      }
       clearOverlay();
       if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId: state.bookId });
       requestAnimationFrame(() => {

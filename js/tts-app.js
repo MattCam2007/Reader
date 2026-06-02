@@ -640,10 +640,6 @@ export function init(options = {}) {
       const chars = sections.reduce((n, s) => n + s.blocks.reduce((m, b) => m + b.text.length, 0), 0);
       if (chars < 32) throw new Error('No readable text found (this EPUB may be image-only or DRM-protected).');
 
-      if (allImgUrls.length && book.archive) {
-        await resolveImageUrls(allImgUrls, book, blobUrls);
-      }
-
       const meta = (book.packaging && book.packaging.metadata) || {};
       const title = (meta.title || file.name).trim();
       bookId = deriveBookId(urlParams.get('id'), meta.title, file.name);
@@ -652,6 +648,9 @@ export function init(options = {}) {
       bookLoaded = true;
 
       renderBook(sections);
+      if (allImgUrls.length && book.archive) {
+        await resolveImageUrls(allImgUrls, book, blobUrls);
+      }
       clearOverlay();
 
       if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId });
