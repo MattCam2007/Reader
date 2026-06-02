@@ -58,7 +58,7 @@ reader.html
    ```
 
 9. Set `currentMode = targetMode`
-10. If `posInfo && cachedBook`: call `loadFromBuffer` then (after rAF + 100ms delay) `seekFraction`
+10. If `posInfo && cachedBook`: call `loadFromBuffer` then (after rAF + 100ms delay) `applyPosition(posInfo.pos)`
 
 ---
 
@@ -166,61 +166,58 @@ reader-app.js: nextPage()
   │    └─ Find current chapter (binary search over chapters[] by word index)
   │    └─ Update topbar title, page counter, progress bar
   │
-  └─ core/storage.js: savePos(currentLocatorFn)
+  └─ core/storage.js: savePos(getCanonicalPosition)
        └─ Debounced 500ms
-       └─ Calculate locator: model/locator.js: toLocator(state, firstWordOnPage)
-       └─ localStorage.setItem('reader:loc:{bookId}', JSON.stringify(loc))
-       └─ localStorage.setItem('reader:pos:{bookId}', JSON.stringify({ f }))
+       └─ pos = buildPosition(readerSections(), totalWords, firstWordOnPage)
+       └─ localStorage.setItem('book:pos:{bookId}', JSON.stringify(pos))
 ```
 
 ---
 
 ## 4. Position Encoding and Restoration
 
+Position is stored as a **canonical, mode-independent** object (`js/core/position.js`) anchored to the section's stable spine href and a word ordinal. All three modes write and read the same `book:pos:{bookId}` key. See [STATE.md → Canonical Position System](STATE.md#canonical-position-system).
+
 ### 4a. Encoding (save)
 
 ```
-model/locator.js: toLocator(state, globalWordIndex)
-  │
-  ├─ word = state.doc.words[globalWordIndex]
-  ├─ block = state.doc.blocks[word.block]
-  ├─ sectionIndex (s) = word.section
-  ├─ blockInSection (b) = word.block - state.sectionBlockStart[s]
-  └─ wordInBlock (w) = globalWordIndex - block.wordStart
-  → returns { s, b, w }
+core/position.js: buildPosition(sections, totalWords, globalOrd)
+  │  sections: [{ href, wordStart, wordCount }] in reading order
+  ├─ find the section containing globalOrd
+  ├─ wordInSec = globalOrd - section.wordStart
+  └─ return { v, href, wordInSec, secWords, ord: globalOrd, words: totalWords, f }
 ```
+
+Each mode supplies its own `sections` table and `globalOrd`:
+- Reader: `state.doc.sections`, `wordAtPageStart(page)`
+- RSVP: `state.chapters`, `state.wordOrdinalAt(currentIdx)`
+- TTS: section table from `segmentContent()`, `sentences[currentSentenceIdx].wordOffset`
 
 ### 4b. Decoding (restore)
 
 ```
-model/locator.js: resolveLocator(state, { s, b, w })
+core/position.js: resolvePosition(pos, sections, totalWords) → global word ordinal
   │
-  ├─ Clamp s to [0, sections.length - 1]
-  ├─ startBI = sectionBlockStart[s]
-  ├─ endBI = (s+1 < sections.length) ? sectionBlockStart[s+1] : blocks.length
-  ├─ Clamp b to [0, endBI - startBI - 1]
-  ├─ block = blocks[startBI + b]
-  ├─ Clamp w to [0, block.wordEnd - block.wordStart - 1]
-  └─ return block.wordStart + w   (global word index)
+  ├─ 1. Match section by stable href; reconcile wordInSec if this mode counted
+  │       that section's words differently  → section.wordStart + wordInSec'
+  ├─ 2. Else scale the global ordinal:  round(pos.ord * (words-1)/(pos.words-1))
+  └─ 3. Else the fraction fallback:     round(pos.f * (words-1))
+                                        (also reads the legacy { f } format)
 ```
 
 ### 4c. Position restoration on book load
 
 ```
-core/storage.js: restorePos(goToWordFn, scrollToWordFn, goToPageFn, resolveLocatorFn)
+core/storage.js: restorePos(applyCanonicalPosition)
   │
-  ├─ Try 'reader:loc:{bookId}':
-  │    loc = JSON.parse(localStorage.getItem(...))
-  │    wi = resolveLocator(state, loc)
-  │    if wi >= 0:
-  │      isScrollMode ? scrollToWordFn(wi) : goToWordFn(wi)
-  │      return   ← done, word-level restore succeeded
-  │
-  └─ Fall back to 'reader:pos:{bookId}':
-       { f } = JSON.parse(localStorage.getItem(...))
-       isScrollMode ? viewport.scrollTop = f * scrollHeight
-                    : goToPageFn(Math.round(f * (total - 1)))
+  ├─ pos = JSON.parse(localStorage.getItem('book:pos:{bookId}'))
+  └─ applyCanonicalPosition(pos):
+       wi = resolvePosition(pos, readerSections(), totalWords)
+       isScrollMode ? pagination.scrollToWord(wi)
+                    : pagination.goTo(pageOfWord(wi))
 ```
+
+> The Reader's `{ s, b, w }` locator (`model/locator.js`, `toLocator`/`resolveLocator`) is still used internally to preserve position across live re-pagination and for search-result jumps, but is no longer persisted.
 
 ---
 
@@ -356,20 +353,21 @@ tts-app.js: playSentence(idx)
 ### 6c. Position save (TTS)
 
 ```
-Every 5 seconds while playing (debounced):
-  localStorage.setItem('tts:pos:{bookId}', JSON.stringify({ sentenceIdx }))
+On pause / sentence change / teardown:
+  pos = getCanonicalPosition()   ← from sentences[currentSentenceIdx].wordOffset
+  localStorage.setItem('book:pos:{bookId}', JSON.stringify(pos))
 ```
 
 ---
 
 ## 7. Mode Switching (with Book Transfer)
 
-User taps the mode-switch button while reading at page 42 of 100 (fraction ≈ 0.42).
+User taps the mode-switch button while reading. The current mode hands off its exact **canonical position** (section href + word ordinal), not a rounded fraction.
 
 ```
 reader-app.js: mode-switch button click
-  → onModeSwitch('rsvp', { fraction: 0.42 })
-    → mode-switcher.js: switchMode('rsvp', { fraction: 0.42 })
+  → onModeSwitch('rsvp', { pos: getCanonicalPosition(), bookId })
+    → mode-switcher.js: switchMode('rsvp', { pos, bookId })
 ```
 
 **In mode-switcher.js:**
@@ -394,19 +392,18 @@ reader-app.js: mode-switch button click
     await currentHandle.loadFromBuffer(cachedBook.buffer.slice(0), cachedBook.fileName)
     requestAnimationFrame(() => {
       setTimeout(() => {
-        currentHandle.seekFraction(0.42)   ← seek to transferred position
+        currentHandle.applyPosition(posInfo.pos)   ← seek to transferred position
       }, 100)
     })
 ```
 
-**In rsvp-app.js `seekFraction(0.42)`:**
+**In rsvp-app.js `applyPosition(pos)`:**
 
 ```
-seekFraction(fraction)
-  → tokenIdx = Math.round(fraction * state.tokens.length)
-  → clamp to valid range
-  → state.currentIdx = tokenIdx
-  → display.renderChunk([tokens[tokenIdx]])   ← show current word
+applyPosition(pos)
+  → ord = resolvePosition(pos, rsvpSections(), state.totalWords)  ← global word ordinal
+  → playback.seekTo(state.ordinalToIdx(ord))
+  → display.renderChunk([tokens[...]])   ← show current word
 ```
 
 ---

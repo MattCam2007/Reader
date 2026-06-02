@@ -200,8 +200,8 @@ There is no framework, no virtual DOM, and no hydration. The DOM is built by tem
    c. Inject the mode's HTML template into `#app`
    d. Dynamically import the mode's app module (`reader-app.js`, `rsvp-app.js`, or `tts-app.js`)
    e. Call `mod.init({ signal, onModeSwitch, onBookLoaded })`
-   f. Store the returned handle (`{ teardown, seekFraction, loadFromBuffer, getBookId, isBookLoaded }`)
-3. If switching from an already-loaded book, call `loadFromBuffer()` then `seekFraction()` on the new handle
+   f. Store the returned handle (`{ teardown, getPosition, applyPosition, loadFromBuffer, getBookId, isBookLoaded }`)
+3. If switching from an already-loaded book, call `loadFromBuffer()` then `applyPosition()` on the new handle
 
 ### Mode `init()` Return Handle
 
@@ -210,7 +210,8 @@ Every mode's `init()` returns an object with this interface:
 ```js
 {
   teardown()                            // Stop timers, remove listeners, clean DOM
-  seekFraction(fraction: number)        // Seek to 0–1 position in the book
+  getPosition(): CanonicalPosition|null // Current position (js/core/position.js)
+  applyPosition(pos: CanonicalPosition) // Seek to a canonical position
   loadFromBuffer(buf: ArrayBuffer,      // Load a book from an in-memory buffer
                  fileName: string)
   getBookId(): string | null            // Returns current book's ID
@@ -234,9 +235,9 @@ Every mode's `init()` returns an object with this interface:
 
 **Book transfer:**
 When switching modes while a book is loaded, the switcher:
-1. Captures `posInfo.fraction` (the scroll/page fraction) from the current mode before teardown
+1. Captures `posInfo.pos` (the canonical position) from the current mode before teardown
 2. Holds a cached `ArrayBuffer` slice of the book (`cachedBook`)
-3. After the new mode initializes, calls `loadFromBuffer()` then `seekFraction()` on the new handle
+3. After the new mode initializes, calls `loadFromBuffer()` then `applyPosition()` on the new handle
 4. The `requestAnimationFrame` + `setTimeout(fn, 100)` delay allows the new mode's book render to complete before seeking
 
 ---

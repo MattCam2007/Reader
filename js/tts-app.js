@@ -10,6 +10,7 @@ import { TtsEngine } from './tts/engine.js';
 import { TtsHighlighter } from './tts/highlighter.js';
 import { TTS_DEFAULTS } from './tts/constants.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
+import { deriveBookId, buildPosition, resolvePosition } from './core/position.js';
 
 export function init(options = {}) {
   const signal = options.signal || new AbortController().signal;
@@ -63,7 +64,8 @@ export function init(options = {}) {
   let bookId = '';
   let bookLoaded = false;
 
-  let sentences = [];       // [{ text, blockEl, wordOffset }]
+  let sentences = [];       // [{ text, blockEl, wordOffset, secHref }]
+  let ttsSections = [];     // [{ href, wordStart, wordCount }]
   let _ttsSearchCache = null;
   let totalWords = 0;
   let currentSentenceIdx = 0;
@@ -112,25 +114,26 @@ export function init(options = {}) {
 
   function getTtsBookmarkContext() {
     if (!sentences.length) return null;
-    const fraction = getPositionFraction();
+    const pos = getCanonicalPosition();
+    const fraction = pos ? pos.f : 0;
     const sentence = sentences[currentSentenceIdx] || sentences[0];
     const text = sentence ? (sentence.text || '').slice(0, 120) : '';
     let chapterLabel = '';
     if (headingToc.length && sentence && sentence.blockEl) {
       for (let i = headingToc.length - 1; i >= 0; i--) {
         const hEl = headingToc[i].el;
-        const pos = hEl.compareDocumentPosition(sentence.blockEl);
-        if (pos & Node.DOCUMENT_POSITION_FOLLOWING) { chapterLabel = headingToc[i].label; break; }
+        const rel = hEl.compareDocumentPosition(sentence.blockEl);
+        if (rel & Node.DOCUMENT_POSITION_FOLLOWING) { chapterLabel = headingToc[i].label; break; }
       }
     }
-    return { fraction, chapterLabel, text };
+    return { fraction, chapterLabel, text, position: pos };
   }
 
   function navigateTtsToBookmark(item) {
     engine.cancel();
     setPlaying(false);
-    const idx = Math.round(item.fraction * Math.max(sentences.length - 1, 0));
-    seekToSentence(idx);
+    if (item.position) applyCanonicalPosition(item.position);
+    else seekToSentence(Math.round((item.fraction || 0) * Math.max(sentences.length - 1, 0)));
   }
 
   bmPanel.setCallbacks({
@@ -316,20 +319,34 @@ export function init(options = {}) {
     const blockSel = '.blk-p, .blk-h1, .blk-h2, .blk-h3, .blk-h4, .blk-h5, .blk-h6, .blk-blockquote, .blk-li';
     const blocks = Array.from(els.content.querySelectorAll(blockSel));
     const result = [];
+    const sectionsMeta = [];
     let wordOffset = 0;
+    let curHref = null;
     for (const blockEl of blocks) {
       const text = blockEl.textContent.trim();
       if (!text) continue;
+      const chap = blockEl.closest('.chap');
+      const href = (chap && chap.dataset.href) || '';
+      if (href !== curHref) {
+        sectionsMeta.push({ href, wordStart: wordOffset, wordCount: 0 });
+        curHref = href;
+      }
       const parts = splitSentences(text);
       const highlightEls = parts.length > 1
         ? wrapBlockSentences(blockEl, parts)
         : [blockEl];
       for (let i = 0; i < parts.length; i++) {
         const wc = parts[i].split(/\s+/).filter(Boolean).length;
-        result.push({ text: parts[i], blockEl, highlightEl: highlightEls[i] || blockEl, wordOffset });
+        result.push({ text: parts[i], blockEl, highlightEl: highlightEls[i] || blockEl, wordOffset, secHref: href });
         wordOffset += wc;
       }
     }
+    // Section table keyed by stable spine href — the shared anchor across modes.
+    for (let i = 0; i < sectionsMeta.length; i++) {
+      const end = i + 1 < sectionsMeta.length ? sectionsMeta[i + 1].wordStart : wordOffset;
+      sectionsMeta[i].wordCount = end - sectionsMeta[i].wordStart;
+    }
+    ttsSections = sectionsMeta;
     totalWords = wordOffset;
     return result;
   }
@@ -638,7 +655,7 @@ export function init(options = {}) {
 
       const meta = (book.packaging && book.packaging.metadata) || {};
       const title = (meta.title || file.name).trim();
-      bookId = urlParams.get('id') || title || file.name;
+      bookId = deriveBookId(urlParams.get('id'), meta.title, file.name);
       bookmarkManager.setBook(bookId);
       els.bookTitleEl.textContent = title;
       bookLoaded = true;
@@ -693,7 +710,8 @@ export function init(options = {}) {
 
   function savePosition() {
     if (!bookId || !sentences.length) return;
-    try { localStorage.setItem(posKey(), JSON.stringify({ f: getPositionFraction() })); } catch (_) {}
+    const pos = getCanonicalPosition();
+    if (pos) try { localStorage.setItem(posKey(), JSON.stringify(pos)); } catch (_) {}
   }
 
   function restorePosition() {
@@ -701,9 +719,26 @@ export function init(options = {}) {
     try {
       const raw = localStorage.getItem(posKey());
       if (!raw) return 0;
-      const { f } = JSON.parse(raw);
-      return Math.max(0, Math.min(sentences.length - 1, Math.round((f || 0) * (sentences.length - 1))));
+      return sentenceIndexForOrdinal(resolvePosition(JSON.parse(raw), ttsSections, totalWords));
     } catch (_) { return 0; }
+  }
+
+  // ---------- Canonical position ----------
+  function sentenceIndexForOrdinal(ord) {
+    let idx = 0;
+    for (let i = 0; i < sentences.length; i++) {
+      if (sentences[i].wordOffset <= ord) idx = i; else break;
+    }
+    return idx;
+  }
+  function getCanonicalPosition() {
+    if (!sentences.length || totalWords < 1) return null;
+    const sent = sentences[currentSentenceIdx] || sentences[0];
+    return buildPosition(ttsSections, totalWords, sent ? sent.wordOffset : 0);
+  }
+  function applyCanonicalPosition(pos) {
+    if (!sentences.length) return;
+    seekToSentence(sentenceIndexForOrdinal(resolvePosition(pos, ttsSections, totalWords)));
   }
 
 
@@ -851,7 +886,7 @@ export function init(options = {}) {
       engine.cancel();
       setPlaying(false);
       savePosition();
-      onModeSwitch('read', { fraction: getPositionFraction(), bookId });
+      onModeSwitch('read', { pos: getCanonicalPosition(), bookId });
     }, { signal });
   }
   if (els.ttsSpeedBtn && onModeSwitch) {
@@ -860,7 +895,7 @@ export function init(options = {}) {
       engine.cancel();
       setPlaying(false);
       savePosition();
-      onModeSwitch('rsvp', { fraction: getPositionFraction(), bookId });
+      onModeSwitch('rsvp', { pos: getCanonicalPosition(), bookId });
     }, { signal });
   }
 
@@ -959,11 +994,6 @@ export function init(options = {}) {
   }
 
   // ---------- Handle ----------
-  function getPositionFraction() {
-    if (sentences.length < 2) return 0;
-    return currentSentenceIdx / (sentences.length - 1);
-  }
-
   return {
     teardown() {
       closeSettingsScreen();
@@ -973,14 +1003,10 @@ export function init(options = {}) {
       blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (_) {} });
       blobUrls.length = 0;
     },
-    getPositionFraction,
+    getPosition: getCanonicalPosition,
     getBookId() { return bookId; },
     isBookLoaded() { return bookLoaded; },
-    seekFraction(f) {
-      if (!sentences.length) return;
-      const idx = Math.round(f * (sentences.length - 1));
-      seekToSentence(idx);
-    },
+    applyPosition(pos) { applyCanonicalPosition(pos); },
     loadFromBuffer(buffer, fileName) {
       const file = new File([buffer], fileName, { type: 'application/epub+zip' });
       return loadEpub(file);
