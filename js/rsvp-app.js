@@ -4,7 +4,7 @@ import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
 import { PrefsManager } from './core/prefs.js';
 import { EventBus } from './core/events.js';
-import { extractPlainText } from './epub/extractor.js';
+import { extractSections } from './epub/extractor.js';
 import { RSVP_DEFAULTS } from './rsvp/constants.js';
 import { RsvpState } from './rsvp/state.js';
 import { tokenize } from './rsvp/tokenizer.js';
@@ -14,6 +14,24 @@ import { RsvpInput } from './rsvp/input.js';
 import { StatsTracker } from './rsvp/stats.js';
 import { TrainingManager } from './rsvp/training.js';
 import { createPicker } from './shared/picker.js';
+
+// Convert extractSections() output to the plain-text format the tokenizer expects.
+// Using the same extractor as Reader guarantees identical word lists and exact position transfer.
+function sectionsToText(sections) {
+  const parts = [];
+  const chapters = [];
+  let wordOffset = 0;
+  for (const sec of sections) {
+    const blockTexts = sec.blocks.map(b => b.text).filter(t => t && t.trim());
+    if (!blockTexts.length) continue;
+    const heading = sec.blocks.find(b => /^h[1-6]$/.test(b.type));
+    chapters.push({ title: heading ? heading.text : '', wordOffset });
+    const secText = blockTexts.join('\n\n');
+    wordOffset += secText.split(/\s+/).filter(Boolean).length;
+    parts.push(secText);
+  }
+  return { text: parts.join('\n\n'), chapters };
+}
 
 export function init(options = {}) {
   const signal = options.signal || new AbortController().signal;
@@ -540,9 +558,10 @@ export function init(options = {}) {
       const bookTitle = (book.packaging && book.packaging.metadata && book.packaging.metadata.title)
         || file.name.replace(/\.epub$/i, '');
 
-      const { text, chapters: chapterMeta } = await extractPlainText(book, (i, total) => {
-        els.statusMsg.textContent = "Parsing\u2026 " + i + " / " + total;
+      const { sections } = await extractSections(book, (msg) => {
+        els.statusMsg.textContent = msg;
       });
+      const { text, chapters: chapterMeta } = sectionsToText(sections);
       if (!text || text.length < 32) {
         throw new Error("No readable text found in this EPUB (it may be image-only or DRM-protected).");
       }
