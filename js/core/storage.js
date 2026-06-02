@@ -7,11 +7,13 @@ export class StorageManager {
     this._saveTimer = null;
   }
 
-  _writePosNow(currentLocatorFn) {
+  _writePosNow(currentLocatorFn, fractionFn) {
     const { state, els } = this;
     if (!state.bookId) return;
     let f;
-    if (state.isScrollMode) {
+    if (fractionFn) {
+      f = fractionFn();
+    } else if (state.isScrollMode) {
       const sh = els.viewport.scrollHeight - els.viewport.clientHeight;
       f = sh > 0 ? els.viewport.scrollTop / sh : 0;
     } else {
@@ -27,15 +29,15 @@ export class StorageManager {
     }
   }
 
-  savePos(currentLocatorFn) {
+  savePos(currentLocatorFn, fractionFn) {
     clearTimeout(this._saveTimer);
-    this._saveTimer = setTimeout(() => this._writePosNow(currentLocatorFn), SAVE_DEBOUNCE_MS);
+    this._saveTimer = setTimeout(() => this._writePosNow(currentLocatorFn, fractionFn), SAVE_DEBOUNCE_MS);
   }
 
-  flushPos(currentLocatorFn) {
+  flushPos(currentLocatorFn, fractionFn) {
     clearTimeout(this._saveTimer);
     this._saveTimer = null;
-    this._writePosNow(currentLocatorFn);
+    this._writePosNow(currentLocatorFn, fractionFn);
   }
 
   restorePos(goToWordFn, scrollToWordFn, goToPageFn, resolveLocatorFn) {

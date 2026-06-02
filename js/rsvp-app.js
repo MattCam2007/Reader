@@ -620,8 +620,8 @@ This was invitation enough.
 
   // ---------- Handle ----------
   function getPositionFraction() {
-    if (!state.totalWords) return 0;
-    return state.wordOrdinalAt(state.currentIdx) / state.totalWords;
+    if (state.totalWords < 2) return 0;
+    return state.wordOrdinalAt(state.currentIdx) / (state.totalWords - 1);
   }
 
   function seekFrac(f) {

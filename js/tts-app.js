@@ -960,8 +960,8 @@ export function init(options = {}) {
 
   // ---------- Handle ----------
   function getPositionFraction() {
-    if (!sentences.length) return 0;
-    return currentSentenceIdx / sentences.length;
+    if (sentences.length < 2) return 0;
+    return currentSentenceIdx / (sentences.length - 1);
   }
 
   return {
