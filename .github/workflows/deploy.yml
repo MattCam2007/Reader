@@ -2,12 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    # `master` is prod. The refactor branch is also listed so it can be deployed
-    # to the (single) GitHub Pages site for on-device testing while the perf
-    # refactor is in progress. NOTE: Pages has one site per repo — whichever
-    # branch pushes last is what the live URL serves. Remove the refactor branch
-    # here once the work is merged.
-    branches: [master, claude/app-perf-refactor-plan-6XFw3]
+    branches: [master]
   workflow_dispatch:
 
 permissions:
