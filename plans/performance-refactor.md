@@ -5,6 +5,14 @@
 **Status:** Proposed — awaiting review before execution
 **Scope:** `js/`, `css/`, `*.html`, `docs/`. One focused refactor pass before the next feature wave.
 
+> **Reviewer note (2026-06-03):** The owner confirmed the felt symptom is specifically
+> **page turns in Reader mode** (not mode switches or cold load). **Phase 3 (reflow-free
+> page turns) is therefore the most direct fix and should be promoted ahead of Phases 1–2
+> when execution starts.** Phase 3 depends only on Phase 0 (instrumentation), so it can run
+> immediately after baselining. Phases 1, 2, 4 remain high-value but address adjacent
+> latencies (mode switches, search, cold load) rather than the primary complaint. Suggested
+> execution order: **0 → 3 → 1 → 2 → 4 → 5 → 8 → 7 → 6**, with Phase 9 continuous.
+
 ---
 
 ## 0. TL;DR
