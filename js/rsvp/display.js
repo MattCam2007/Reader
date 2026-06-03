@@ -1,5 +1,5 @@
 import { RSVP } from './constants.js';
-import { PARAGRAPH_BREAK, orpIndex } from './tokenizer.js';
+import { PARAGRAPH_BREAK, orpIndex, lastIndexAtMost } from './tokenizer.js';
 
 export class RsvpDisplay {
   constructor(state, prefs, els) {
