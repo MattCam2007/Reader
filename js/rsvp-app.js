@@ -543,7 +543,7 @@ export function init(options = {}) {
     }
   }
 
-  async function loadEpub(file) {
+  async function loadEpub(file, pos) {
     playback.clearPending();
     state.rampRemaining = 0;
     state.setPlayState('loading');
@@ -574,7 +574,10 @@ export function init(options = {}) {
       state.bookId = deriveBookId(urlParams.get('id'), meta.title, file.name);
       bookmarkManager.setBook(state.bookId);
       loadText(text, chapterMeta);
-      restorePosition();
+      // A handed-off position is the single source of truth; otherwise fall back
+      // to the persisted position. Never both (that was a race).
+      if (pos) applyCanonicalPosition(pos);
+      else restorePosition();
       const bookTitleEl = document.getElementById("bookTitle");
       if (bookTitleEl) bookTitleEl.textContent = bookTitle;
       if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId: state.bookId });
@@ -661,13 +664,20 @@ This was invitation enough.
     while (i > 0 && state.tokenToWordOrdinal[i] < 0) i--;
     return state.tokenToWordOrdinal[i] >= 0 ? state.tokenToWordOrdinal[i] : 0;
   }
+  // Raw word string at word ordinal `o`, for the text-anchored exact snap.
+  function wordAt(o) {
+    const ti = state.wordTokenIndices[o];
+    return ti == null ? '' : (state.tokens[ti] || '');
+  }
   function getCanonicalPosition() {
     if (state.totalWords < 1) return null;
-    return buildPosition(rsvpSections(), state.totalWords, currentOrdinal());
+    const pos = buildPosition(rsvpSections(), state.totalWords, currentOrdinal(), wordAt);
+    if (pos) pos.hl = 1; // highlight the single word we were on when entering the Reader
+    return pos;
   }
   function applyCanonicalPosition(pos) {
     if (!state.totalWords) return;
-    const ord = resolvePosition(pos, rsvpSections(), state.totalWords);
+    const ord = resolvePosition(pos, rsvpSections(), state.totalWords, wordAt);
     playback.seekTo(state.ordinalToIdx(ord));
   }
 
@@ -699,9 +709,9 @@ This was invitation enough.
     getBookId() { return state.bookId; },
     isBookLoaded() { return state.isEpubLoaded; },
     applyPosition(pos) { applyCanonicalPosition(pos); },
-    loadFromBuffer(buffer, fileName) {
+    loadFromBuffer(buffer, fileName, pos) {
       const file = new File([buffer], fileName, { type: "application/epub+zip" });
-      return loadEpub(file);
+      return loadEpub(file, pos);
     },
   };
 }

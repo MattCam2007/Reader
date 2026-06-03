@@ -58,7 +58,7 @@ reader.html
    ```
 
 9. Set `currentMode = targetMode`
-10. If `posInfo && cachedBook`: call `loadFromBuffer` then (after rAF + 100ms delay) `applyPosition(posInfo.pos)`
+10. If `posInfo && cachedBook`: call `loadFromBuffer(buffer, fileName, posInfo.pos)`. The position is passed *into* the load; `loadFromBuffer` only resolves once the target mode has finished laying out (Reader/TTS paginate/segment inside a rAF) **and** applied the position. There is no separate rAF + `setTimeout(100ms)` seek and no second restore from localStorage — a single applier runs after layout, so the handoff is deterministic.
 
 ---
 
@@ -181,28 +181,43 @@ Position is stored as a **canonical, mode-independent** object (`js/core/positio
 ### 4a. Encoding (save)
 
 ```
-core/position.js: buildPosition(sections, totalWords, globalOrd)
+core/position.js: buildPosition(sections, totalWords, globalOrd, wordAt?)
   │  sections: [{ href, wordStart, wordCount }] in reading order
   ├─ find the section containing globalOrd
   ├─ wordInSec = globalOrd - section.wordStart
-  └─ return { v, href, wordInSec, secWords, ord: globalOrd, words: totalWords, f }
+  ├─ t = normalised snippet of SNIPPET_WORDS words from globalOrd (via wordAt)
+  └─ return { v, href, wordInSec, secWords, ord: globalOrd, words: totalWords, f, t }
 ```
 
-Each mode supplies its own `sections` table and `globalOrd`:
-- Reader: `state.doc.sections`, `wordAtPageStart(page)`
-- RSVP: `state.chapters`, `state.wordOrdinalAt(currentIdx)`
-- TTS: section table from `segmentContent()`, `sentences[currentSentenceIdx].wordOffset`
+The source mode may also set `pos.hl` = how many words the Reader should
+highlight on arrival (RSVP sets 1; TTS sets the current sentence's word count).
+The Reader paints a `reader-resume` CSS highlight over those words after
+seeking, and clears it on the next page turn / scroll.
+
+Each mode supplies its own `sections` table, `globalOrd`, and a `wordAt(ord)`
+that returns the raw word string at a global ordinal:
+- Reader: `state.doc.sections` (whitespace-word counts), `currentWsOrdinal()`, `wsWordText`
+- RSVP: `rsvpSections()`, `currentOrdinal()`, `tokens[wordTokenIndices[o]]`
+- TTS: `segmentContent()` section table, `sentences[idx].wordOffset`, `ttsWords[o]`
+
+> **Word counting must match across modes.** All three count *whitespace-delimited*
+> words (the Reader bridges its punctuation-split render tokens to whitespace
+> words via `doc.tokenToWs`/`doc.wsToToken`). Matching counts make step 1 below
+> exact; the snippet (`t`) is the final exact snap for any residual.
 
 ### 4b. Decoding (restore)
 
 ```
-core/position.js: resolvePosition(pos, sections, totalWords) → global word ordinal
+core/position.js: resolvePosition(pos, sections, totalWords, wordAt?) → global word ordinal
   │
   ├─ 1. Match section by stable href; reconcile wordInSec if this mode counted
   │       that section's words differently  → section.wordStart + wordInSec'
   ├─ 2. Else scale the global ordinal:  round(pos.ord * (words-1)/(pos.words-1))
-  └─ 3. Else the fraction fallback:     round(pos.f * (words-1))
-                                        (also reads the legacy { f } format)
+  ├─ 3. Else the fraction fallback:     round(pos.f * (words-1))
+  │                                     (also reads the legacy { f } format)
+  └─ 4. Text snap (if pos.t and wordAt): search ±REFINE_WINDOW words around the
+        prediction for the snippet; require a 60% word-match and break ties
+        toward the prediction → land on the exact word.
 ```
 
 ### 4c. Position restoration on book load
@@ -389,13 +404,12 @@ reader-app.js: mode-switch button click
 12. currentHandle = mod.init({ signal, onModeSwitch, onBookLoaded })
 
 13. cachedBook exists (was stored when book was first loaded):
-    await currentHandle.loadFromBuffer(cachedBook.buffer.slice(0), cachedBook.fileName)
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        currentHandle.applyPosition(posInfo.pos)   ← seek to transferred position
-      }, 100)
-    })
+    // Position is handed in; the promise resolves only after layout + seek.
+    await currentHandle.loadFromBuffer(
+      cachedBook.buffer.slice(0), cachedBook.fileName, posInfo.pos)
 ```
+
+**Why no `setTimeout(100ms)` guess any more:** `loadFromBuffer` resolved *before* the target mode finished paginating (Reader/TTS do that work inside a `requestAnimationFrame` that fires after the awaited promise). The old code waited a fixed 100 ms and then seeked, racing against pagination, and *also* let the app restore from localStorage — two appliers with different rounding, nondeterministic last-writer, landing off by a page. Now the awaited `loadFromBuffer` only resolves once paginate/segment **and** the seek have run, and the handed-off position is the single source of truth (the localStorage restore is skipped when a position is passed in).
 
 **In rsvp-app.js `applyPosition(pos)`:**
 

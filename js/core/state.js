@@ -20,6 +20,12 @@ export class ReaderState {
       sections: [],
       text: "",
       wordCharStart: [],
+      // Bridge between the Reader's render tokenisation (doc.words — punctuation
+      // split into its own spans) and whitespace-delimited words (what RSVP/TTS
+      // count). Positioning uses the whitespace words so cross-mode hand-off is
+      // count-exact. See model/doc-model.js.
+      tokenToWs: [],   // render-token index -> whitespace-word ordinal
+      wsToToken: [],   // whitespace-word ordinal -> first render-token index
     };
   }
 

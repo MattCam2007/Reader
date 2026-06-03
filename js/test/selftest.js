@@ -90,6 +90,56 @@ export function runSelftest(state) {
     assert('position', 'bookId prefers ?id', deriveBookId('the-id', 'Title', 'f.epub') === 'the-id');
     assert('position', 'bookId falls to title', deriveBookId('', 'Title', 'f.epub') === 'Title');
     assert('position', 'bookId falls to filename', deriveBookId('', '', 'My Book.epub') === 'My Book');
+
+    // Regression for the "off by a page" bug. The fix that makes cross-mode
+    // hand-off word-exact is that every mode counts the SAME words per section
+    // (extractor/doc-model/RSVP/TTS now all include figure captions, tables and
+    // pre). When section word counts match, the one-way Reader->other mapping
+    // must be exact for EVERY word — no scaling, no drift, no page flip.
+    {
+      const mk = (counts) => {
+        let s = 0; const a = [];
+        counts.forEach((c, i) => { a.push({ href: 'c' + i, wordStart: s, wordCount: c }); s += c; });
+        return { secs: a, total: s };
+      };
+      const reader = mk([300, 450, 360]);
+      const sameCounts = mk([300, 450, 360]); // identical tokenisation across modes
+      let exactOneWay = true;
+      for (let w = 0; w < reader.total; w++) {
+        const v = resolvePosition(buildPosition(reader.secs, reader.total, w), sameCounts.secs, sameCounts.total);
+        if (v !== w) { exactOneWay = false; break; }
+      }
+      assert('position', 'matching section counts → exact one-way word mapping', exactOneWay);
+      // And the section anchor must beat the global-ordinal fallback: a position
+      // whose href is known resolves via the section, not the (lossy) ordinal.
+      const gap = mk([300, 465, 360]); // other mode counted 15 extra words in c2
+      const at = buildPosition(reader.secs, reader.total, 300); // first word of c2 in reader
+      assert('position', 'href anchor pins section start across count drift',
+        resolvePosition(at, gap.secs, gap.total) === 300); // c2 starts at 300 in both
+    }
+
+    // Text-anchored exact snap. When two modes are a few words off numerically,
+    // matching the saved snippet must land on the exact word — even when the
+    // snippet's leading word repeats elsewhere (tie-break toward prediction).
+    {
+      const prose = ('the quick brown fox jumps over the lazy dog and then the cat ' +
+        'sat on the mat by the door while rain fell softly on the tin roof').split(' ');
+      const src = [{ href: 'c', wordStart: 0, wordCount: prose.length }];
+      const srcAt = (i) => prose[i] || '';
+      const SHIFT = 3; // target counts 3 phantom words before the prose
+      const tgtWords = ['x', 'y', 'z'].concat(prose);
+      const tgt = [{ href: 'c', wordStart: 0, wordCount: tgtWords.length }];
+      const tgtAt = (i) => tgtWords[i] || '';
+      let exact = true;
+      for (let a = 0; a < prose.length - 8; a++) {
+        const p = buildPosition(src, prose.length, a, srcAt);
+        if (resolvePosition(p, tgt, tgtWords.length, tgtAt) !== a + SHIFT) { exact = false; break; }
+      }
+      assert('position', 'text snap lands exactly despite numeric drift', exact);
+      const rep = buildPosition(src, prose.length, 11, srcAt); // "the cat sat on the mat…"
+      assert('position', 'text snap tie-breaks repeated phrase toward prediction',
+        resolvePosition(rep, tgt, tgtWords.length, tgtAt) === 11 + SHIFT);
+    }
   }
 
   // --- model/geometry ---
@@ -198,6 +248,31 @@ export function runSelftest(state) {
     assert("doc-model-build", "text is non-empty string", testState.doc.text.length > 0);
     assert("doc-model-build", "wordCharStart aligned with words",
       testState.doc.wordCharStart.length === testState.doc.words.length);
+
+    // Whitespace-word bridge must count words the way RSVP/TTS do (split on
+    // whitespace), NOT the way render tokens do (punctuation split out). This is
+    // the fix for the cross-mode "off by a page" bug: counts must match exactly.
+    {
+      const punctContent = document.createElement("div");
+      // After annotateInlineText, "world," and "End." split punctuation into
+      // their own spans — simulate that fragmentation directly.
+      punctContent.innerHTML =
+        '<div class="chap" data-href="p1"><div class="blk">' +
+          'Hello<span>,</span> world<span>.</span> The end<span>.</span>' +
+        '</div></div>';
+      const ps = { sectionBlockStart: [], doc: { words: [], blocks: [], sections: [], text: "", wordCharStart: [], tokenToWs: [], wsToToken: [] } };
+      buildDocModel(ps, punctContent);
+      // Whitespace words: "Hello," "world." "The" "end." = 4 (RSVP would agree).
+      assert("doc-model-build", "ws word count ignores split punctuation (4)", ps.doc.wsToToken.length === 4);
+      // Render tokens include the punctuation spans: 4 words + 3 punct = 7.
+      assert("doc-model-build", "render tokens still include punctuation (7)", ps.doc.words.length === 7);
+      // Bridge is consistent: every render token maps into range, every ws word
+      // points at a valid render token, and ws ordinals are non-decreasing.
+      let bridgeOk = ps.doc.tokenToWs.length === ps.doc.words.length;
+      for (let i = 1; i < ps.doc.tokenToWs.length; i++) if (ps.doc.tokenToWs[i] < ps.doc.tokenToWs[i - 1]) bridgeOk = false;
+      for (let o = 0; o < ps.doc.wsToToken.length; o++) if (ps.doc.tokenToWs[ps.doc.wsToToken[o]] !== o) bridgeOk = false;
+      assert("doc-model-build", "render-token <-> ws-word bridge is consistent", bridgeOk);
+    }
 
     // Verify word entry shape
     if (testState.doc.words.length > 0) {

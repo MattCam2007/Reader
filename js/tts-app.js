@@ -66,6 +66,7 @@ export function init(options = {}) {
 
   let sentences = [];       // [{ text, blockEl, wordOffset, secHref }]
   let ttsSections = [];     // [{ href, wordStart, wordCount }]
+  let ttsWords = [];        // flat word strings, aligned with word ordinals
   let _ttsSearchCache = null;
   let totalWords = 0;
   let currentSentenceIdx = 0;
@@ -316,10 +317,15 @@ export function init(options = {}) {
   }
 
   function segmentContent() {
-    const blockSel = '.blk-p, .blk-h1, .blk-h2, .blk-h3, .blk-h4, .blk-h5, .blk-h6, .blk-blockquote, .blk-li';
+    // Must cover EVERY block type the extractor emits, so TTS counts words the
+    // same way the Reader (doc-model walks all .blk) and RSVP (all sec.blocks)
+    // do. Omitting pre/table/figure here made TTS's word ordinals drift behind
+    // the other modes cumulatively, throwing cross-mode restores off by a page.
+    const blockSel = '.blk-p, .blk-h1, .blk-h2, .blk-h3, .blk-h4, .blk-h5, .blk-h6, .blk-blockquote, .blk-li, .blk-pre, .blk-table-wrap, .blk-figure';
     const blocks = Array.from(els.content.querySelectorAll(blockSel));
     const result = [];
     const sectionsMeta = [];
+    ttsWords = [];
     let wordOffset = 0;
     let curHref = null;
     for (const blockEl of blocks) {
@@ -336,9 +342,10 @@ export function init(options = {}) {
         ? wrapBlockSentences(blockEl, parts)
         : [blockEl];
       for (let i = 0; i < parts.length; i++) {
-        const wc = parts[i].split(/\s+/).filter(Boolean).length;
+        const words = parts[i].split(/\s+/).filter(Boolean);
         result.push({ text: parts[i], blockEl, highlightEl: highlightEls[i] || blockEl, wordOffset, secHref: href });
-        wordOffset += wc;
+        for (const w of words) ttsWords.push(w);
+        wordOffset += words.length;
       }
     }
     // Section table keyed by stable spine href — the shared anchor across modes.
@@ -610,7 +617,7 @@ export function init(options = {}) {
   }
 
   // ---------- EPUB loading ----------
-  async function loadEpub(file) {
+  async function loadEpub(file, pos) {
     engine.cancel();
     setPlaying(false);
     highlighter.clearHighlight();
@@ -654,17 +661,27 @@ export function init(options = {}) {
 
       if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId });
 
-      // Save position, build TOC, segment sentences
-      requestAnimationFrame(() => {
-        sentences = segmentContent();
-        _ttsSearchCache = null;
-        highlighter.setSentences(sentences);
-        currentSentenceIdx = restorePosition();
+      // Segment, restore and build TOC inside a rAF so the rendered DOM exists
+      // before we address sentences. Await it so loadFromBuffer only resolves
+      // once the position is applied — see mode-switcher handoff.
+      await new Promise((resolve) => {
+        requestAnimationFrame(() => {
+          try {
+            sentences = segmentContent();
+            _ttsSearchCache = null;
+            highlighter.setSentences(sentences);
+            // A handed-off position is the single source of truth; otherwise
+            // fall back to the persisted position. Never both (that was a race).
+            if (pos) applyCanonicalPosition(pos);
+            else currentSentenceIdx = restorePosition();
 
-        buildTOC(epubToc, headingToc, els.tocListEl, sectionEls,
-          (el) => seekToElementBlock(el),
-          closePanels,
-          (href) => resolveHref(href, els.content, sectionEls));
+            buildTOC(epubToc, headingToc, els.tocListEl, sectionEls,
+              (el) => seekToElementBlock(el),
+              closePanels,
+              (href) => resolveHref(href, els.content, sectionEls));
+          } catch (e) { console.warn("tts:layout", e); }
+          finally { resolve(); }
+        });
       });
 
     } catch (err) {
@@ -707,7 +724,7 @@ export function init(options = {}) {
     try {
       const raw = localStorage.getItem(posKey());
       if (!raw) return 0;
-      return sentenceIndexForOrdinal(resolvePosition(JSON.parse(raw), ttsSections, totalWords));
+      return sentenceIndexForOrdinal(resolvePosition(JSON.parse(raw), ttsSections, totalWords, wordAt));
     } catch (_) { return 0; }
   }
 
@@ -719,14 +736,24 @@ export function init(options = {}) {
     }
     return idx;
   }
+  // Raw word string at word ordinal `o`, for the text-anchored exact snap.
+  function wordAt(o) { return ttsWords[o] || ''; }
   function getCanonicalPosition() {
     if (!sentences.length || totalWords < 1) return null;
     const sent = sentences[currentSentenceIdx] || sentences[0];
-    return buildPosition(ttsSections, totalWords, sent ? sent.wordOffset : 0);
+    const start = sent ? sent.wordOffset : 0;
+    const pos = buildPosition(ttsSections, totalWords, start, wordAt);
+    if (pos) {
+      // Highlight the whole sentence we were on when entering the Reader.
+      const next = sentences[currentSentenceIdx + 1];
+      const end = next ? next.wordOffset : totalWords;
+      pos.hl = Math.max(1, end - start);
+    }
+    return pos;
   }
   function applyCanonicalPosition(pos) {
     if (!sentences.length) return;
-    seekToSentence(sentenceIndexForOrdinal(resolvePosition(pos, ttsSections, totalWords)));
+    seekToSentence(sentenceIndexForOrdinal(resolvePosition(pos, ttsSections, totalWords, wordAt)));
   }
 
 
@@ -995,9 +1022,9 @@ export function init(options = {}) {
     getBookId() { return bookId; },
     isBookLoaded() { return bookLoaded; },
     applyPosition(pos) { applyCanonicalPosition(pos); },
-    loadFromBuffer(buffer, fileName) {
+    loadFromBuffer(buffer, fileName, pos) {
       const file = new File([buffer], fileName, { type: 'application/epub+zip' });
-      return loadEpub(file);
+      return loadEpub(file, pos);
     },
   };
 }

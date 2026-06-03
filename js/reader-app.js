@@ -80,7 +80,7 @@ export function init(options = {}) {
     const pos = getCanonicalPosition();
     const chapterLabel = chrome ? chrome.currentChapterLabel() : '';
     let text = '';
-    const wi = currentWordIndex();
+    const wi = currentRenderToken();
     if (wi >= 0) {
       const charStart = state.doc.wordCharStart[wi] || 0;
       text = state.doc.text.slice(charStart, charStart + 150).slice(0, 120).trimEnd();
@@ -118,22 +118,42 @@ export function init(options = {}) {
   function buildChapterIndexFn() { buildChapterIndex(state, els.content); }
   function savePosMain() { storage.savePos(getCanonicalPosition); }
   function updateProgressFn() {
+    // The resume highlight lives until the page changes away from where it was set.
+    if (state._resumeHlActive && !state.isScrollMode && state.page !== state._resumeHlPage) {
+      clearResumeHighlight();
+    }
     chrome.updateProgress();
     chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
   }
 
   // ---------- Canonical position ----------
   // Section table keyed by stable spine href — the shared anchor across modes.
+  // Section table in WHITESPACE-word units (not render tokens), so the counts
+  // match what RSVP/TTS report and cross-mode hand-off needs no lossy scaling.
   function readerSections() {
     return state.doc.sections.map(s => ({
       href: s.href,
-      wordStart: s.wordStart,
-      wordCount: s.wordEnd - s.wordStart,
+      wordStart: s.wsStart,
+      wordCount: s.wsEnd - s.wsStart,
     }));
   }
-  // Global word index of the first word currently on screen.
-  function currentWordIndex() {
-    if (!state.doc.words.length) return 0;
+  function totalWsWords() { return state.doc.wsToToken.length; }
+  // Raw text of whitespace word `o`, rebuilt from its render tokens (which the
+  // annotator split at punctuation). Used for the text-anchored exact snap.
+  function wsWordText(o) {
+    const { doc } = state;
+    if (o < 0 || o >= doc.wsToToken.length) return '';
+    const startTok = doc.wsToToken[o];
+    const endTok = o + 1 < doc.wsToToken.length ? doc.wsToToken[o + 1] : doc.words.length;
+    let s = '';
+    for (let t = startTok; t < endTok; t++) {
+      const w = doc.words[t];
+      s += w.node.nodeValue.slice(w.start, w.end);
+    }
+    return s;
+  }
+  // First render token currently on screen.
+  function currentRenderToken() {
     if (state.isScrollMode) {
       const loc = currentLocatorFn();
       const wi = loc ? resolveLocator(state, loc) : 0;
@@ -141,15 +161,88 @@ export function init(options = {}) {
     }
     return wordAtPageStart(state, els.content, state.page);
   }
+  // Whitespace-word ordinal of the first WHOLE word on screen. If the first
+  // render token is a continuation (its word began on the previous page, e.g. a
+  // trailing punctuation span), advance to the next word that actually starts
+  // here so save/restore round-trips to the same page.
+  function currentWsOrdinal() {
+    const { doc } = state;
+    if (!doc.tokenToWs.length) return 0;
+    const tok = Math.max(0, Math.min(currentRenderToken(), doc.tokenToWs.length - 1));
+    let o = doc.tokenToWs[tok];
+    if (doc.wsToToken[o] < tok && o + 1 < doc.wsToToken.length) o++;
+    return o;
+  }
   function getCanonicalPosition() {
     if (!state.doc.words.length) return null;
-    return buildPosition(readerSections(), state.doc.words.length, currentWordIndex());
+    return buildPosition(readerSections(), totalWsWords(), currentWsOrdinal(), wsWordText);
   }
   function applyCanonicalPosition(pos) {
     if (!state.doc.words.length) return;
-    const wi = resolvePosition(pos, readerSections(), state.doc.words.length);
-    if (state.isScrollMode) pagination.scrollToWord(wi);
-    else pagination.goTo(pageOfWord(state, els.content, wi), false);
+    const ord = resolvePosition(pos, readerSections(), totalWsWords(), wsWordText);
+    const { wsToToken } = state.doc;
+    const startWs = wsToToken.length ? Math.max(0, Math.min(ord, wsToToken.length - 1)) : 0;
+    const tok = wsToToken.length ? wsToToken[startWs] : 0;
+    if (state.isScrollMode) pagination.scrollToWord(tok);
+    else pagination.goTo(pageOfWord(state, els.content, tok), false);
+    // Highlight where we came from (1 word from RSVP, the whole sentence from
+    // TTS). It persists until the next page turn / scroll — see updateProgressFn.
+    if (pos && pos.hl) setResumeHighlight(startWs, pos.hl);
+    else clearResumeHighlight();
+  }
+
+  // Images in the freshly-rendered book decode asynchronously; until they do
+  // they occupy no space, so the column flow — and thus every word's page — is
+  // wrong. Once any pending images settle, re-land on the same position. Guarded
+  // so we never yank a reader who has already turned the page in the meantime.
+  function resyncAfterImages(pos) {
+    if (state.isScrollMode) return;
+    const imgs = Array.from(els.content.querySelectorAll("img")).filter(im => !im.complete);
+    if (!imgs.length) return;
+    const landedPage = state.page;
+    let done = false;
+    const settle = () => {
+      if (done || imgs.some(im => !im.complete)) return;
+      done = true;
+      if (state.page !== landedPage) return; // reader moved on — leave them be
+      pagination.paginate(false); // refresh stride/total against the final layout
+      if (pos) applyCanonicalPosition(pos);
+      else storage.restorePos(applyCanonicalPosition);
+    };
+    imgs.forEach(im => {
+      im.addEventListener("load", settle, { once: true, signal });
+      im.addEventListener("error", settle, { once: true, signal });
+    });
+  }
+
+  // ---------- Resume highlight ----------
+  function setResumeHighlight(startWs, hlWords) {
+    clearResumeHighlight();
+    if (typeof CSS === "undefined" || !CSS.highlights || typeof Highlight === "undefined") return;
+    const { doc } = state;
+    if (!doc.wsToToken.length || !(hlWords >= 1)) return;
+    const endWs = Math.min(doc.wsToToken.length - 1, startWs + hlWords - 1);
+    const startTok = doc.wsToToken[startWs];
+    const endExcl = endWs + 1 < doc.wsToToken.length ? doc.wsToToken[endWs + 1] : doc.words.length;
+    const a = doc.words[startTok];
+    const b = doc.words[Math.max(startTok, endExcl - 1)];
+    if (!a || !b) return;
+    try {
+      const range = document.createRange();
+      range.setStart(a.node, a.start);
+      range.setEnd(b.node, b.end);
+      CSS.highlights.set("reader-resume", new Highlight(range));
+      state._resumeHlActive = true;
+      state._resumeHlPage = state.page;
+      state._resumeHlScrollTop = state.isScrollMode ? els.viewport.scrollTop : 0;
+    } catch (e) { console.warn("resume:highlight", e); }
+  }
+  function clearResumeHighlight() {
+    if (!state._resumeHlActive) return;
+    state._resumeHlActive = false;
+    if (typeof CSS !== "undefined" && CSS.highlights) {
+      try { CSS.highlights.delete("reader-resume"); } catch (_) {}
+    }
   }
 
   // ---------- Pagination ----------
@@ -415,7 +508,7 @@ export function init(options = {}) {
   }
 
   // ---------- EPUB loading ----------
-  async function loadEpub(file) {
+  async function loadEpub(file, pos) {
     showLoading("Loading " + file.name + "\u2026");
     closePanels();
     let book = null;
@@ -455,16 +548,39 @@ export function init(options = {}) {
       newBlobUrls.forEach(u => state.blobUrls.push(u));
       clearOverlay();
       if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId: state.bookId });
-      requestAnimationFrame(() => {
-        pagination.paginate(false);
-        buildTOC(epubToc, state.headingToc, els.tocListEl, state.sectionEls,
-          (el) => pagination.goTo(pageOfElement(state, els.content, el), false),
-          closePanels,
-          (href) => resolveHref(href, els.content, state.sectionEls));
-        storage.restorePos(applyCanonicalPosition);
-        if (urlParams.get("selftest") === "1") {
-          requestAnimationFrame(() => runSelftest(state));
-        }
+      // Web fonts (e.g. OpenDyslexic, declared font-display:swap) reflow the
+      // text when they finish loading. If we paginate against the fallback font's
+      // metrics, every word→page mapping is measured too wide/narrow and the
+      // handed-off position lands a page off — visible as a one-page overshoot on
+      // the very first switch into the Reader, then "stable" once the font is
+      // cached. Wait for fonts so the first pagination is already accurate.
+      if (typeof document !== "undefined" && document.fonts && document.fonts.ready) {
+        try { await document.fonts.ready; } catch (_) {}
+      }
+      // Paginate and restore inside a rAF so layout (stride/total) is final
+      // before we map a word ordinal to a page. Await it so loadFromBuffer only
+      // resolves once the position is applied — see mode-switcher handoff.
+      await new Promise((resolve) => {
+        requestAnimationFrame(() => {
+          try {
+            pagination.paginate(false);
+            buildTOC(epubToc, state.headingToc, els.tocListEl, state.sectionEls,
+              (el) => pagination.goTo(pageOfElement(state, els.content, el), false),
+              closePanels,
+              (href) => resolveHref(href, els.content, state.sectionEls));
+            // A handed-off position is the single source of truth; otherwise
+            // fall back to the persisted position. Never both (that was a race).
+            if (pos) applyCanonicalPosition(pos);
+            else storage.restorePos(applyCanonicalPosition);
+            // Images decode after this first paint and only then take up space,
+            // which shifts the column flow; re-land once they settle.
+            resyncAfterImages(pos);
+            if (urlParams.get("selftest") === "1") {
+              requestAnimationFrame(() => runSelftest(state));
+            }
+          } catch (e) { console.warn("reader:layout", e); }
+          finally { resolve(); }
+        });
       });
     } catch (err) {
       console.error("EPUB load failed:", err);
@@ -541,6 +657,11 @@ export function init(options = {}) {
   // Scroll mode progress tracking (storage.savePos has its own debounce)
   els.viewport.addEventListener("scroll", () => {
     if (!state.isScrollMode) return;
+    // Clear the resume highlight once the user scrolls away from where it landed
+    // (ignore the programmatic scroll that placed it).
+    if (state._resumeHlActive && Math.abs(els.viewport.scrollTop - (state._resumeHlScrollTop || 0)) > 8) {
+      clearResumeHighlight();
+    }
     chrome.updateProgress();
     savePosMain();
   }, { passive: true, signal });
@@ -639,9 +760,9 @@ export function init(options = {}) {
     getBookId() { return state.bookId; },
     isBookLoaded() { return state.bookId && state.bookId !== "Pride and Prejudice (sample)"; },
     applyPosition(pos) { applyCanonicalPosition(pos); },
-    loadFromBuffer(buffer, fileName) {
+    loadFromBuffer(buffer, fileName, pos) {
       const file = new File([buffer], fileName, { type: "application/epub+zip" });
-      return loadEpub(file);
+      return loadEpub(file, pos);
     },
   };
 }
