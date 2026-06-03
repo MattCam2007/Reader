@@ -191,6 +191,30 @@ export function init(options = {}) {
     else clearResumeHighlight();
   }
 
+  // Images in the freshly-rendered book decode asynchronously; until they do
+  // they occupy no space, so the column flow — and thus every word's page — is
+  // wrong. Once any pending images settle, re-land on the same position. Guarded
+  // so we never yank a reader who has already turned the page in the meantime.
+  function resyncAfterImages(pos) {
+    if (state.isScrollMode) return;
+    const imgs = Array.from(els.content.querySelectorAll("img")).filter(im => !im.complete);
+    if (!imgs.length) return;
+    const landedPage = state.page;
+    let done = false;
+    const settle = () => {
+      if (done || imgs.some(im => !im.complete)) return;
+      done = true;
+      if (state.page !== landedPage) return; // reader moved on — leave them be
+      pagination.paginate(false); // refresh stride/total against the final layout
+      if (pos) applyCanonicalPosition(pos);
+      else storage.restorePos(applyCanonicalPosition);
+    };
+    imgs.forEach(im => {
+      im.addEventListener("load", settle, { once: true, signal });
+      im.addEventListener("error", settle, { once: true, signal });
+    });
+  }
+
   // ---------- Resume highlight ----------
   function setResumeHighlight(startWs, hlWords) {
     clearResumeHighlight();
@@ -524,6 +548,15 @@ export function init(options = {}) {
       newBlobUrls.forEach(u => state.blobUrls.push(u));
       clearOverlay();
       if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId: state.bookId });
+      // Web fonts (e.g. OpenDyslexic, declared font-display:swap) reflow the
+      // text when they finish loading. If we paginate against the fallback font's
+      // metrics, every word→page mapping is measured too wide/narrow and the
+      // handed-off position lands a page off — visible as a one-page overshoot on
+      // the very first switch into the Reader, then "stable" once the font is
+      // cached. Wait for fonts so the first pagination is already accurate.
+      if (typeof document !== "undefined" && document.fonts && document.fonts.ready) {
+        try { await document.fonts.ready; } catch (_) {}
+      }
       // Paginate and restore inside a rAF so layout (stride/total) is final
       // before we map a word ordinal to a page. Await it so loadFromBuffer only
       // resolves once the position is applied — see mode-switcher handoff.
@@ -539,6 +572,9 @@ export function init(options = {}) {
             // fall back to the persisted position. Never both (that was a race).
             if (pos) applyCanonicalPosition(pos);
             else storage.restorePos(applyCanonicalPosition);
+            // Images decode after this first paint and only then take up space,
+            // which shifts the column flow; re-land once they settle.
+            resyncAfterImages(pos);
             if (urlParams.get("selftest") === "1") {
               requestAnimationFrame(() => runSelftest(state));
             }
