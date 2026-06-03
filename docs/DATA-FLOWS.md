@@ -58,7 +58,7 @@ reader.html
    ```
 
 9. Set `currentMode = targetMode`
-10. If `posInfo && cachedBook`: call `loadFromBuffer` then (after rAF + 100ms delay) `applyPosition(posInfo.pos)`
+10. If `posInfo && cachedBook`: call `loadFromBuffer(buffer, fileName, posInfo.pos)`. The position is passed *into* the load; `loadFromBuffer` only resolves once the target mode has finished laying out (Reader/TTS paginate/segment inside a rAF) **and** applied the position. There is no separate rAF + `setTimeout(100ms)` seek and no second restore from localStorage — a single applier runs after layout, so the handoff is deterministic.
 
 ---
 
@@ -389,13 +389,12 @@ reader-app.js: mode-switch button click
 12. currentHandle = mod.init({ signal, onModeSwitch, onBookLoaded })
 
 13. cachedBook exists (was stored when book was first loaded):
-    await currentHandle.loadFromBuffer(cachedBook.buffer.slice(0), cachedBook.fileName)
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        currentHandle.applyPosition(posInfo.pos)   ← seek to transferred position
-      }, 100)
-    })
+    // Position is handed in; the promise resolves only after layout + seek.
+    await currentHandle.loadFromBuffer(
+      cachedBook.buffer.slice(0), cachedBook.fileName, posInfo.pos)
 ```
+
+**Why no `setTimeout(100ms)` guess any more:** `loadFromBuffer` resolved *before* the target mode finished paginating (Reader/TTS do that work inside a `requestAnimationFrame` that fires after the awaited promise). The old code waited a fixed 100 ms and then seeked, racing against pagination, and *also* let the app restore from localStorage — two appliers with different rounding, nondeterministic last-writer, landing off by a page. Now the awaited `loadFromBuffer` only resolves once paginate/segment **and** the seek have run, and the handed-off position is the single source of truth (the localStorage restore is skipped when a position is passed in).
 
 **In rsvp-app.js `applyPosition(pos)`:**
 

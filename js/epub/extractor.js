@@ -82,7 +82,13 @@ export function blocksFromDoc(docOrEl, imgUrls) {
       return;
     }
     if (tag0 === "figure") {
-      const block = { type: "figure", text: "", id: el.id || "" };
+      // Carry the caption text so word-counting modes (RSVP/TTS) count the same
+      // words the Reader renders from the figure's frag (which includes the
+      // figcaption). An empty text here would make RSVP drop the block and its
+      // caption words, shifting every later word ordinal in the section.
+      const cap = el.querySelector("figcaption");
+      const capText = cap ? (cap.textContent || "").replace(/\s+/g, " ").trim() : "";
+      const block = { type: "figure", text: capText, id: el.id || "" };
       if (RICH_INLINE) block.frag = sanitizeInline(el);
       if (block.frag) collectImgSrcs(block.frag, imgUrls);
       out.push(block);

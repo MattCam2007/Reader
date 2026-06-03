@@ -543,7 +543,7 @@ export function init(options = {}) {
     }
   }
 
-  async function loadEpub(file) {
+  async function loadEpub(file, pos) {
     playback.clearPending();
     state.rampRemaining = 0;
     state.setPlayState('loading');
@@ -574,7 +574,10 @@ export function init(options = {}) {
       state.bookId = deriveBookId(urlParams.get('id'), meta.title, file.name);
       bookmarkManager.setBook(state.bookId);
       loadText(text, chapterMeta);
-      restorePosition();
+      // A handed-off position is the single source of truth; otherwise fall back
+      // to the persisted position. Never both (that was a race).
+      if (pos) applyCanonicalPosition(pos);
+      else restorePosition();
       const bookTitleEl = document.getElementById("bookTitle");
       if (bookTitleEl) bookTitleEl.textContent = bookTitle;
       if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId: state.bookId });
@@ -699,9 +702,9 @@ This was invitation enough.
     getBookId() { return state.bookId; },
     isBookLoaded() { return state.isEpubLoaded; },
     applyPosition(pos) { applyCanonicalPosition(pos); },
-    loadFromBuffer(buffer, fileName) {
+    loadFromBuffer(buffer, fileName, pos) {
       const file = new File([buffer], fileName, { type: "application/epub+zip" });
-      return loadEpub(file);
+      return loadEpub(file, pos);
     },
   };
 }

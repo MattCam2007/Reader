@@ -16,7 +16,10 @@ export function pageOfWord(state, content, i) {
 
 export function pageOfElement(state, content, el) {
   const x = el.getBoundingClientRect().left - content.getBoundingClientRect().left;
-  return Math.max(0, Math.min(state.total - 1, Math.round(x / state.stride)));
+  // floor (not round) to match pageOfWord: an element and the words inside it
+  // must resolve to the same page, or chapter labels / TOC / footnote jumps land
+  // one page off relative to the saved reading position.
+  return Math.max(0, Math.min(state.total - 1, Math.floor(x / state.stride)));
 }
 
 export function wordAtPageStart(state, content, p) {

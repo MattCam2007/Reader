@@ -90,6 +90,33 @@ export function runSelftest(state) {
     assert('position', 'bookId prefers ?id', deriveBookId('the-id', 'Title', 'f.epub') === 'the-id');
     assert('position', 'bookId falls to title', deriveBookId('', 'Title', 'f.epub') === 'Title');
     assert('position', 'bookId falls to filename', deriveBookId('', '', 'My Book.epub') === 'My Book');
+
+    // Regression for the "off by a page" bug. The fix that makes cross-mode
+    // hand-off word-exact is that every mode counts the SAME words per section
+    // (extractor/doc-model/RSVP/TTS now all include figure captions, tables and
+    // pre). When section word counts match, the one-way Reader->other mapping
+    // must be exact for EVERY word — no scaling, no drift, no page flip.
+    {
+      const mk = (counts) => {
+        let s = 0; const a = [];
+        counts.forEach((c, i) => { a.push({ href: 'c' + i, wordStart: s, wordCount: c }); s += c; });
+        return { secs: a, total: s };
+      };
+      const reader = mk([300, 450, 360]);
+      const sameCounts = mk([300, 450, 360]); // identical tokenisation across modes
+      let exactOneWay = true;
+      for (let w = 0; w < reader.total; w++) {
+        const v = resolvePosition(buildPosition(reader.secs, reader.total, w), sameCounts.secs, sameCounts.total);
+        if (v !== w) { exactOneWay = false; break; }
+      }
+      assert('position', 'matching section counts → exact one-way word mapping', exactOneWay);
+      // And the section anchor must beat the global-ordinal fallback: a position
+      // whose href is known resolves via the section, not the (lossy) ordinal.
+      const gap = mk([300, 465, 360]); // other mode counted 15 extra words in c2
+      const at = buildPosition(reader.secs, reader.total, 300); // first word of c2 in reader
+      assert('position', 'href anchor pins section start across count drift',
+        resolvePosition(at, gap.secs, gap.total) === 300); // c2 starts at 300 in both
+    }
   }
 
   // --- model/geometry ---

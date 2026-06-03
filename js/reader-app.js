@@ -415,7 +415,7 @@ export function init(options = {}) {
   }
 
   // ---------- EPUB loading ----------
-  async function loadEpub(file) {
+  async function loadEpub(file, pos) {
     showLoading("Loading " + file.name + "\u2026");
     closePanels();
     let book = null;
@@ -455,16 +455,27 @@ export function init(options = {}) {
       newBlobUrls.forEach(u => state.blobUrls.push(u));
       clearOverlay();
       if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId: state.bookId });
-      requestAnimationFrame(() => {
-        pagination.paginate(false);
-        buildTOC(epubToc, state.headingToc, els.tocListEl, state.sectionEls,
-          (el) => pagination.goTo(pageOfElement(state, els.content, el), false),
-          closePanels,
-          (href) => resolveHref(href, els.content, state.sectionEls));
-        storage.restorePos(applyCanonicalPosition);
-        if (urlParams.get("selftest") === "1") {
-          requestAnimationFrame(() => runSelftest(state));
-        }
+      // Paginate and restore inside a rAF so layout (stride/total) is final
+      // before we map a word ordinal to a page. Await it so loadFromBuffer only
+      // resolves once the position is applied — see mode-switcher handoff.
+      await new Promise((resolve) => {
+        requestAnimationFrame(() => {
+          try {
+            pagination.paginate(false);
+            buildTOC(epubToc, state.headingToc, els.tocListEl, state.sectionEls,
+              (el) => pagination.goTo(pageOfElement(state, els.content, el), false),
+              closePanels,
+              (href) => resolveHref(href, els.content, state.sectionEls));
+            // A handed-off position is the single source of truth; otherwise
+            // fall back to the persisted position. Never both (that was a race).
+            if (pos) applyCanonicalPosition(pos);
+            else storage.restorePos(applyCanonicalPosition);
+            if (urlParams.get("selftest") === "1") {
+              requestAnimationFrame(() => runSelftest(state));
+            }
+          } catch (e) { console.warn("reader:layout", e); }
+          finally { resolve(); }
+        });
       });
     } catch (err) {
       console.error("EPUB load failed:", err);
@@ -639,9 +650,9 @@ export function init(options = {}) {
     getBookId() { return state.bookId; },
     isBookLoaded() { return state.bookId && state.bookId !== "Pride and Prejudice (sample)"; },
     applyPosition(pos) { applyCanonicalPosition(pos); },
-    loadFromBuffer(buffer, fileName) {
+    loadFromBuffer(buffer, fileName, pos) {
       const file = new File([buffer], fileName, { type: "application/epub+zip" });
-      return loadEpub(file);
+      return loadEpub(file, pos);
     },
   };
 }
