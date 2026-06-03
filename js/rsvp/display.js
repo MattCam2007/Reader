@@ -76,7 +76,7 @@ export class RsvpDisplay {
     if (tokenIdx === this._lastContextKey) return;
     this._lastContextKey = tokenIdx;
 
-    const HALF_PAGE = 50;
+    const HALF_PAGE = 200;
 
     const aboveWords = [];
     for (let i = tokenIdx - 1; i >= 0 && aboveWords.length < HALF_PAGE; i--) {
