@@ -312,7 +312,7 @@ function speedTabHTML(p) {
     section('Behavior'),
     toggleRow('ss-startPaused',  'Start paused on load',       p.startPaused),
     toggleRow('ss-countdown',    'Countdown before resume',     p.countdownEnabled),
-    toggleRow('ss-context',      'Show context line',           p.contextEnabled),
+    toggleRow('ss-context',      'Show context page',           p.contextEnabled),
     toggleRow('ss-autoPause',    'Pause when tab hidden',       p.autoPauseEnabled),
 
     section('Training'),
