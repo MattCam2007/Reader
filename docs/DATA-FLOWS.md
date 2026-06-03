@@ -189,6 +189,11 @@ core/position.js: buildPosition(sections, totalWords, globalOrd, wordAt?)
   └─ return { v, href, wordInSec, secWords, ord: globalOrd, words: totalWords, f, t }
 ```
 
+The source mode may also set `pos.hl` = how many words the Reader should
+highlight on arrival (RSVP sets 1; TTS sets the current sentence's word count).
+The Reader paints a `reader-resume` CSS highlight over those words after
+seeking, and clears it on the next page turn / scroll.
+
 Each mode supplies its own `sections` table, `globalOrd`, and a `wordAt(ord)`
 that returns the raw word string at a global ordinal:
 - Reader: `state.doc.sections` (whitespace-word counts), `currentWsOrdinal()`, `wsWordText`

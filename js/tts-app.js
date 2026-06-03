@@ -741,7 +741,15 @@ export function init(options = {}) {
   function getCanonicalPosition() {
     if (!sentences.length || totalWords < 1) return null;
     const sent = sentences[currentSentenceIdx] || sentences[0];
-    return buildPosition(ttsSections, totalWords, sent ? sent.wordOffset : 0, wordAt);
+    const start = sent ? sent.wordOffset : 0;
+    const pos = buildPosition(ttsSections, totalWords, start, wordAt);
+    if (pos) {
+      // Highlight the whole sentence we were on when entering the Reader.
+      const next = sentences[currentSentenceIdx + 1];
+      const end = next ? next.wordOffset : totalWords;
+      pos.hl = Math.max(1, end - start);
+    }
+    return pos;
   }
   function applyCanonicalPosition(pos) {
     if (!sentences.length) return;

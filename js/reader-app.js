@@ -118,6 +118,10 @@ export function init(options = {}) {
   function buildChapterIndexFn() { buildChapterIndex(state, els.content); }
   function savePosMain() { storage.savePos(getCanonicalPosition); }
   function updateProgressFn() {
+    // The resume highlight lives until the page changes away from where it was set.
+    if (state._resumeHlActive && !state.isScrollMode && state.page !== state._resumeHlPage) {
+      clearResumeHighlight();
+    }
     chrome.updateProgress();
     chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
   }
@@ -177,11 +181,44 @@ export function init(options = {}) {
     if (!state.doc.words.length) return;
     const ord = resolvePosition(pos, readerSections(), totalWsWords(), wsWordText);
     const { wsToToken } = state.doc;
-    const tok = wsToToken.length
-      ? wsToToken[Math.max(0, Math.min(ord, wsToToken.length - 1))]
-      : 0;
+    const startWs = wsToToken.length ? Math.max(0, Math.min(ord, wsToToken.length - 1)) : 0;
+    const tok = wsToToken.length ? wsToToken[startWs] : 0;
     if (state.isScrollMode) pagination.scrollToWord(tok);
     else pagination.goTo(pageOfWord(state, els.content, tok), false);
+    // Highlight where we came from (1 word from RSVP, the whole sentence from
+    // TTS). It persists until the next page turn / scroll — see updateProgressFn.
+    if (pos && pos.hl) setResumeHighlight(startWs, pos.hl);
+    else clearResumeHighlight();
+  }
+
+  // ---------- Resume highlight ----------
+  function setResumeHighlight(startWs, hlWords) {
+    clearResumeHighlight();
+    if (typeof CSS === "undefined" || !CSS.highlights || typeof Highlight === "undefined") return;
+    const { doc } = state;
+    if (!doc.wsToToken.length || !(hlWords >= 1)) return;
+    const endWs = Math.min(doc.wsToToken.length - 1, startWs + hlWords - 1);
+    const startTok = doc.wsToToken[startWs];
+    const endExcl = endWs + 1 < doc.wsToToken.length ? doc.wsToToken[endWs + 1] : doc.words.length;
+    const a = doc.words[startTok];
+    const b = doc.words[Math.max(startTok, endExcl - 1)];
+    if (!a || !b) return;
+    try {
+      const range = document.createRange();
+      range.setStart(a.node, a.start);
+      range.setEnd(b.node, b.end);
+      CSS.highlights.set("reader-resume", new Highlight(range));
+      state._resumeHlActive = true;
+      state._resumeHlPage = state.page;
+      state._resumeHlScrollTop = state.isScrollMode ? els.viewport.scrollTop : 0;
+    } catch (e) { console.warn("resume:highlight", e); }
+  }
+  function clearResumeHighlight() {
+    if (!state._resumeHlActive) return;
+    state._resumeHlActive = false;
+    if (typeof CSS !== "undefined" && CSS.highlights) {
+      try { CSS.highlights.delete("reader-resume"); } catch (_) {}
+    }
   }
 
   // ---------- Pagination ----------
@@ -584,6 +621,11 @@ export function init(options = {}) {
   // Scroll mode progress tracking (storage.savePos has its own debounce)
   els.viewport.addEventListener("scroll", () => {
     if (!state.isScrollMode) return;
+    // Clear the resume highlight once the user scrolls away from where it landed
+    // (ignore the programmatic scroll that placed it).
+    if (state._resumeHlActive && Math.abs(els.viewport.scrollTop - (state._resumeHlScrollTop || 0)) > 8) {
+      clearResumeHighlight();
+    }
     chrome.updateProgress();
     savePosMain();
   }, { passive: true, signal });

@@ -671,7 +671,9 @@ This was invitation enough.
   }
   function getCanonicalPosition() {
     if (state.totalWords < 1) return null;
-    return buildPosition(rsvpSections(), state.totalWords, currentOrdinal(), wordAt);
+    const pos = buildPosition(rsvpSections(), state.totalWords, currentOrdinal(), wordAt);
+    if (pos) pos.hl = 1; // highlight the single word we were on when entering the Reader
+    return pos;
   }
   function applyCanonicalPosition(pos) {
     if (!state.totalWords) return;
