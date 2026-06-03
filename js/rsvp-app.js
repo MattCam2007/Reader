@@ -47,7 +47,8 @@ export function init(options = {}) {
     beforeEl:    document.getElementById("before"),
     orpEl:       document.getElementById("orp"),
     afterEl:     document.getElementById("after"),
-    contextLine: document.getElementById("contextLine"),
+    contextAbove: document.getElementById("contextAbove"),
+    contextBelow: document.getElementById("contextBelow"),
     wpmToast:    document.getElementById("wpmToast"),
     readerWrap:  document.getElementById("readerWrap"),
     // Status
@@ -252,10 +253,9 @@ export function init(options = {}) {
         b.classList.toggle('is-active', parseInt(b.dataset.chunk, 10) === value));
     }
     else if (key === 'contextEnabled') {
-      if (els.contextLine) {
-        els.contextLine.hidden = !value;
-        if (value) display.updateContext(state.currentIdx);
-      }
+      document.body.classList.toggle('context-page', !!value);
+      display.resetContextCache();
+      display.updateContext(state.currentIdx);
     }
     else if (key === 'trainingEnabled') {
       if (value) training.reset();
@@ -599,8 +599,7 @@ export function init(options = {}) {
   applyFont(prefs.data.font);
   document.documentElement.style.setProperty("--word-size", prefs.data.fontSize + "px");
 
-  // Context line visibility
-  if (els.contextLine) els.contextLine.hidden = !prefs.data.contextEnabled;
+  document.body.classList.toggle('context-page', !!prefs.data.contextEnabled);
 
   // OS preference fallback
   if (!localStorage.getItem("general:prefs")) {

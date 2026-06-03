@@ -1,5 +1,5 @@
 import { RSVP } from './constants.js';
-import { PARAGRAPH_BREAK, orpIndex, lastIndexAtMost } from './tokenizer.js';
+import { PARAGRAPH_BREAK, orpIndex } from './tokenizer.js';
 
 export class RsvpDisplay {
   constructor(state, prefs, els) {
@@ -63,61 +63,33 @@ export class RsvpDisplay {
 
   updateContext(tokenIdx) {
     const { state, prefs } = this;
-    const contextEl = this.els.contextLine;
-    if (!prefs.data.contextEnabled || !contextEl) {
-      if (contextEl) contextEl.textContent = "";
-      return;
-    }
-    if (tokenIdx < 0 || tokenIdx >= state.tokens.length || state.tokens[tokenIdx] === PARAGRAPH_BREAK) {
-      contextEl.textContent = "";
+    const { contextAbove, contextBelow } = this.els;
+    if (!contextAbove || !contextBelow) return;
+
+    if (!prefs.data.contextEnabled || tokenIdx < 0 || tokenIdx >= state.tokens.length || state.tokens[tokenIdx] === PARAGRAPH_BREAK) {
+      contextAbove.textContent = "";
+      contextBelow.textContent = "";
       this._lastContextKey = null;
       return;
     }
 
-    const granularity = prefs.data.granularity || 'word';
-    const wordIdx = state.currentWordIdx(tokenIdx);
-    let start, end, contextKey;
+    if (tokenIdx === this._lastContextKey) return;
+    this._lastContextKey = tokenIdx;
 
-    if (granularity === 'paragraph' && state.paragraphStarts.length) {
-      const pi = lastIndexAtMost(state.paragraphStarts, wordIdx);
-      start = state.paragraphStarts[pi];
-      end = pi + 1 < state.paragraphStarts.length ? state.paragraphStarts[pi + 1] : state.tokens.length;
-      contextKey = 'p:' + pi;
-    } else {
-      const si = lastIndexAtMost(state.sentenceStarts, wordIdx);
-      start = state.sentenceStarts[si];
-      end = si + 1 < state.sentenceStarts.length ? state.sentenceStarts[si + 1] : state.tokens.length;
-      contextKey = 's:' + si;
+    const HALF_PAGE = 50;
+
+    const aboveWords = [];
+    for (let i = tokenIdx - 1; i >= 0 && aboveWords.length < HALF_PAGE; i--) {
+      if (state.tokens[i] !== PARAGRAPH_BREAK) aboveWords.unshift(state.tokens[i]);
     }
 
-    if (contextKey !== this._lastContextKey) {
-      this._lastContextKey = contextKey;
-      const frag = document.createDocumentFragment();
-      for (let i = start; i < end; i++) {
-        if (state.tokens[i] === PARAGRAPH_BREAK) continue;
-        const el = document.createElement(i === tokenIdx ? 'b' : 'span');
-        el.dataset.i = i;
-        el.textContent = state.tokens[i];
-        frag.appendChild(el);
-        frag.appendChild(document.createTextNode(' '));
-      }
-      contextEl.replaceChildren(frag);
-    } else {
-      const prevBold = contextEl.querySelector("b");
-      if (prevBold) {
-        const span = document.createElement("span");
-        span.dataset.i = prevBold.dataset.i;
-        span.textContent = prevBold.textContent;
-        prevBold.replaceWith(span);
-      }
-      const target = contextEl.querySelector('[data-i="' + tokenIdx + '"]');
-      if (target) {
-        const b = document.createElement("b");
-        b.dataset.i = target.dataset.i;
-        b.textContent = target.textContent;
-        target.replaceWith(b);
-      }
+    const belowWords = [];
+    for (let i = tokenIdx + 1; i < state.tokens.length && belowWords.length < HALF_PAGE; i++) {
+      if (state.tokens[i] !== PARAGRAPH_BREAK) belowWords.push(state.tokens[i]);
     }
+
+    contextAbove.textContent = aboveWords.join(' ');
+    contextBelow.textContent = belowWords.join(' ');
   }
 
   updateSeek() {

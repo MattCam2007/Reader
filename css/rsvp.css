@@ -150,9 +150,9 @@ body.rsvp {
   font-size: 1.2em;
 }
 
-body.paused .rsvp-display { opacity: var(--pause-dim); }
+body.paused .rsvp-word-area { opacity: var(--pause-dim); }
 
-/* ===== Context line ===== */
+/* ===== Context page ===== */
 .rsvp-context {
   font-size: 0.75rem;
   line-height: 1.5;
@@ -160,13 +160,19 @@ body.paused .rsvp-display { opacity: var(--pause-dim); }
   text-align: center;
   max-width: 32rem;
   width: 100%;
-  margin: 0.5rem auto 0;
+  margin: 0 auto;
+  display: none;
 }
-.rsvp-context b {
-  color: var(--fg);
-  font-weight: 700;
+.rsvp-context--above {
+  margin-bottom: 0.75rem;
 }
-body.paused .rsvp-context { opacity: 0.7; }
+.rsvp-context--below {
+  margin-top: 0.75rem;
+}
+body.paused.context-page .rsvp-context--above,
+body.paused.context-page .rsvp-context--below {
+  display: block;
+}
 
 /* ===== Toast ===== */
 .rsvp-toast {
