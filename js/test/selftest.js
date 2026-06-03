@@ -226,6 +226,31 @@ export function runSelftest(state) {
     assert("doc-model-build", "wordCharStart aligned with words",
       testState.doc.wordCharStart.length === testState.doc.words.length);
 
+    // Whitespace-word bridge must count words the way RSVP/TTS do (split on
+    // whitespace), NOT the way render tokens do (punctuation split out). This is
+    // the fix for the cross-mode "off by a page" bug: counts must match exactly.
+    {
+      const punctContent = document.createElement("div");
+      // After annotateInlineText, "world," and "End." split punctuation into
+      // their own spans — simulate that fragmentation directly.
+      punctContent.innerHTML =
+        '<div class="chap" data-href="p1"><div class="blk">' +
+          'Hello<span>,</span> world<span>.</span> The end<span>.</span>' +
+        '</div></div>';
+      const ps = { sectionBlockStart: [], doc: { words: [], blocks: [], sections: [], text: "", wordCharStart: [], tokenToWs: [], wsToToken: [] } };
+      buildDocModel(ps, punctContent);
+      // Whitespace words: "Hello," "world." "The" "end." = 4 (RSVP would agree).
+      assert("doc-model-build", "ws word count ignores split punctuation (4)", ps.doc.wsToToken.length === 4);
+      // Render tokens include the punctuation spans: 4 words + 3 punct = 7.
+      assert("doc-model-build", "render tokens still include punctuation (7)", ps.doc.words.length === 7);
+      // Bridge is consistent: every render token maps into range, every ws word
+      // points at a valid render token, and ws ordinals are non-decreasing.
+      let bridgeOk = ps.doc.tokenToWs.length === ps.doc.words.length;
+      for (let i = 1; i < ps.doc.tokenToWs.length; i++) if (ps.doc.tokenToWs[i] < ps.doc.tokenToWs[i - 1]) bridgeOk = false;
+      for (let o = 0; o < ps.doc.wsToToken.length; o++) if (ps.doc.tokenToWs[ps.doc.wsToToken[o]] !== o) bridgeOk = false;
+      assert("doc-model-build", "render-token <-> ws-word bridge is consistent", bridgeOk);
+    }
+
     // Verify word entry shape
     if (testState.doc.words.length > 0) {
       const w = testState.doc.words[0];

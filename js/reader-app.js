@@ -80,7 +80,7 @@ export function init(options = {}) {
     const pos = getCanonicalPosition();
     const chapterLabel = chrome ? chrome.currentChapterLabel() : '';
     let text = '';
-    const wi = currentWordIndex();
+    const wi = currentRenderToken();
     if (wi >= 0) {
       const charStart = state.doc.wordCharStart[wi] || 0;
       text = state.doc.text.slice(charStart, charStart + 150).slice(0, 120).trimEnd();
@@ -124,16 +124,18 @@ export function init(options = {}) {
 
   // ---------- Canonical position ----------
   // Section table keyed by stable spine href — the shared anchor across modes.
+  // Section table in WHITESPACE-word units (not render tokens), so the counts
+  // match what RSVP/TTS report and cross-mode hand-off needs no lossy scaling.
   function readerSections() {
     return state.doc.sections.map(s => ({
       href: s.href,
-      wordStart: s.wordStart,
-      wordCount: s.wordEnd - s.wordStart,
+      wordStart: s.wsStart,
+      wordCount: s.wsEnd - s.wsStart,
     }));
   }
-  // Global word index of the first word currently on screen.
-  function currentWordIndex() {
-    if (!state.doc.words.length) return 0;
+  function totalWsWords() { return state.doc.wsToToken.length; }
+  // First render token currently on screen.
+  function currentRenderToken() {
     if (state.isScrollMode) {
       const loc = currentLocatorFn();
       const wi = loc ? resolveLocator(state, loc) : 0;
@@ -141,15 +143,31 @@ export function init(options = {}) {
     }
     return wordAtPageStart(state, els.content, state.page);
   }
+  // Whitespace-word ordinal of the first WHOLE word on screen. If the first
+  // render token is a continuation (its word began on the previous page, e.g. a
+  // trailing punctuation span), advance to the next word that actually starts
+  // here so save/restore round-trips to the same page.
+  function currentWsOrdinal() {
+    const { doc } = state;
+    if (!doc.tokenToWs.length) return 0;
+    const tok = Math.max(0, Math.min(currentRenderToken(), doc.tokenToWs.length - 1));
+    let o = doc.tokenToWs[tok];
+    if (doc.wsToToken[o] < tok && o + 1 < doc.wsToToken.length) o++;
+    return o;
+  }
   function getCanonicalPosition() {
     if (!state.doc.words.length) return null;
-    return buildPosition(readerSections(), state.doc.words.length, currentWordIndex());
+    return buildPosition(readerSections(), totalWsWords(), currentWsOrdinal());
   }
   function applyCanonicalPosition(pos) {
     if (!state.doc.words.length) return;
-    const wi = resolvePosition(pos, readerSections(), state.doc.words.length);
-    if (state.isScrollMode) pagination.scrollToWord(wi);
-    else pagination.goTo(pageOfWord(state, els.content, wi), false);
+    const ord = resolvePosition(pos, readerSections(), totalWsWords());
+    const { wsToToken } = state.doc;
+    const tok = wsToToken.length
+      ? wsToToken[Math.max(0, Math.min(ord, wsToToken.length - 1))]
+      : 0;
+    if (state.isScrollMode) pagination.scrollToWord(tok);
+    else pagination.goTo(pageOfWord(state, els.content, tok), false);
   }
 
   // ---------- Pagination ----------
