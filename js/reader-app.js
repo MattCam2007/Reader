@@ -6,7 +6,7 @@ import { PrefsManager } from './core/prefs.js';
 import { ReaderState } from './core/state.js';
 import { StorageManager } from './core/storage.js';
 import { extractSections } from './epub/extractor.js';
-import { resolveImageUrls, findCoverImage } from './epub/images.js';
+import { resolveImageUrls } from './epub/images.js';
 import { flattenToc, buildTOC, resolveHref } from './epub/toc.js';
 import { toLocator, resolveLocator } from './model/locator.js';
 import { currentLocator, pageOfElement, pageOfWord, wordAtPageStart } from './model/geometry.js';
@@ -441,27 +441,18 @@ export function init(options = {}) {
         throw new Error("No readable text found (this EPUB may be image-only or DRM-protected).");
       }
 
-      if (allImgUrls.length && book.archive) {
-        await resolveImageUrls(allImgUrls, book, state.blobUrls);
-      }
-
-      const coverUrl = await findCoverImage(book);
-      if (coverUrl) {
-        const img = document.createElement("img");
-        img.src = coverUrl;
-        const frag = document.createDocumentFragment();
-        frag.appendChild(img);
-        sections.unshift({ href: "__cover__", blocks: [{ type: "figure", text: "", id: "cover", frag }] });
-      }
-
       const meta = (book.packaging && book.packaging.metadata) || {};
       const title = (meta.title || file.name).trim();
       state.bookId = deriveBookId(urlParams.get("id"), meta.title, file.name);
       els.bookTitleEl.textContent = title;
       bookmarkManager.setBook(state.bookId);
 
+      // Resolve images before renderBook so img.src is set when DOM is built.
+      // Don't add to state.blobUrls yet — renderBook revokes everything in there
+      // first (cleaning up the previous book). Track them after.
+      const newBlobUrls = allImgUrls.length ? await resolveImageUrls(allImgUrls, book) : [];
       renderBook(sections);
-      if (coverUrl) state.blobUrls.push(coverUrl);
+      newBlobUrls.forEach(u => state.blobUrls.push(u));
       clearOverlay();
       if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId: state.bookId });
       requestAnimationFrame(() => {

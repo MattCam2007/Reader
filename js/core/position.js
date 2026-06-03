@@ -8,7 +8,6 @@
 // shared currency, anchored to the section's stable spine href so it survives:
 //
 //   - switching between Reader / RSVP / TTS
-//   - a cover page being prepended in some modes but not others
 //   - re-pagination, font/column/theme changes
 //   - small differences in how each mode tokenises words (bounded to one section)
 //
@@ -40,15 +39,14 @@ export function deriveBookId(urlId, metaTitle, fileName) {
 //   totalWords total words in this mode's stream.
 //   globalOrd  the current global word ordinal.
 //
-// The returned object carries section-relative coordinates (primary, robust to
-// cover insertion and index shifts), a global ordinal, and a fraction — each a
-// progressively coarser fallback for the resolver.
+// The returned object carries section-relative coordinates (primary), a global
+// ordinal, and a fraction — each a progressively coarser fallback for the resolver.
 export function buildPosition(sections, totalWords, globalOrd) {
   const words = Math.max(1, Math.trunc(totalWords) || 1);
   const ord = clamp(Math.trunc(globalOrd) || 0, 0, words - 1);
 
-  // Find the section that contains `ord`. If `ord` falls in a gap (e.g. a
-  // 0-word cover) keep the last section that starts at or before it.
+  // Find the section that contains `ord`. If `ord` falls in a gap keep the
+  // last section that starts at or before it.
   let chosen = null;
   for (const s of sections) {
     if (!s || s.wordCount <= 0) continue;

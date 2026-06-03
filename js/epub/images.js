@@ -1,5 +1,69 @@
-export async function resolveImageUrls(imgEntries, book, blobUrls) {
-  // Build a Map<basename, fullPath> from manifest for O(1) lookup (Phase 8a)
+// Resolve `..` and `.` segments in an archive path.
+function normalizePath(path) {
+  const out = [];
+  for (const p of path.split('/')) {
+    if (p === '..') out.pop();
+    else if (p !== '.') out.push(p);
+  }
+  return out.join('/');
+}
+
+// Load an image from the EPUB archive as a Blob, trying several path variants
+// and return types (epubjs 0.3.x exposes archive.request; book.load returns
+// text/binary-string, not Blob, so we handle all cases).
+async function tryLoadBlob(book, path) {
+  // Normalize the path and produce slash variants epubjs may need.
+  const norm = normalizePath(path);
+  const noLeading = norm.replace(/^\//, '');
+  const withLeading = '/' + noLeading;
+
+  const paths = [...new Set([path, norm, noLeading, withLeading])];
+
+  for (const p of paths) {
+    if (!p) continue;
+    // Primary: archive.request(path, "blob") — JSZip returns a real Blob.
+    try {
+      if (book.archive && typeof book.archive.request === 'function') {
+        const data = await book.archive.request(p, 'blob');
+        if (data instanceof Blob && data.size > 0) return data;
+      }
+    } catch (_) {}
+    // Fallback: archive.request with arraybuffer, convert to Blob.
+    try {
+      if (book.archive && typeof book.archive.request === 'function') {
+        const data = await book.archive.request(p, 'arraybuffer');
+        if (data instanceof ArrayBuffer && data.byteLength > 0) return new Blob([data]);
+      }
+    } catch (_) {}
+  }
+
+  // Last resort: book.load — may return string, ArrayBuffer, or Blob.
+  try {
+    if (typeof book.load === 'function') {
+      const data = await book.load(noLeading);
+      if (data instanceof Blob && data.size > 0) return data;
+      if (data instanceof ArrayBuffer && data.byteLength > 0) return new Blob([data]);
+      if (typeof data === 'string' && data.length > 0) {
+        // Binary string (epubjs "binary" request type) → Uint8Array → Blob.
+        const bytes = new Uint8Array(data.length);
+        for (let i = 0; i < data.length; i++) bytes[i] = data.charCodeAt(i) & 0xff;
+        return new Blob([bytes]);
+      }
+    }
+  } catch (_) {}
+
+  return null;
+}
+
+// Resolve image src attributes in imgEntries to blob URLs.
+// Returns the array of created blob URLs (caller tracks them for cleanup).
+// Call this BEFORE renderBook so the img elements have their src set when
+// inserted into the DOM, but do NOT add the returned URLs to state.blobUrls
+// until AFTER renderBook has revoked the previous book's blob URLs.
+export async function resolveImageUrls(imgEntries, book) {
+  const createdUrls = [];
+
+  // Build a Map<basename, fullPath> from manifest for O(1) lookup.
   let manifestPaths = [];
   try {
     const manifest = book.packaging && book.packaging.manifest;
@@ -8,7 +72,7 @@ export async function resolveImageUrls(imgEntries, book, blobUrls) {
         if (item.href) manifestPaths.push(item.href);
       });
     }
-  } catch (e) { console.warn("images:manifest", e); }
+  } catch (e) { console.warn('images:manifest', e); }
   try {
     const arc = book.archive;
     if (arc && arc.urlCache) {
@@ -16,67 +80,44 @@ export async function resolveImageUrls(imgEntries, book, blobUrls) {
         if (manifestPaths.indexOf(k) < 0) manifestPaths.push(k);
       });
     }
-  } catch (e) { console.warn("images:archive", e); }
+  } catch (e) {}
 
-  // Build basename map for O(1) lookup instead of O(n*m)
   const basenameMap = new Map();
   manifestPaths.forEach(p => {
-    const base = p.split("/").pop().toLowerCase();
+    const base = p.split('/').pop().toLowerCase();
     if (!basenameMap.has(base)) basenameMap.set(base, p);
   });
 
   for (const entry of imgEntries) {
     try {
-      let blob = null;
-      const pathsToTry = [entry.resolvedSrc];
-      const basename = entry.src.split("/").pop().toLowerCase();
+      const pathsToTry = [normalizePath(entry.resolvedSrc)];
+      const basename = entry.src.split('/').pop().toLowerCase();
       const mapped = basenameMap.get(basename);
       if (mapped && pathsToTry.indexOf(mapped) < 0) pathsToTry.push(mapped);
 
-      for (const tryPath of pathsToTry) {
+      let blob = null;
+      for (const p of pathsToTry) {
         if (blob && blob.size > 0) break;
-        blob = await tryLoadBlob(book, tryPath);
+        blob = await tryLoadBlob(book, p);
       }
       if (blob && blob.size > 0) {
         const url = URL.createObjectURL(blob);
-        blobUrls.push(url);
-        entry.img.setAttribute("src", url);
+        createdUrls.push(url);
+        entry.img.setAttribute('src', url);
       } else {
-        console.warn("Image not found in archive:", entry.src, "tried:", pathsToTry);
-        entry.img.removeAttribute("src");
+        console.warn('Image not found in archive:', entry.src, 'tried:', pathsToTry);
+        entry.img.removeAttribute('src');
       }
     } catch (err) {
-      console.warn("Image resolve failed:", entry.src, err);
-      entry.img.removeAttribute("src");
+      console.warn('Image resolve failed:', entry.src, err);
+      entry.img.removeAttribute('src');
     }
   }
+
+  return createdUrls;
 }
 
-async function tryLoadBlob(book, path) {
-  let blob = null;
-  try {
-    if (book.archive && typeof book.archive.getBlob === "function") {
-      blob = await book.archive.getBlob(path);
-    }
-  } catch (_) {}
-  if (!blob || !blob.size) {
-    try {
-      if (book.archive && typeof book.archive.request === "function") {
-        const data = await book.archive.request(path, "blob");
-        if (data instanceof Blob) blob = data;
-      }
-    } catch (_) {}
-  }
-  if (!blob || !blob.size) {
-    try {
-      if (typeof book.load === "function") {
-        const data = await book.load(path);
-        if (data instanceof Blob) blob = data;
-      }
-    } catch (_) {}
-  }
-  return blob;
-}
+
 
 export async function findCoverImage(book) {
   const tryBlob = async (path) => {

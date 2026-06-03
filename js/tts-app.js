@@ -3,7 +3,7 @@ import { PrefsManager } from './core/prefs.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
 import { extractSections } from './epub/extractor.js';
-import { resolveImageUrls, findCoverImage } from './epub/images.js';
+import { resolveImageUrls } from './epub/images.js';
 import { flattenToc, buildTOC, resolveHref } from './epub/toc.js';
 import { buildSample } from '../fixtures/sample.js';
 import { TtsEngine } from './tts/engine.js';
@@ -640,19 +640,6 @@ export function init(options = {}) {
       const chars = sections.reduce((n, s) => n + s.blocks.reduce((m, b) => m + b.text.length, 0), 0);
       if (chars < 32) throw new Error('No readable text found (this EPUB may be image-only or DRM-protected).');
 
-      if (allImgUrls.length && book.archive) {
-        await resolveImageUrls(allImgUrls, book, blobUrls);
-      }
-
-      const coverUrl = await findCoverImage(book);
-      if (coverUrl) {
-        const img = document.createElement('img');
-        img.src = coverUrl;
-        const frag = document.createDocumentFragment();
-        frag.appendChild(img);
-        sections.unshift({ href: '__cover__', blocks: [{ type: 'figure', text: '', id: 'cover', frag }] });
-      }
-
       const meta = (book.packaging && book.packaging.metadata) || {};
       const title = (meta.title || file.name).trim();
       bookId = deriveBookId(urlParams.get('id'), meta.title, file.name);
@@ -660,8 +647,9 @@ export function init(options = {}) {
       els.bookTitleEl.textContent = title;
       bookLoaded = true;
 
+      const newBlobUrls = allImgUrls.length ? await resolveImageUrls(allImgUrls, book) : [];
       renderBook(sections);
-      if (coverUrl) blobUrls.push(coverUrl);
+      newBlobUrls.forEach(u => blobUrls.push(u));
       clearOverlay();
 
       if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId });
