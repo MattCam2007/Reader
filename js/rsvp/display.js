@@ -90,6 +90,7 @@ export class RsvpDisplay {
 
     contextAbove.textContent = aboveWords.join(' ');
     contextBelow.textContent = belowWords.join(' ');
+    contextAbove.scrollTop = contextAbove.scrollHeight;
   }
 
   updateSeek() {
