@@ -181,28 +181,38 @@ Position is stored as a **canonical, mode-independent** object (`js/core/positio
 ### 4a. Encoding (save)
 
 ```
-core/position.js: buildPosition(sections, totalWords, globalOrd)
+core/position.js: buildPosition(sections, totalWords, globalOrd, wordAt?)
   │  sections: [{ href, wordStart, wordCount }] in reading order
   ├─ find the section containing globalOrd
   ├─ wordInSec = globalOrd - section.wordStart
-  └─ return { v, href, wordInSec, secWords, ord: globalOrd, words: totalWords, f }
+  ├─ t = normalised snippet of SNIPPET_WORDS words from globalOrd (via wordAt)
+  └─ return { v, href, wordInSec, secWords, ord: globalOrd, words: totalWords, f, t }
 ```
 
-Each mode supplies its own `sections` table and `globalOrd`:
-- Reader: `state.doc.sections`, `wordAtPageStart(page)`
-- RSVP: `state.chapters`, `state.wordOrdinalAt(currentIdx)`
-- TTS: section table from `segmentContent()`, `sentences[currentSentenceIdx].wordOffset`
+Each mode supplies its own `sections` table, `globalOrd`, and a `wordAt(ord)`
+that returns the raw word string at a global ordinal:
+- Reader: `state.doc.sections` (whitespace-word counts), `currentWsOrdinal()`, `wsWordText`
+- RSVP: `rsvpSections()`, `currentOrdinal()`, `tokens[wordTokenIndices[o]]`
+- TTS: `segmentContent()` section table, `sentences[idx].wordOffset`, `ttsWords[o]`
+
+> **Word counting must match across modes.** All three count *whitespace-delimited*
+> words (the Reader bridges its punctuation-split render tokens to whitespace
+> words via `doc.tokenToWs`/`doc.wsToToken`). Matching counts make step 1 below
+> exact; the snippet (`t`) is the final exact snap for any residual.
 
 ### 4b. Decoding (restore)
 
 ```
-core/position.js: resolvePosition(pos, sections, totalWords) → global word ordinal
+core/position.js: resolvePosition(pos, sections, totalWords, wordAt?) → global word ordinal
   │
   ├─ 1. Match section by stable href; reconcile wordInSec if this mode counted
   │       that section's words differently  → section.wordStart + wordInSec'
   ├─ 2. Else scale the global ordinal:  round(pos.ord * (words-1)/(pos.words-1))
-  └─ 3. Else the fraction fallback:     round(pos.f * (words-1))
-                                        (also reads the legacy { f } format)
+  ├─ 3. Else the fraction fallback:     round(pos.f * (words-1))
+  │                                     (also reads the legacy { f } format)
+  └─ 4. Text snap (if pos.t and wordAt): search ±REFINE_WINDOW words around the
+        prediction for the snippet; require a 60% word-match and break ties
+        toward the prediction → land on the exact word.
 ```
 
 ### 4c. Position restoration on book load

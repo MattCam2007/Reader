@@ -664,13 +664,18 @@ This was invitation enough.
     while (i > 0 && state.tokenToWordOrdinal[i] < 0) i--;
     return state.tokenToWordOrdinal[i] >= 0 ? state.tokenToWordOrdinal[i] : 0;
   }
+  // Raw word string at word ordinal `o`, for the text-anchored exact snap.
+  function wordAt(o) {
+    const ti = state.wordTokenIndices[o];
+    return ti == null ? '' : (state.tokens[ti] || '');
+  }
   function getCanonicalPosition() {
     if (state.totalWords < 1) return null;
-    return buildPosition(rsvpSections(), state.totalWords, currentOrdinal());
+    return buildPosition(rsvpSections(), state.totalWords, currentOrdinal(), wordAt);
   }
   function applyCanonicalPosition(pos) {
     if (!state.totalWords) return;
-    const ord = resolvePosition(pos, rsvpSections(), state.totalWords);
+    const ord = resolvePosition(pos, rsvpSections(), state.totalWords, wordAt);
     playback.seekTo(state.ordinalToIdx(ord));
   }
 

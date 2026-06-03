@@ -66,6 +66,7 @@ export function init(options = {}) {
 
   let sentences = [];       // [{ text, blockEl, wordOffset, secHref }]
   let ttsSections = [];     // [{ href, wordStart, wordCount }]
+  let ttsWords = [];        // flat word strings, aligned with word ordinals
   let _ttsSearchCache = null;
   let totalWords = 0;
   let currentSentenceIdx = 0;
@@ -324,6 +325,7 @@ export function init(options = {}) {
     const blocks = Array.from(els.content.querySelectorAll(blockSel));
     const result = [];
     const sectionsMeta = [];
+    ttsWords = [];
     let wordOffset = 0;
     let curHref = null;
     for (const blockEl of blocks) {
@@ -340,9 +342,10 @@ export function init(options = {}) {
         ? wrapBlockSentences(blockEl, parts)
         : [blockEl];
       for (let i = 0; i < parts.length; i++) {
-        const wc = parts[i].split(/\s+/).filter(Boolean).length;
+        const words = parts[i].split(/\s+/).filter(Boolean);
         result.push({ text: parts[i], blockEl, highlightEl: highlightEls[i] || blockEl, wordOffset, secHref: href });
-        wordOffset += wc;
+        for (const w of words) ttsWords.push(w);
+        wordOffset += words.length;
       }
     }
     // Section table keyed by stable spine href — the shared anchor across modes.
@@ -721,7 +724,7 @@ export function init(options = {}) {
     try {
       const raw = localStorage.getItem(posKey());
       if (!raw) return 0;
-      return sentenceIndexForOrdinal(resolvePosition(JSON.parse(raw), ttsSections, totalWords));
+      return sentenceIndexForOrdinal(resolvePosition(JSON.parse(raw), ttsSections, totalWords, wordAt));
     } catch (_) { return 0; }
   }
 
@@ -733,14 +736,16 @@ export function init(options = {}) {
     }
     return idx;
   }
+  // Raw word string at word ordinal `o`, for the text-anchored exact snap.
+  function wordAt(o) { return ttsWords[o] || ''; }
   function getCanonicalPosition() {
     if (!sentences.length || totalWords < 1) return null;
     const sent = sentences[currentSentenceIdx] || sentences[0];
-    return buildPosition(ttsSections, totalWords, sent ? sent.wordOffset : 0);
+    return buildPosition(ttsSections, totalWords, sent ? sent.wordOffset : 0, wordAt);
   }
   function applyCanonicalPosition(pos) {
     if (!sentences.length) return;
-    seekToSentence(sentenceIndexForOrdinal(resolvePosition(pos, ttsSections, totalWords)));
+    seekToSentence(sentenceIndexForOrdinal(resolvePosition(pos, ttsSections, totalWords, wordAt)));
   }
 
 

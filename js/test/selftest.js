@@ -117,6 +117,29 @@ export function runSelftest(state) {
       assert('position', 'href anchor pins section start across count drift',
         resolvePosition(at, gap.secs, gap.total) === 300); // c2 starts at 300 in both
     }
+
+    // Text-anchored exact snap. When two modes are a few words off numerically,
+    // matching the saved snippet must land on the exact word — even when the
+    // snippet's leading word repeats elsewhere (tie-break toward prediction).
+    {
+      const prose = ('the quick brown fox jumps over the lazy dog and then the cat ' +
+        'sat on the mat by the door while rain fell softly on the tin roof').split(' ');
+      const src = [{ href: 'c', wordStart: 0, wordCount: prose.length }];
+      const srcAt = (i) => prose[i] || '';
+      const SHIFT = 3; // target counts 3 phantom words before the prose
+      const tgtWords = ['x', 'y', 'z'].concat(prose);
+      const tgt = [{ href: 'c', wordStart: 0, wordCount: tgtWords.length }];
+      const tgtAt = (i) => tgtWords[i] || '';
+      let exact = true;
+      for (let a = 0; a < prose.length - 8; a++) {
+        const p = buildPosition(src, prose.length, a, srcAt);
+        if (resolvePosition(p, tgt, tgtWords.length, tgtAt) !== a + SHIFT) { exact = false; break; }
+      }
+      assert('position', 'text snap lands exactly despite numeric drift', exact);
+      const rep = buildPosition(src, prose.length, 11, srcAt); // "the cat sat on the mat…"
+      assert('position', 'text snap tie-breaks repeated phrase toward prediction',
+        resolvePosition(rep, tgt, tgtWords.length, tgtAt) === 11 + SHIFT);
+    }
   }
 
   // --- model/geometry ---

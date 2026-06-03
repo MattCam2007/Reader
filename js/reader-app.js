@@ -134,6 +134,20 @@ export function init(options = {}) {
     }));
   }
   function totalWsWords() { return state.doc.wsToToken.length; }
+  // Raw text of whitespace word `o`, rebuilt from its render tokens (which the
+  // annotator split at punctuation). Used for the text-anchored exact snap.
+  function wsWordText(o) {
+    const { doc } = state;
+    if (o < 0 || o >= doc.wsToToken.length) return '';
+    const startTok = doc.wsToToken[o];
+    const endTok = o + 1 < doc.wsToToken.length ? doc.wsToToken[o + 1] : doc.words.length;
+    let s = '';
+    for (let t = startTok; t < endTok; t++) {
+      const w = doc.words[t];
+      s += w.node.nodeValue.slice(w.start, w.end);
+    }
+    return s;
+  }
   // First render token currently on screen.
   function currentRenderToken() {
     if (state.isScrollMode) {
@@ -157,11 +171,11 @@ export function init(options = {}) {
   }
   function getCanonicalPosition() {
     if (!state.doc.words.length) return null;
-    return buildPosition(readerSections(), totalWsWords(), currentWsOrdinal());
+    return buildPosition(readerSections(), totalWsWords(), currentWsOrdinal(), wsWordText);
   }
   function applyCanonicalPosition(pos) {
     if (!state.doc.words.length) return;
-    const ord = resolvePosition(pos, readerSections(), totalWsWords());
+    const ord = resolvePosition(pos, readerSections(), totalWsWords(), wsWordText);
     const { wsToToken } = state.doc;
     const tok = wsToToken.length
       ? wsToToken[Math.max(0, Math.min(ord, wsToToken.length - 1))]
