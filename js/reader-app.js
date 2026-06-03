@@ -447,10 +447,12 @@ export function init(options = {}) {
       els.bookTitleEl.textContent = title;
       bookmarkManager.setBook(state.bookId);
 
+      // Resolve images before renderBook so img.src is set when DOM is built.
+      // Don't add to state.blobUrls yet — renderBook revokes everything in there
+      // first (cleaning up the previous book). Track them after.
+      const newBlobUrls = allImgUrls.length ? await resolveImageUrls(allImgUrls, book) : [];
       renderBook(sections);
-      if (allImgUrls.length && book.archive) {
-        await resolveImageUrls(allImgUrls, book, state.blobUrls);
-      }
+      newBlobUrls.forEach(u => state.blobUrls.push(u));
       clearOverlay();
       if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId: state.bookId });
       requestAnimationFrame(() => {

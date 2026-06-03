@@ -647,10 +647,9 @@ export function init(options = {}) {
       els.bookTitleEl.textContent = title;
       bookLoaded = true;
 
+      const newBlobUrls = allImgUrls.length ? await resolveImageUrls(allImgUrls, book) : [];
       renderBook(sections);
-      if (allImgUrls.length && book.archive) {
-        await resolveImageUrls(allImgUrls, book, blobUrls);
-      }
+      newBlobUrls.forEach(u => blobUrls.push(u));
       clearOverlay();
 
       if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId });
