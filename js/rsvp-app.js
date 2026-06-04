@@ -5,6 +5,7 @@ import { initBookmarksPanel } from './bookmarks/panel.js';
 import { PrefsManager } from './core/prefs.js';
 import { EventBus } from './core/events.js';
 import { BookSession, countWords } from './core/book-session.js';
+import { renderSearchResults } from './shared/search.js';
 import { RSVP_DEFAULTS } from './rsvp/constants.js';
 import { RsvpState } from './rsvp/state.js';
 import { tokenize } from './rsvp/tokenizer.js';
@@ -329,55 +330,18 @@ export function init(options = {}) {
 
   function runRsvpSearch(query) {
     if (!searchResults) return;
-    searchResults.innerHTML = "";
-    if (!query || query.length < 2 || !state.wordTokenIndices.length) {
-      if (query && query.length >= 2)
-        searchResults.innerHTML = '<div class="reader-search-empty">No results</div>';
-      return;
-    }
+    if (!state.wordTokenIndices.length) { searchResults.innerHTML = ""; return; }
     const { text, wordCharStart } = buildRsvpSearchCache();
-    const lower = text.toLowerCase();
-    const q = query.toLowerCase();
-    const hits = [];
-    let pos = 0;
-    while ((pos = lower.indexOf(q, pos)) !== -1 && hits.length < 200) {
-      hits.push(pos);
-      pos += q.length;
-    }
-    if (!hits.length) {
-      searchResults.innerHTML = '<div class="reader-search-empty">No results</div>';
-      return;
-    }
-    const frag = document.createDocumentFragment();
-    hits.forEach((charOff) => {
-      let wi = 0;
-      for (let j = 0; j < wordCharStart.length; j++) {
-        if (wordCharStart[j] <= charOff) wi = j;
-        else break;
-      }
-      const snippetStart = Math.max(0, charOff - 40);
-      const snippetEnd = Math.min(text.length, charOff + query.length + 40);
-      const before = (snippetStart > 0 ? "…" : "") + text.slice(snippetStart, charOff);
-      const match = text.slice(charOff, charOff + query.length);
-      const after = text.slice(charOff + query.length, snippetEnd) + (snippetEnd < text.length ? "…" : "");
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "reader-search-result";
-      btn.appendChild(document.createTextNode(before));
-      const mark = document.createElement("mark");
-      mark.textContent = match;
-      btn.appendChild(mark);
-      btn.appendChild(document.createTextNode(after));
-      btn.addEventListener("click", () => {
+    renderSearchResults(searchResults, {
+      text, charStart: wordCharStart, query,
+      onPick: (wi) => {
         if (state.playState === 'playing') playback.pause();
         else if (state.playState === 'countdown') playback.cancelCountdown();
         playback.seekTo(state.ordinalToIdx(wi));
         document.body.classList.remove('show-search');
         if (searchBtn) searchBtn.setAttribute('aria-expanded', 'false');
-      });
-      frag.appendChild(btn);
+      },
     });
-    searchResults.appendChild(frag);
   }
 
   if (searchBtn) {

@@ -3,6 +3,8 @@ import { PrefsManager } from './core/prefs.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
 import { BookSession, splitWords } from './core/book-session.js';
+import { renderSections, annotateInlineText } from './shared/render.js';
+import { renderSearchResults } from './shared/search.js';
 import { buildTOC, resolveHref } from './epub/toc.js';
 import { buildSample } from '../fixtures/sample.js';
 import { TtsEngine } from './tts/engine.js';
@@ -423,108 +425,15 @@ export function init(options = {}) {
   // ---------- Rendering ----------
   function renderBook(sections) {
     perf.mark("tts:render");
-    els.content.innerHTML = '';
-    sectionEls.clear();
     headingToc = [];
-    const frag = document.createDocumentFragment();
-    sections.forEach((sec) => {
-      const wrap = document.createElement('div');
-      wrap.className = 'chap';
-      if (sec.href) { wrap.dataset.href = sec.href; sectionEls.set(sec.href, wrap); }
-      sec.blocks.forEach((b) => {
-        const el = document.createElement(
-          (b.type === 'figure' || b.type === 'table-wrap') ? 'div' : b.type
-        );
-        // Clone — sections are shared across modes; don't consume the template frag.
-        if (b.frag) el.appendChild(b.frag.cloneNode(true));
-        else el.textContent = b.text;
-        if (b.id) el.id = b.id;
-        el.className = 'blk blk-' + b.type;
-        if (b.type === 'figure') {
-          el.querySelectorAll('figcaption').forEach(fc => fc.className = 'blk-figcaption');
-        }
-        wrap.appendChild(el);
-        if (b.type === 'h1' || b.type === 'h2') {
-          headingToc.push({ label: b.text, el, depth: b.type === 'h1' ? 0 : 1 });
-        }
-      });
-      frag.appendChild(wrap);
+    renderSections(els.content, sections, {
+      sectionEls,
+      onHeading: (h) => headingToc.push(h),
     });
-    els.content.appendChild(frag);
     perf.measure("tts:render", { sections: sections.length });
     perf.time("tts:annotate", () => annotateInlineText(els.content));
   }
 
-  function annotateInlineText(root) {
-    root.querySelectorAll(".blk").forEach(annotateBlock);
-  }
-
-  function annotateBlock(blk) {
-    const SPLIT = /(["\u201C\u201D])|([.,:;!?\u2014\u2013\u2026()\[\]])/g;
-    const walker = document.createTreeWalker(blk, NodeFilter.SHOW_TEXT);
-    const nodes = [];
-    let nd;
-    while ((nd = walker.nextNode())) nodes.push(nd);
-
-    let inSpeech = false;
-    for (const node of nodes) {
-      const parent = node.parentNode;
-      if (!parent) continue;
-      if (parent.closest && parent.closest("code, pre")) continue;
-      const text = node.nodeValue;
-      let last = 0, m, hasMatch = false;
-      const parts = [];
-
-      const pushText = (t) => {
-        if (!t) return;
-        if (inSpeech) {
-          const sp = document.createElement("span");
-          sp.className = "inline-speech";
-          sp.textContent = t;
-          parts.push(sp);
-        } else {
-          parts.push(document.createTextNode(t));
-        }
-      };
-
-      SPLIT.lastIndex = 0;
-      while ((m = SPLIT.exec(text)) !== null) {
-        hasMatch = true;
-        pushText(text.slice(last, m.index));
-        const ch = m[0];
-        if (m[1]) {
-          const sp = document.createElement("span");
-          sp.className = "inline-speech";
-          sp.textContent = ch;
-          parts.push(sp);
-          if (ch === "\u201C") inSpeech = true;
-          else if (ch === "\u201D") inSpeech = false;
-          else inSpeech = !inSpeech;
-        } else {
-          const sp = document.createElement("span");
-          sp.className = inSpeech ? "inline-punct inline-punct-speech" : "inline-punct";
-          sp.textContent = ch;
-          parts.push(sp);
-        }
-        last = m.index + ch.length;
-      }
-
-      if (!hasMatch) {
-        if (inSpeech) {
-          const sp = document.createElement("span");
-          sp.className = "inline-speech";
-          sp.textContent = text;
-          parent.replaceChild(sp, node);
-        }
-        continue;
-      }
-
-      pushText(text.slice(last));
-      const frag2 = document.createDocumentFragment();
-      for (const p of parts) frag2.appendChild(p);
-      parent.replaceChild(frag2, node);
-    }
-  }
 
   // ---------- Prefs application ----------
   function applyPrefs() {
@@ -787,52 +696,12 @@ export function init(options = {}) {
   function runTtsSearch(query) {
     const resultsEl = els.ttsSearchResults;
     if (!resultsEl) return;
-    resultsEl.innerHTML = "";
-    if (!query || query.length < 2 || !sentences.length) {
-      if (query && query.length >= 2)
-        resultsEl.innerHTML = '<div class="reader-search-empty">No results</div>';
-      return;
-    }
+    if (!sentences.length) { resultsEl.innerHTML = ""; return; }
     const { text, sentenceCharStart } = buildTtsSearchCache();
-    const lower = text.toLowerCase();
-    const q = query.toLowerCase();
-    const hits = [];
-    let pos = 0;
-    while ((pos = lower.indexOf(q, pos)) !== -1 && hits.length < 200) {
-      hits.push(pos);
-      pos += q.length;
-    }
-    if (!hits.length) {
-      resultsEl.innerHTML = '<div class="reader-search-empty">No results</div>';
-      return;
-    }
-    const frag = document.createDocumentFragment();
-    hits.forEach((charOff) => {
-      let si = 0;
-      for (let j = 0; j < sentenceCharStart.length; j++) {
-        if (sentenceCharStart[j] <= charOff) si = j;
-        else break;
-      }
-      const snippetStart = Math.max(0, charOff - 40);
-      const snippetEnd = Math.min(text.length, charOff + query.length + 40);
-      const before = (snippetStart > 0 ? "…" : "") + text.slice(snippetStart, charOff);
-      const match = text.slice(charOff, charOff + query.length);
-      const after = text.slice(charOff + query.length, snippetEnd) + (snippetEnd < text.length ? "…" : "");
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "reader-search-result";
-      btn.appendChild(document.createTextNode(before));
-      const mark = document.createElement("mark");
-      mark.textContent = match;
-      btn.appendChild(mark);
-      btn.appendChild(document.createTextNode(after));
-      btn.addEventListener("click", () => {
-        seekToSentence(si);
-        closePanels();
-      });
-      frag.appendChild(btn);
+    renderSearchResults(resultsEl, {
+      text, charStart: sentenceCharStart, query,
+      onPick: (si) => { seekToSentence(si); closePanels(); },
     });
-    resultsEl.appendChild(frag);
   }
 
   if (els.ttsSearchBtn) {
