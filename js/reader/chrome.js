@@ -74,6 +74,21 @@ export class ChromeManager {
       const threshold = els.viewport.clientHeight * 0.55;
       return items.some(item => Math.abs(item.fraction * sh - scrollTop) < threshold);
     }
+    if (state.windowed) {
+      // item.fraction is a global word fraction; total/page are per-chapter. Only a
+      // bookmark whose word lands in the current chapter can be on this page — map
+      // it into chapter-local page units the same cheap way the progress bar does.
+      const totalWs = state.doc.wsToToken.length;
+      const sec = state.doc.sections[state.curChap];
+      if (!totalWs || !sec || state.total <= 0) return false;
+      const secWs = sec.wsEnd - sec.wsStart;
+      return items.some(item => {
+        const bmWs = item.fraction * totalWs;
+        if (bmWs < sec.wsStart || bmWs >= sec.wsEnd) return false;
+        const within = secWs > 0 ? (bmWs - sec.wsStart) / secWs : 0;
+        return Math.round(within * (state.total - 1)) === state.page;
+      });
+    }
     const total = state.total;
     if (total <= 0) return false;
     return items.some(item => Math.round(item.fraction * (total - 1)) === state.page);

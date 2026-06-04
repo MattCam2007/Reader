@@ -142,9 +142,14 @@ export function init(options = {}) {
   // no getBoundingClientRect so it stays off the page-turn hot path. The precise
   // word ordinal is only computed on (debounced) save / bookmark, not every turn.
   function updateWindowedProgress() {
-    const n = state.chapWindows.length || 1;
+    // Word-based global fraction (matches how bookmarks store position.f), derived
+    // cheaply from the current chapter's word range + page-within-chapter — no
+    // getBoundingClientRect, so it stays off the turn hot path.
+    const totalWs = state.doc.wsToToken.length || 1;
+    const sec = state.doc.sections[state.curChap];
     const within = state.total > 1 ? state.page / (state.total - 1) : 0;
-    const frac = Math.max(0, Math.min(1, (state.curChap + within) / n));
+    const wsHere = sec ? sec.wsStart + within * (sec.wsEnd - sec.wsStart) : 0;
+    const frac = Math.max(0, Math.min(1, wsHere / totalWs));
     const pct = Math.round(frac * 100);
     els.progressEl.max = "1000";
     els.progressEl.value = String(Math.round(frac * 1000));
@@ -761,13 +766,12 @@ export function init(options = {}) {
   }, { signal });
   els.progressEl.addEventListener("input", () => {
     if (state.windowed) {
-      // The bar is a 0–1000 global scrubber in windowed mode: map to chapter + page.
-      const n = state.chapWindows.length || 1;
+      // The bar is a 0–1000 word-fraction scrubber; map to a word and seek.
+      const totalWs = state.doc.wsToToken.length;
+      if (!totalWs) return;
       const frac = (parseInt(els.progressEl.value, 10) || 0) / 1000;
-      const sec = Math.max(0, Math.min(n - 1, Math.floor(frac * n)));
-      if (sec !== state.curChap) { pagination.attachChap(sec); pagination.paginateWindow(false); }
-      const within = frac * n - sec;
-      pagination.goTo(Math.round(within * (state.total - 1)), false);
+      const ws = Math.max(0, Math.min(totalWs - 1, Math.round(frac * (totalWs - 1))));
+      seekToToken(state.doc.wsToToken[ws]);
       return;
     }
     pagination.goTo(parseInt(els.progressEl.value, 10) || 0, false);

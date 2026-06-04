@@ -41,8 +41,18 @@ export function resolveHref(href, content, sectionEls) {
   const frag = parts[1];
   if (frag) {
     try {
-      const e = content.querySelector("#" + CSS.escape(frag));
+      const sel = "#" + CSS.escape(frag);
+      // Attached content first (the common, fast path).
+      const e = content.querySelector(sel);
       if (e) return e;
+      // Windowed rendering detaches all but the current chapter, so the target
+      // may live in a detached .chap subtree — search those too (querySelector
+      // works on detached elements). sectionEls holds every chapter element.
+      for (const sectionEl of sectionEls.values()) {
+        if (sectionEl.isConnected) continue; // already covered by content query
+        const d = sectionEl.querySelector(sel);
+        if (d) return d;
+      }
     } catch (e) { console.warn("toc:resolveHref", e); }
   }
   const base = parts[0].split("/").pop();
