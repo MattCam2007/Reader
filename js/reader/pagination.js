@@ -82,9 +82,61 @@ export class PaginationEngine {
     this.buildChapterIndexFn();
   }
 
+  // ---------- Windowed rendering prototype (?window=1) ----------
+  // Detach every chapter except `keep` into comment-marker placeholders, so the
+  // browser only lays out / paints one chapter at a time. Built once after render.
+  setupWindow(keep) {
+    const { state, els } = this;
+    const chaps = Array.from(els.content.children);
+    state.chapWindows = chaps.map((el) => ({ el, marker: null }));
+    state.curChap = Math.max(0, Math.min(keep || 0, chaps.length - 1));
+    state.chapWindows.forEach((w, i) => {
+      if (i === state.curChap) return;
+      const marker = document.createComment("chap" + i);
+      w.el.parentNode.insertBefore(marker, w.el);
+      w.el.parentNode.removeChild(w.el);
+      w.marker = marker;
+    });
+  }
+
+  // Swap the attached chapter to index `i` (detach current, attach i).
+  attachChap(i) {
+    const { state } = this;
+    i = Math.max(0, Math.min(i, state.chapWindows.length - 1));
+    if (i === state.curChap) return;
+    const cur = state.chapWindows[state.curChap];
+    if (cur && cur.el.parentNode) {
+      const marker = document.createComment("chap" + state.curChap);
+      cur.el.parentNode.insertBefore(marker, cur.el);
+      cur.el.parentNode.removeChild(cur.el);
+      cur.marker = marker;
+    }
+    const next = state.chapWindows[i];
+    if (next && next.marker && next.marker.parentNode) {
+      next.marker.parentNode.insertBefore(next.el, next.marker);
+      next.marker.parentNode.removeChild(next.marker);
+      next.marker = null;
+    }
+    state.curChap = i;
+  }
+
+  // Lay out the single attached chapter and land on its first or last page.
+  paginateWindow(landLast) {
+    const { state, els } = this;
+    const { content } = els;
+    this.setupColumns();
+    void content.offsetWidth;
+    state.total = Math.max(1, Math.round(content.scrollWidth / state.stride));
+    els.progressEl.max = String(state.total - 1);
+    state.page = landLast ? state.total - 1 : 0;
+    this.goTo(state.page, false);
+    this.buildChapterIndexFn();
+  }
+
   paginateQuick() {
     const { state, els } = this;
     const { content } = els;
+    if (state.windowed) { this.paginateWindow(false); return; }
     state.paginateGen++;
     const gen = state.paginateGen;
 
@@ -195,13 +247,20 @@ export class PaginationEngine {
   }
 
   next() {
-    if (this.state.page < this.state.total - 1) {
-      perf.time("page-turn", () => this.goTo(this.state.page + 1, true), { dir: "next" });
+    const { state } = this;
+    if (state.page < state.total - 1) {
+      perf.time("page-turn", () => this.goTo(state.page + 1, true), { dir: "next" });
+    } else if (state.windowed && state.curChap < state.chapWindows.length - 1) {
+      // Cross a chapter boundary: attach the next chapter and re-lay-out the window.
+      perf.time("page-turn", () => { this.attachChap(state.curChap + 1); this.paginateWindow(false); }, { dir: "next", boundary: true });
     }
   }
   prev() {
-    if (this.state.page > 0) {
-      perf.time("page-turn", () => this.goTo(this.state.page - 1, true), { dir: "prev" });
+    const { state } = this;
+    if (state.page > 0) {
+      perf.time("page-turn", () => this.goTo(state.page - 1, true), { dir: "prev" });
+    } else if (state.windowed && state.curChap > 0) {
+      perf.time("page-turn", () => { this.attachChap(state.curChap - 1); this.paginateWindow(true); }, { dir: "prev", boundary: true });
     }
   }
 }

@@ -71,6 +71,10 @@ export function init(options = {}) {
   // wrapping so we can A/B whether annotation node-inflation drives turn-latency.
   const SKIP_ANNOTATE = urlParams.get("noannotate") === "1";
   if (SKIP_ANNOTATE) console.warn("perf: annotation DISABLED (?noannotate=1) — diagnostic only");
+  // Phase 6 prototype: ?window=1 renders one chapter at a time (see pagination.js).
+  const WINDOWED = urlParams.get("window") === "1";
+  state.windowed = WINDOWED;
+  if (WINDOWED) console.warn("perf: WINDOWED rendering ON (?window=1) — diagnostic; no position save/restore");
 
   // ---------- Bookmarks ----------
   const bookmarkManager = new BookmarkManager();
@@ -121,7 +125,10 @@ export function init(options = {}) {
     return currentLocator(state, els.content, els.viewport, (wi) => toLocator(state, wi));
   }
   function buildChapterIndexFn() { buildChapterIndex(state, els.content); }
-  function savePosMain() { storage.savePos(getCanonicalPosition); }
+  function savePosMain() {
+    if (state.windowed) return; // prototype has no global doc-model to anchor a position
+    storage.savePos(getCanonicalPosition);
+  }
   function updateProgressFn() {
     // The resume highlight lives until the page changes away from where it was set.
     if (state._resumeHlActive && !state.isScrollMode && state.page !== state._resumeHlPage) {
@@ -571,18 +578,29 @@ export function init(options = {}) {
       await new Promise((resolve) => {
         requestAnimationFrame(() => {
           try {
-            perf.time("reader:paginate", () => pagination.paginate(false));
-            buildTOC(epubToc, state.headingToc, els.tocListEl, state.sectionEls,
-              (el) => pagination.goTo(pageOfElement(state, els.content, el), false),
-              closePanels,
-              (href) => resolveHref(href, els.content, state.sectionEls));
-            // A handed-off position is the single source of truth; otherwise
-            // fall back to the persisted position. Never both (that was a race).
-            if (pos) applyCanonicalPosition(pos);
-            else storage.restorePos(applyCanonicalPosition);
-            // Images decode after this first paint and only then take up space,
-            // which shifts the column flow; re-land once they settle.
-            resyncAfterImages(pos);
+            if (state.windowed) {
+              // Prototype: attach only chapter 0 and lay out that one chapter.
+              // No doc-model / position restore — diagnostic measurement only.
+              pagination.setupWindow(0);
+              perf.time("reader:paginate", () => pagination.paginateWindow(false));
+              buildTOC(epubToc, state.headingToc, els.tocListEl, state.sectionEls,
+                (el) => pagination.goTo(pageOfElement(state, els.content, el), false),
+                closePanels,
+                (href) => resolveHref(href, els.content, state.sectionEls));
+            } else {
+              perf.time("reader:paginate", () => pagination.paginate(false));
+              buildTOC(epubToc, state.headingToc, els.tocListEl, state.sectionEls,
+                (el) => pagination.goTo(pageOfElement(state, els.content, el), false),
+                closePanels,
+                (href) => resolveHref(href, els.content, state.sectionEls));
+              // A handed-off position is the single source of truth; otherwise
+              // fall back to the persisted position. Never both (that was a race).
+              if (pos) applyCanonicalPosition(pos);
+              else storage.restorePos(applyCanonicalPosition);
+              // Images decode after this first paint and only then take up space,
+              // which shifts the column flow; re-land once they settle.
+              resyncAfterImages(pos);
+            }
             if (urlParams.get("selftest") === "1") {
               requestAnimationFrame(() => runSelftest(state));
             }

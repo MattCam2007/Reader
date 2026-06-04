@@ -13,6 +13,14 @@ export class ReaderState {
     this.chapterIndex = [];
     this.sectionBlockStart = [];
 
+    // Phase 6 prototype (?window=1): single-section windowed rendering. Only one
+    // .chap is attached to the DOM at a time so the browser lays out / paints a
+    // fraction of the book per turn. Diagnostic-grade: no doc-model / canonical
+    // position while active (see pagination.js).
+    this.windowed = false;
+    this.chapWindows = [];   // [{ el, marker }] for every chapter, in order
+    this.curChap = 0;        // index of the currently-attached chapter
+
     // Document model
     this.doc = {
       words: [],

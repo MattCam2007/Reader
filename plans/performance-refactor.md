@@ -450,3 +450,20 @@ is to cut what gets laid out/painted per turn — **lazy annotation (annotate on
 current ±1 section) and section-windowed pagination (Phase 6)**. Recommend promoting the
 node-count reduction ahead of Phase 3; mode-switch (388 ms, the re-extract cost) remains
 the other top target via Phase 1.
+
+### A.4 Follow-up experiments (diagnostic flags)
+
+Two temporary, opt-in flags (Reader only) to isolate the paint cost. Both are
+diagnostic-grade and will be removed when the real fix lands.
+
+- **`?noannotate=1`** — skips the per-punctuation span annotation. *Result on Pawn of
+  Prophecy: turn-latency got **worse** (1.3 s → 3.7 s avg).* Conclusion: node count is
+  **not** the lever — annotation pre-segments text and *reduces* per-strip paint work.
+  Lazy annotation is therefore **not** the fix.
+- **`?window=1`** — single-section windowed rendering: only the current chapter is
+  attached to the DOM, so the browser lays out/paints one chapter instead of the whole
+  book. No doc-model / position save-restore while active (starts at chapter 0).
+  *Capture procedure:* open `reader.html?perf=1&window=1`, turn ~20 pages to get into a
+  full chapter, tap **Reset** on the perf panel, turn ~10 more pages within that chapter,
+  then **Copy**. Compare `turn-latency` against the 1.3 s baseline. A large drop confirms
+  the whole-book multi-column layout is the cost and that windowing is the fix to harden.
