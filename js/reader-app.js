@@ -5,12 +5,11 @@ import { initBookmarksPanel } from './bookmarks/panel.js';
 import { PrefsManager } from './core/prefs.js';
 import { ReaderState } from './core/state.js';
 import { StorageManager } from './core/storage.js';
-import { extractSections } from './epub/extractor.js';
-import { resolveImageUrls } from './epub/images.js';
-import { flattenToc, buildTOC, resolveHref } from './epub/toc.js';
+import { BookSession } from './core/book-session.js';
+import { buildTOC, resolveHref } from './epub/toc.js';
 import { toLocator, resolveLocator } from './model/locator.js';
 import { currentLocator, pageOfElement, pageOfWord, wordAtPageStart, wordAtPageStartRange } from './model/geometry.js';
-import { deriveBookId, buildPosition, resolvePosition } from './core/position.js';
+import { buildPosition, resolvePosition } from './core/position.js';
 import { buildChapterIndex } from './reader/chapters.js';
 import { PaginationEngine } from './reader/pagination.js';
 import { ChromeManager } from './reader/chrome.js';
@@ -486,8 +485,6 @@ export function init(options = {}) {
   // ---------- Rendering ----------
   function renderBook(sections) {
     perf.mark("reader:render");
-    state.blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) { console.warn("render:revokeBlob", e); } });
-    state.blobUrls = [];
     els.content.innerHTML = "";
     state.sectionEls.clear();
     state.headingToc = [];
@@ -499,7 +496,10 @@ export function init(options = {}) {
       if (sec.href) { wrap.dataset.href = sec.href; state.sectionEls.set(sec.href, wrap); }
       sec.blocks.forEach((b) => {
         const el = document.createElement((b.type === "figure" || b.type === "table-wrap") ? "div" : b.type);
-        if (b.frag) el.appendChild(b.frag);
+        // Clone the frag — the session's `sections` are shared across modes and
+        // every mode switch re-renders them, so we must not consume (empty) the
+        // template frag. The resolved image src rides along on the clone.
+        if (b.frag) el.appendChild(b.frag.cloneNode(true));
         else el.textContent = b.text;
         if (b.id) el.id = b.id;
         el.className = "blk blk-" + b.type;
@@ -631,63 +631,50 @@ export function init(options = {}) {
   }
 
   // ---------- EPUB loading ----------
+  // Build the mode-agnostic session (parse + extract + resolve images) once,
+  // then render it. Switching modes later reuses the session via loadFromSession.
   async function loadEpub(file, pos) {
     showLoading("Loading " + file.name + "\u2026");
     closePanels();
-    let book = null;
     try {
-      if (typeof ePub !== "function") {
-        throw new Error("EPUB library failed to load. Check your connection.");
-      }
       const buffer = await file.arrayBuffer();
-      book = ePub(buffer);
-      await book.ready;
-
-      let epubToc = [];
-      try {
-        const nav = await book.loaded.navigation;
-        epubToc = flattenToc(nav && nav.toc, 0, []);
-      } catch (e) { console.warn("epub:toc", e); }
-
-      const { sections, allImgUrls } = await perf.timeAsync("reader:extract", () =>
-        extractSections(book, (msg) => {
+      const session = await perf.timeAsync("reader:extract", () =>
+        BookSession.fromBuffer(buffer, file.name, urlParams.get("id"), (msg) => {
           els.overlayMsg.textContent = msg;
         }));
-      const chars = sections.reduce((n, s) => n + s.blocks.reduce((m, b) => m + b.text.length, 0), 0);
-      if (chars < 32) {
-        throw new Error("No readable text found (this EPUB may be image-only or DRM-protected).");
-      }
+      await loadFromSession(session, pos);
+    } catch (err) {
+      console.error("EPUB load failed:", err);
+      showError(err && err.message ? err.message : "Couldn't read that file.");
+    }
+  }
 
-      const meta = (book.packaging && book.packaging.metadata) || {};
-      const title = (meta.title || file.name).trim();
-      state.bookId = deriveBookId(urlParams.get("id"), meta.title, file.name);
-      els.bookTitleEl.textContent = title;
+  // Render an already-extracted session (a fresh load, or a hand-off from
+  // another mode). Skips ePub()/extractSections entirely \u2014 that work is done.
+  async function loadFromSession(session, pos) {
+    closePanels();
+    try {
+      state.bookId = session.bookId;
+      els.bookTitleEl.textContent = session.title || session.bookId;
       bookmarkManager.setBook(state.bookId);
-
-      // Resolve images before renderBook so img.src is set when DOM is built.
-      // Don't add to state.blobUrls yet — renderBook revokes everything in there
-      // first (cleaning up the previous book). Track them after.
-      const newBlobUrls = allImgUrls.length ? await resolveImageUrls(allImgUrls, book) : [];
-      renderBook(sections);
-      newBlobUrls.forEach(u => state.blobUrls.push(u));
+      renderBook(session.sections);
       clearOverlay();
-      if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId: state.bookId });
+      if (onBookLoaded) onBookLoaded({ session });
       // Web fonts (e.g. OpenDyslexic, declared font-display:swap) reflow the
       // text when they finish loading. If we paginate against the fallback font's
-      // metrics, every word→page mapping is measured too wide/narrow and the
-      // handed-off position lands a page off — visible as a one-page overshoot on
-      // the very first switch into the Reader, then "stable" once the font is
-      // cached. Wait for fonts so the first pagination is already accurate.
+      // metrics, every word->page mapping is measured too wide/narrow and the
+      // handed-off position lands a page off. Wait for fonts so the first
+      // pagination is already accurate.
       if (typeof document !== "undefined" && document.fonts && document.fonts.ready) {
         try { await document.fonts.ready; } catch (_) {}
       }
       // Paginate and restore inside a rAF so layout (stride/total) is final
-      // before we map a word ordinal to a page. Await it so loadFromBuffer only
-      // resolves once the position is applied — see mode-switcher handoff.
+      // before we map a word ordinal to a page. Await it so loadFromSession only
+      // resolves once the position is applied \u2014 see mode-switcher handoff.
       await new Promise((resolve) => {
         requestAnimationFrame(() => {
           try {
-            finalizeLayout(epubToc, pos);
+            finalizeLayout(session.toc, pos);
             if (urlParams.get("selftest") === "1") {
               requestAnimationFrame(() => runSelftest(state));
             }
@@ -696,12 +683,8 @@ export function init(options = {}) {
         });
       });
     } catch (err) {
-      console.error("EPUB load failed:", err);
+      console.error("EPUB render failed:", err);
       showError(err && err.message ? err.message : "Couldn't read that file.");
-    } finally {
-      if (book && typeof book.destroy === "function") {
-        try { book.destroy(); } catch (e) { console.warn("epub:destroy", e); }
-      }
     }
   }
 
@@ -871,17 +854,14 @@ export function init(options = {}) {
     teardown() {
       closeSettingsScreen();
       storage.flushPos(getCanonicalPosition);
-      state.blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (_) {} });
-      state.blobUrls = [];
+      // Image blob URLs are owned by the BookSession (shared across modes), not
+      // by the mode — the mode-switcher disposes them when a new book loads.
       if (resizeTimer) clearTimeout(resizeTimer);
     },
     getPosition: getCanonicalPosition,
     getBookId() { return state.bookId; },
     isBookLoaded() { return state.bookId && state.bookId !== "Pride and Prejudice (sample)"; },
     applyPosition(pos) { applyCanonicalPosition(pos); },
-    loadFromBuffer(buffer, fileName, pos) {
-      const file = new File([buffer], fileName, { type: "application/epub+zip" });
-      return loadEpub(file, pos);
-    },
+    loadFromSession(session, pos) { return loadFromSession(session, pos); },
   };
 }

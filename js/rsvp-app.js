@@ -4,7 +4,7 @@ import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
 import { PrefsManager } from './core/prefs.js';
 import { EventBus } from './core/events.js';
-import { extractSections } from './epub/extractor.js';
+import { BookSession, countWords } from './core/book-session.js';
 import { RSVP_DEFAULTS } from './rsvp/constants.js';
 import { RsvpState } from './rsvp/state.js';
 import { tokenize } from './rsvp/tokenizer.js';
@@ -14,7 +14,7 @@ import { RsvpInput } from './rsvp/input.js';
 import { StatsTracker } from './rsvp/stats.js';
 import { TrainingManager } from './rsvp/training.js';
 import { createPicker } from './shared/picker.js';
-import { deriveBookId, buildPosition, resolvePosition } from './core/position.js';
+import { buildPosition, resolvePosition } from './core/position.js';
 import * as perf from './core/perf.js';
 
 // Convert extractSections() output to the plain-text format the tokenizer expects.
@@ -29,7 +29,7 @@ function sectionsToText(sections) {
     const heading = sec.blocks.find(b => /^h[1-6]$/.test(b.type));
     chapters.push({ title: heading ? heading.text : '', wordOffset, href: sec.href || '' });
     const secText = blockTexts.join('\n\n');
-    wordOffset += secText.split(/\s+/).filter(Boolean).length;
+    wordOffset += countWords(secText);
     parts.push(secText);
   }
   return { text: parts.join('\n\n'), chapters };
@@ -544,6 +544,8 @@ export function init(options = {}) {
     }
   }
 
+  // Build the mode-agnostic session once, then derive RSVP's plain-text stream
+  // from its sections. A mode switch reuses the session (loadFromSession).
   async function loadEpub(file, pos) {
     playback.clearPending();
     state.rampRemaining = 0;
@@ -552,28 +554,25 @@ export function init(options = {}) {
     els.statusRetryBtn.hidden = true;
     els.statusMsg.textContent = "Loading " + file.name + "\u2026";
 
-    let book = null;
     try {
-      if (typeof ePub !== "function") {
-        throw new Error("EPUB library failed to load. Check your connection.");
-      }
       const buffer = await file.arrayBuffer();
-      book = ePub(buffer);
-      await book.ready;
-
-      const bookTitle = (book.packaging && book.packaging.metadata && book.packaging.metadata.title)
-        || file.name.replace(/\.epub$/i, '');
-
-      const { sections } = await perf.timeAsync("rsvp:extract", () =>
-        extractSections(book, (msg) => {
+      const session = await perf.timeAsync("rsvp:extract", () =>
+        BookSession.fromBuffer(buffer, file.name, urlParams.get('id'), (msg) => {
           els.statusMsg.textContent = msg;
         }));
-      const { text, chapters: chapterMeta } = perf.time("rsvp:sectionsToText", () => sectionsToText(sections));
+      await loadFromSession(session, pos);
+    } catch (err) {
+      showLoadError(err);
+    }
+  }
+
+  async function loadFromSession(session, pos) {
+    try {
+      const { text, chapters: chapterMeta } = perf.time("rsvp:sectionsToText", () => sectionsToText(session.sections));
       if (!text || text.length < 32) {
         throw new Error("No readable text found in this EPUB (it may be image-only or DRM-protected).");
       }
-      const meta = (book.packaging && book.packaging.metadata) || {};
-      state.bookId = deriveBookId(urlParams.get('id'), meta.title, file.name);
+      state.bookId = session.bookId;
       bookmarkManager.setBook(state.bookId);
       loadText(text, chapterMeta);
       // A handed-off position is the single source of truth; otherwise fall back
@@ -581,19 +580,19 @@ export function init(options = {}) {
       if (pos) applyCanonicalPosition(pos);
       else restorePosition();
       const bookTitleEl = document.getElementById("bookTitle");
-      if (bookTitleEl) bookTitleEl.textContent = bookTitle;
-      if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId: state.bookId });
+      if (bookTitleEl) bookTitleEl.textContent = session.title || session.bookId;
+      if (onBookLoaded) onBookLoaded({ session });
     } catch (err) {
-      console.error("EPUB load failed:", err);
-      state.setPlayState('error');
-      els.statusMsg.classList.add("error");
-      els.statusMsg.textContent = err && err.message ? err.message : "Couldn't read that file.";
-      els.statusRetryBtn.hidden = false;
-    } finally {
-      if (book && typeof book.destroy === "function") {
-        try { book.destroy(); } catch (_) {}
-      }
+      showLoadError(err);
     }
+  }
+
+  function showLoadError(err) {
+    console.error("EPUB load failed:", err);
+    state.setPlayState('error');
+    els.statusMsg.classList.add("error");
+    els.statusMsg.textContent = err && err.message ? err.message : "Couldn't read that file.";
+    els.statusRetryBtn.hidden = false;
   }
 
   // ---------- Apply saved prefs ----------
@@ -710,9 +709,6 @@ This was invitation enough.
     getBookId() { return state.bookId; },
     isBookLoaded() { return state.isEpubLoaded; },
     applyPosition(pos) { applyCanonicalPosition(pos); },
-    loadFromBuffer(buffer, fileName, pos) {
-      const file = new File([buffer], fileName, { type: "application/epub+zip" });
-      return loadEpub(file, pos);
-    },
+    loadFromSession(session, pos) { return loadFromSession(session, pos); },
   };
 }

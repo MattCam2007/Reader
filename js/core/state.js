@@ -7,7 +7,6 @@ export class ReaderState {
     this.docModelBuilt = false;
     this.paginateGen = 0;
     this.pendingDetached = [];
-    this.blobUrls = [];
     this.sectionEls = new Map();
     this.headingToc = [];
     this.chapterIndex = [];

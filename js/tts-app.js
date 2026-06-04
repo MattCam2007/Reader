@@ -2,15 +2,14 @@ import { FONT_MAP, FONT_SERIF, THEME_COLORS, GENERAL_DEFAULTS, ALL_THEME_NAMES }
 import { PrefsManager } from './core/prefs.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
-import { extractSections } from './epub/extractor.js';
-import { resolveImageUrls } from './epub/images.js';
-import { flattenToc, buildTOC, resolveHref } from './epub/toc.js';
+import { BookSession, splitWords } from './core/book-session.js';
+import { buildTOC, resolveHref } from './epub/toc.js';
 import { buildSample } from '../fixtures/sample.js';
 import { TtsEngine } from './tts/engine.js';
 import { TtsHighlighter } from './tts/highlighter.js';
 import { TTS_DEFAULTS } from './tts/constants.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
-import { deriveBookId, buildPosition, resolvePosition } from './core/position.js';
+import { buildPosition, resolvePosition } from './core/position.js';
 import * as perf from './core/perf.js';
 
 export function init(options = {}) {
@@ -59,7 +58,6 @@ export function init(options = {}) {
   generalPrefs.load();
 
   const urlParams = new URLSearchParams(location.search);
-  const blobUrls = [];
   const sectionEls = new Map();
   let headingToc = [];
   let bookId = '';
@@ -343,7 +341,7 @@ export function init(options = {}) {
         ? wrapBlockSentences(blockEl, parts)
         : [blockEl];
       for (let i = 0; i < parts.length; i++) {
-        const words = parts[i].split(/\s+/).filter(Boolean);
+        const words = splitWords(parts[i]);
         result.push({ text: parts[i], blockEl, highlightEl: highlightEls[i] || blockEl, wordOffset, secHref: href });
         for (const w of words) ttsWords.push(w);
         wordOffset += words.length;
@@ -425,8 +423,6 @@ export function init(options = {}) {
   // ---------- Rendering ----------
   function renderBook(sections) {
     perf.mark("tts:render");
-    blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (_) {} });
-    blobUrls.length = 0;
     els.content.innerHTML = '';
     sectionEls.clear();
     headingToc = [];
@@ -439,7 +435,8 @@ export function init(options = {}) {
         const el = document.createElement(
           (b.type === 'figure' || b.type === 'table-wrap') ? 'div' : b.type
         );
-        if (b.frag) el.appendChild(b.frag);
+        // Clone — sections are shared across modes; don't consume the template frag.
+        if (b.frag) el.appendChild(b.frag.cloneNode(true));
         else el.textContent = b.text;
         if (b.id) el.id = b.id;
         el.className = 'blk blk-' + b.type;
@@ -620,6 +617,8 @@ export function init(options = {}) {
   }
 
   // ---------- EPUB loading ----------
+  // Build the mode-agnostic session once, then render + segment it. A mode
+  // switch reuses the session (loadFromSession) without re-parsing.
   async function loadEpub(file, pos) {
     engine.cancel();
     setPlaying(false);
@@ -627,46 +626,40 @@ export function init(options = {}) {
     sentences = [];
     currentSentenceIdx = 0;
 
-    showLoading('Loading ' + file.name + '\u2026');
+    showLoading('Loading ' + file.name + '…');
     closePanels();
-    let book = null;
     try {
-      if (typeof ePub !== 'function') {
-        throw new Error('EPUB library failed to load. Check your connection.');
-      }
       const buffer = await file.arrayBuffer();
-      book = ePub(buffer);
-      await book.ready;
-
-      let epubToc = [];
-      try {
-        const nav = await book.loaded.navigation;
-        epubToc = flattenToc(nav && nav.toc, 0, []);
-      } catch (e) { console.warn('tts:toc', e); }
-
-      const { sections, allImgUrls } = await perf.timeAsync("tts:extract", () =>
-        extractSections(book, (msg) => {
+      const session = await perf.timeAsync("tts:extract", () =>
+        BookSession.fromBuffer(buffer, file.name, urlParams.get('id'), (msg) => {
           els.overlayMsg.textContent = msg;
         }));
-      const chars = sections.reduce((n, s) => n + s.blocks.reduce((m, b) => m + b.text.length, 0), 0);
-      if (chars < 32) throw new Error('No readable text found (this EPUB may be image-only or DRM-protected).');
+      await loadFromSession(session, pos);
+    } catch (err) {
+      console.error('TTS EPUB load failed:', err);
+      showError(err && err.message ? err.message : "Couldn't read that file.");
+    }
+  }
 
-      const meta = (book.packaging && book.packaging.metadata) || {};
-      const title = (meta.title || file.name).trim();
-      bookId = deriveBookId(urlParams.get('id'), meta.title, file.name);
+  async function loadFromSession(session, pos) {
+    engine.cancel();
+    setPlaying(false);
+    highlighter.clearHighlight();
+    sentences = [];
+    currentSentenceIdx = 0;
+    closePanels();
+    try {
+      bookId = session.bookId;
       bookmarkManager.setBook(bookId);
-      els.bookTitleEl.textContent = title;
+      els.bookTitleEl.textContent = session.title || session.bookId;
       bookLoaded = true;
 
-      const newBlobUrls = allImgUrls.length ? await resolveImageUrls(allImgUrls, book) : [];
-      renderBook(sections);
-      newBlobUrls.forEach(u => blobUrls.push(u));
+      renderBook(session.sections);
       clearOverlay();
-
-      if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId });
+      if (onBookLoaded) onBookLoaded({ session });
 
       // Segment, restore and build TOC inside a rAF so the rendered DOM exists
-      // before we address sentences. Await it so loadFromBuffer only resolves
+      // before we address sentences. Await it so loadFromSession only resolves
       // once the position is applied — see mode-switcher handoff.
       await new Promise((resolve) => {
         requestAnimationFrame(() => {
@@ -679,7 +672,7 @@ export function init(options = {}) {
             if (pos) applyCanonicalPosition(pos);
             else currentSentenceIdx = restorePosition();
 
-            buildTOC(epubToc, headingToc, els.tocListEl, sectionEls,
+            buildTOC(session.toc, headingToc, els.tocListEl, sectionEls,
               (el) => seekToElementBlock(el),
               closePanels,
               (href) => resolveHref(href, els.content, sectionEls));
@@ -687,14 +680,9 @@ export function init(options = {}) {
           finally { resolve(); }
         });
       });
-
     } catch (err) {
-      console.error('TTS EPUB load failed:', err);
+      console.error('TTS render failed:', err);
       showError(err && err.message ? err.message : "Couldn't read that file.");
-    } finally {
-      if (book && typeof book.destroy === 'function') {
-        try { book.destroy(); } catch (_) {}
-      }
     }
   }
 
@@ -1019,16 +1007,12 @@ export function init(options = {}) {
       engine.cancel();
       setPlaying(false);
       savePosition();
-      blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (_) {} });
-      blobUrls.length = 0;
+      // Image blob URLs belong to the shared BookSession, not the mode.
     },
     getPosition: getCanonicalPosition,
     getBookId() { return bookId; },
     isBookLoaded() { return bookLoaded; },
     applyPosition(pos) { applyCanonicalPosition(pos); },
-    loadFromBuffer(buffer, fileName, pos) {
-      const file = new File([buffer], fileName, { type: 'application/epub+zip' });
-      return loadEpub(file, pos);
-    },
+    loadFromSession(session, pos) { return loadFromSession(session, pos); },
   };
 }
