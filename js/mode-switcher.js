@@ -107,9 +107,10 @@ async function switchMode(targetMode, posInfo) {
   // object (section href + word ordinal), so the handoff is word-exact rather
   // than rounded through a whole-book fraction.
   //
-  // The position is handed straight to loadFromBuffer, which only resolves once
-  // the target mode has finished laying out (Reader/TTS paginate/segment inside
-  // a rAF) AND applied the position. This makes the seek deterministic: there is
+  // The position is handed straight to loadFromSession, which reuses the cached
+  // BookSession (no re-parse) and only resolves once the target mode has finished
+  // laying out (Reader/TTS paginate/segment inside a rAF) AND applied the
+  // position. This makes the seek deterministic: there is
   // no rAF + setTimeout(100ms) guess racing against pagination, and no second
   // restore from localStorage to disagree with — a single applier after layout.
   if (posInfo && cachedSession) {
