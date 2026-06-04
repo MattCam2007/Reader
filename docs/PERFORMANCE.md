@@ -80,6 +80,28 @@ jsdelivr. Cache busting is handled by the versioned SW cache, which **retired**
 the deploy step that rewrote every JS import path with `?v=hash`. See
 `docs/ARCHITECTURE.md` → *Service Worker*.
 
+### Whole-book page numbers (idle-measured, cached)
+
+In windowed mode the reader previously showed only "Chapter N · p3 of 18" (page
+within the current chapter) because other chapters have no layout — their page
+counts are unknown. The new `PageCounter` adds a whole-book "Page 247 of 980 · 25%"
+label in the subtitle without impacting the page-turn hot path:
+
+- **On the hot path (every page turn):** `recordCurrent()` reads `state.total` (already
+  computed by `paginateWindow`) and `overall()` does pure array arithmetic — no DOM access,
+  no `getBoundingClientRect`.
+- **Idle pass:** chapters are measured one at a time using `requestIdleCallback`, each in an
+  offscreen host that mirrors the live content box. At most one extra chapter is attached to
+  the DOM at a time (removed immediately after measuring), preserving the windowing memory win.
+  The host is removed entirely once all chapters are measured.
+- **Caching:** counts are saved to `localStorage` keyed by a layout signature (width, height,
+  font, size, columns, …). On subsequent opens with the same layout the cached counts are used
+  immediately — no measuring pass runs, and the label shows exact numbers from the first paint.
+- **Estimate while measuring:** unmeasured chapters use a self-calibrating words/page ratio
+  from already-measured chapters; the "~" prefix on the label disappears once all counts are
+  confirmed. Resize or pref change triggers `invalidate()` → new signature → fresh pass
+  (debounced through `relayout`).
+
 ## Capturing after-numbers
 
 The headless CI/agent environment can't run a browser (no browser installed; the

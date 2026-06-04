@@ -20,6 +20,14 @@ export class ReaderState {
     this.curChap = 0;        // index of the currently-attached chapter
     this.sectionLabels = []; // per-section heading label, for windowed progress
 
+    // Whole-book page counts (windowed mode only). Measured lazily by PageCounter
+    // during idle time and cached in localStorage keyed by layout signature so
+    // the exact numbers are available instantly on subsequent loads with the same
+    // font/size/viewport. undefined entries are unmeasured (still being estimated).
+    this.pageCounts = [];          // exact pages per section (undefined = unmeasured)
+    this.pageCountsComplete = false;
+    this.pageCountSig = "";        // layout signature the pageCounts belong to
+
     // Document model
     this.doc = {
       words: [],

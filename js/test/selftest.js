@@ -10,6 +10,8 @@ import { buildChapterIndex } from '../reader/chapters.js';
 import { countWords, splitWords } from '../core/book-session.js';
 import { findHits, indexForOffset } from '../shared/search.js';
 import { renderSections, annotateInlineText } from '../shared/render.js';
+import { loadPageCache, savePageCache, PAGE_KEY_PREFIX } from '../core/page-cache.js';
+import { PageCounter } from '../reader/page-counter.js';
 
 export function runSelftest(state) {
   const results = [];
@@ -383,6 +385,76 @@ export function runSelftest(state) {
     // Annotation must not change the rendered text (positions depend on it).
     assert("render", "annotate preserves text content",
       c.querySelectorAll(".blk")[1].textContent === 'She said “Hello.” Right.');
+  }
+
+  // --- page-cache: localStorage round-trip ---
+  {
+    const testBookId = '__selftest__';
+    const testSig = 'sig|1234';
+    const testCounts = [3, 5, 2];
+    savePageCache(testBookId, testSig, testCounts);
+    const cached = loadPageCache(testBookId);
+    assert('page-cache', 'round-trip: sig matches', !!(cached && cached.sig === testSig));
+    assert('page-cache', 'round-trip: counts match',
+      !!(cached && cached.counts.length === 3 && cached.counts[0] === 3 && cached.counts[1] === 5 && cached.counts[2] === 2));
+    assert('page-cache', 'round-trip: version is 1', !!(cached && cached.v === 1));
+    assert('page-cache', 'mismatched sig returns null',
+      loadPageCache(testBookId + 'x') === null);
+    try { localStorage.removeItem(PAGE_KEY_PREFIX + testBookId); } catch (_) {}
+  }
+
+  // --- page-counter: overall() arithmetic ---
+  {
+    // Synthetic state with four sections, all measured.
+    const mockState = {
+      pageCounts: [10, 15, 8, 12],
+      pageCountsComplete: true,
+      doc: {
+        sections: [
+          { wsStart: 0,    wsEnd: 300  },
+          { wsStart: 300,  wsEnd: 750  },
+          { wsStart: 750,  wsEnd: 990  },
+          { wsStart: 990,  wsEnd: 1350 },
+        ],
+      },
+    };
+    const pc = new PageCounter(mockState, null, null);
+    // Chapter 2, page 3 (0-based): before = 10+15 = 25, page = 25+3+1 = 29, total = 45
+    const ov = pc.overall(2, 3);
+    assert('page-counter', 'overall() page sums previous chapters + pageInChap+1', ov.page === 29);
+    assert('page-counter', 'overall() total sums all chapter counts', ov.total === 45);
+    assert('page-counter', 'overall() approx=false when complete', ov.approx === false);
+    assert('page-counter', 'overall() page >= 1', ov.page >= 1);
+    assert('page-counter', 'overall() page <= total', ov.page <= ov.total);
+
+    // First chapter, first page
+    const ov0 = pc.overall(0, 0);
+    assert('page-counter', 'overall() first chapter/page is 1', ov0.page === 1);
+
+    // Partial counts: chapter 2 unknown — approx should be true
+    const partial = Object.assign({}, mockState, {
+      pageCounts: [10, 15, undefined, 12],
+      pageCountsComplete: false,
+    });
+    const pc2 = new PageCounter(partial, null, null);
+    const ov2 = pc2.overall(1, 0);
+    assert('page-counter', 'overall() approx=true when counts incomplete', ov2.approx === true);
+    assert('page-counter', 'overall() page >= 1 with partial counts', ov2.page >= 1);
+    assert('page-counter', 'overall() estimated total > 0 with partial counts', ov2.total > 0);
+  }
+
+  // --- page-counter: live windowed state (when windowed mode is active) ---
+  if (state.windowed) {
+    assert('page-counter', 'pageCounts array length matches sections',
+      state.pageCounts.length === state.doc.sections.length);
+    assert('page-counter', 'pageCountSig is a non-empty string',
+      typeof state.pageCountSig === 'string' && state.pageCountSig.length > 0);
+    // The current chapter's count must always be exact (set by recordCurrent on every turn)
+    assert('page-counter', 'current chapter pageCounts entry is a positive integer',
+      Number.isInteger(state.pageCounts[state.curChap]) && state.pageCounts[state.curChap] >= 1);
+    const measuredCounts = state.pageCounts.filter(c => c != null);
+    assert('page-counter', 'all measured counts are positive integers',
+      measuredCounts.every(c => Number.isInteger(c) && c >= 1));
   }
 
   // --- Report ---
