@@ -43,6 +43,10 @@ function rootOf(docOrEl) {
   return null;
 }
 
+// CSS class patterns commonly used by calibre/Sigil/Word exports for chapter
+// titles that aren't marked up as semantic heading elements.
+const HEADING_CLASS_RE = /\b(ch|chap|chapter|chaptitle|chapter[-_]?title|chaptertitle|part|heading|head|section[-_]?title)\b/i;
+
 function collectImgSrcs(frag, imgUrls) {
   if (!imgUrls) return;
   const imgs = frag.querySelectorAll ? frag.querySelectorAll("img") : [];
@@ -52,7 +56,12 @@ function collectImgSrcs(frag, imgUrls) {
   });
 }
 
-export function blocksFromDoc(docOrEl, imgUrls) {
+// opts.idSeed = { n: 0 } — shared counter across all sections so that synthetic
+// IDs (toc-0, toc-1, …) are unique book-wide. Heading-like elements that have
+// no existing id get one assigned; blocks are flagged isTocHeading so
+// buildSyntheticToc can build a per-chapter TOC later.
+export function blocksFromDoc(docOrEl, imgUrls, opts) {
+  const idSeed = opts && opts.idSeed;
   const root = rootOf(docOrEl);
   if (!root || !root.querySelectorAll) return [];
   const out = [];
@@ -102,7 +111,13 @@ export function blocksFromDoc(docOrEl, imgUrls) {
     if (!text && !hasImg) return;
     let tag = tag0;
     if (tag === "div" || tag === "dd" || tag === "dt") tag = "p";
-    const block = { type: tag, text, id: el.id || "" };
+    // Detect heading-like elements: semantic h1-h6 OR common calibre/Word/Sigil
+    // CSS class patterns. Assign a synthetic id if the element has none so TOC
+    // entries can navigate to the exact element via a fragment href.
+    const isHeadingLike = /^h[1-6]$/.test(tag0) || HEADING_CLASS_RE.test(el.className || '');
+    const assignedId = el.id || (isHeadingLike && idSeed && text ? ('toc-' + idSeed.n++) : '');
+    const block = { type: tag, text, id: assignedId };
+    if (isHeadingLike && text) block.isTocHeading = true;
     if (RICH_INLINE) {
       block.frag = sanitizeInline(el);
       collectImgSrcs(block.frag, imgUrls);
@@ -117,13 +132,14 @@ export async function extractSections(book, onProgress) {
   if (!items.length) throw new Error("This EPUB has no readable spine items.");
   const sections = [];
   const allImgUrls = [];
+  const idSeed = { n: 0 }; // shared counter — keeps synthetic toc-N ids unique book-wide
   for (let i = 0; i < items.length; i++) {
     const section = items[i];
     if (onProgress) onProgress("Parsing\u2026 " + (i + 1) + " / " + items.length);
     try {
       const sectionDoc = await section.load(book.load.bind(book));
       const imgUrls = [];
-      const blocks = blocksFromDoc(sectionDoc, imgUrls);
+      const blocks = blocksFromDoc(sectionDoc, imgUrls, { idSeed });
       if (blocks.length) {
         const base = (section.href || ("sec" + i)).split("/").pop().split("#")[0];
         const sectionDir = (section.href || "").replace(/[^/]*$/, "");

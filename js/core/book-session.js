@@ -1,6 +1,6 @@
 import { extractSections } from '../epub/extractor.js';
 import { resolveImageUrls } from '../epub/images.js';
-import { flattenToc } from '../epub/toc.js';
+import { flattenToc, buildSyntheticToc } from '../epub/toc.js';
 import { deriveBookId } from './position.js';
 import * as perf from './perf.js';
 
@@ -65,6 +65,13 @@ export class BookSession {
     if (chars < 32) {
       try { if (typeof book.destroy === 'function') book.destroy(); } catch (_) {}
       throw new Error('No readable text found (this EPUB may be image-only or DRM-protected).');
+    }
+
+    // When the EPUB provides no navigation document (empty NCX navMap or missing
+    // nav.xhtml) synthesize a TOC from section titles captured during extraction.
+    // Common in older calibre exports where headings are styled <p> elements.
+    if (!toc.length && sections.length > 1) {
+      toc = buildSyntheticToc(sections);
     }
 
     // Resolve images once, baking src onto the template frag <img> nodes.
