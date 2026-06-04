@@ -1,3 +1,18 @@
+// Build a best-effort TOC from the extracted sections when the EPUB provides no
+// navigation document. Uses the title captured during extraction (which preserves
+// CSS class information lost after blocks are flattened), falls back to a
+// human-readable label derived from the section filename.
+export function buildSyntheticToc(sections) {
+  const items = [];
+  sections.forEach((sec, i) => {
+    const label = (sec.title && sec.title.trim())
+      || sec.href.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ').trim()
+      || ('Section ' + (i + 1));
+    items.push({ label, href: sec.href, depth: 0 });
+  });
+  return items;
+}
+
 export function flattenToc(nodes, depth, acc) {
   (nodes || []).forEach((n) => {
     acc.push({ label: (n.label || "").trim() || "Untitled", href: n.href || "", depth });
@@ -10,7 +25,7 @@ export function buildTOC(epubToc, headingToc, tocListEl, sectionEls, goToPageFn,
   const items = [];
   if (epubToc && epubToc.length) {
     epubToc.forEach((it) => items.push({ label: it.label, href: it.href, depth: it.depth }));
-  } else if (headingToc.length > 1) {
+  } else if (headingToc.length > 0) {
     headingToc.forEach((h) => items.push({ label: h.label, el: h.el, depth: h.depth }));
   }
   tocListEl.innerHTML = "";

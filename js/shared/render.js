@@ -33,8 +33,8 @@ export function renderSections(content, sections, opts = {}) {
         el.querySelectorAll("figcaption").forEach(fc => fc.className = "blk-figcaption");
       }
       wrap.appendChild(el);
-      if (onHeading && (b.type === "h1" || b.type === "h2")) {
-        onHeading({ label: b.text, el, depth: b.type === "h1" ? 0 : 1 });
+      if (onHeading && /^h[1-6]$/.test(b.type)) {
+        onHeading({ label: b.text, el, depth: parseInt(b.type[1], 10) - 1 });
       }
     });
     frag.appendChild(wrap);

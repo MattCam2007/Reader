@@ -43,6 +43,32 @@ function rootOf(docOrEl) {
   return null;
 }
 
+// CSS class patterns commonly used by calibre/Sigil/Word exports for chapter
+// titles that aren't marked up as semantic heading elements.
+const HEADING_CLASS_RE = /\b(ch|chap|chapter|chaptitle|chapter[-_]?title|chaptertitle|part|heading|head|section[-_]?title)\b/i;
+
+// Extract the most heading-like text from a raw section document. Called during
+// extraction while the original DOM is still available (class info is lost after
+// blocks are flattened). Returns null if nothing usable is found.
+function extractSectionTitle(docOrEl) {
+  const root = rootOf(docOrEl);
+  if (!root || !root.querySelector) return null;
+  for (const sel of ['h1', 'h2', 'h3']) {
+    const el = root.querySelector(sel);
+    if (el) {
+      const t = (el.textContent || '').trim();
+      if (t && t.length <= 120) return t;
+    }
+  }
+  for (const el of root.querySelectorAll('p, div')) {
+    if (HEADING_CLASS_RE.test(el.className || '')) {
+      const t = (el.textContent || '').trim();
+      if (t && t.length <= 120) return t;
+    }
+  }
+  return null;
+}
+
 function collectImgSrcs(frag, imgUrls) {
   if (!imgUrls) return;
   const imgs = frag.querySelectorAll ? frag.querySelectorAll("img") : [];
@@ -131,7 +157,8 @@ export async function extractSections(book, onProgress) {
           entry.resolvedSrc = sectionDir + entry.src;
         });
         allImgUrls.push(...imgUrls);
-        sections.push({ href: base, blocks });
+        const title = extractSectionTitle(sectionDoc);
+        sections.push({ href: base, blocks, title });
       }
     } catch (err) {
       console.warn("Skipping section:", section && section.href, err);
