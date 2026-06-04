@@ -1,3 +1,5 @@
+import { pageOfWord } from '../model/geometry.js';
+
 export class ChromeManager {
   constructor(state, els) {
     this.state = state;
@@ -73,6 +75,21 @@ export class ChromeManager {
       const scrollTop = els.viewport.scrollTop;
       const threshold = els.viewport.clientHeight * 0.55;
       return items.some(item => Math.abs(item.fraction * sh - scrollTop) < threshold);
+    }
+    if (state.windowed) {
+      // item.fraction is a global word fraction; total/page are per-chapter. Only a
+      // bookmark whose word lands in the currently-attached chapter can be on this
+      // page — for those, measure the real page exactly (the chapter is laid out).
+      const wsToToken = state.doc.wsToToken;
+      const totalWs = wsToToken.length;
+      const sec = state.doc.sections[state.curChap];
+      if (!totalWs || !sec) return false;
+      return items.some(item => {
+        const bmWs = Math.round((item.fraction || 0) * (totalWs - 1));
+        if (bmWs < sec.wsStart || bmWs >= sec.wsEnd) return false; // other chapter
+        const tok = wsToToken[bmWs];
+        return tok != null && pageOfWord(state, els.content, tok) === state.page;
+      });
     }
     const total = state.total;
     if (total <= 0) return false;

@@ -2,6 +2,7 @@ import { COLUMN_GAP } from '../core/constants.js';
 import { buildDocModel } from '../model/doc-model.js';
 import { pageOfWord, wordAtPageStart } from '../model/geometry.js';
 import { resolveLocator } from '../model/locator.js';
+import * as perf from '../core/perf.js';
 
 export class PaginationEngine {
   constructor(state, els, currentLocatorFn, buildChapterIndexFn, updateProgressFn, savePosMainFn) {
@@ -51,7 +52,7 @@ export class PaginationEngine {
       state.total = 1;
       state.page = 0;
       els.progressEl.max = "0";
-      if (!state.docModelBuilt) { buildDocModel(state, content); state.docModelBuilt = true; }
+      if (!state.docModelBuilt) { perf.time("doc-model", () => buildDocModel(state, content)); state.docModelBuilt = true; }
       this.buildChapterIndexFn();
       if (savedLoc && state.doc.words.length) {
         const wi = resolveLocator(state, savedLoc);
@@ -65,7 +66,7 @@ export class PaginationEngine {
     state.total = Math.max(1, Math.round(content.scrollWidth / state.stride));
     els.progressEl.max = String(state.total - 1);
 
-    if (!state.docModelBuilt) { buildDocModel(state, content); state.docModelBuilt = true; }
+    if (!state.docModelBuilt) { perf.time("doc-model", () => buildDocModel(state, content)); state.docModelBuilt = true; }
 
     if (savedLoc && state.doc.words.length) {
       const wi = resolveLocator(state, savedLoc);
@@ -81,9 +82,85 @@ export class PaginationEngine {
     this.buildChapterIndexFn();
   }
 
+  // Build the global doc-model once (requires every chapter attached). Safe to
+  // call before windowing detaches chapters — the word→node references survive.
+  ensureDocModel() {
+    const { state, els } = this;
+    if (!state.docModelBuilt) {
+      perf.time("doc-model", () => buildDocModel(state, els.content));
+      state.docModelBuilt = true;
+    }
+  }
+
+  // ---------- Windowed rendering (default for paginated layout) ----------
+  // Detach every chapter except `keep` into comment-marker placeholders, so the
+  // browser only lays out / paints one chapter at a time. Built once after render.
+  setupWindow(keep) {
+    const { state, els } = this;
+    const chaps = Array.from(els.content.children);
+    state.chapWindows = chaps.map((el) => ({ el, marker: null }));
+    state.curChap = Math.max(0, Math.min(keep || 0, chaps.length - 1));
+    state.chapWindows.forEach((w, i) => {
+      if (i === state.curChap) return;
+      const marker = document.createComment("chap" + i);
+      w.el.parentNode.insertBefore(marker, w.el);
+      w.el.parentNode.removeChild(w.el);
+      w.marker = marker;
+    });
+  }
+
+  // Re-attach every detached chapter (exit windowed mode, e.g. switching to
+  // scroll layout where the whole book must be in one flow).
+  reattachAll() {
+    this.state.chapWindows.forEach((w) => {
+      if (w.marker && w.marker.parentNode) {
+        w.marker.parentNode.insertBefore(w.el, w.marker);
+        w.marker.parentNode.removeChild(w.marker);
+        w.marker = null;
+      }
+    });
+  }
+
+  // Swap the attached chapter to index `i` (detach current, attach i).
+  attachChap(i) {
+    const { state } = this;
+    i = Math.max(0, Math.min(i, state.chapWindows.length - 1));
+    if (i === state.curChap) return;
+    const cur = state.chapWindows[state.curChap];
+    if (cur && cur.el.parentNode) {
+      const marker = document.createComment("chap" + state.curChap);
+      cur.el.parentNode.insertBefore(marker, cur.el);
+      cur.el.parentNode.removeChild(cur.el);
+      cur.marker = marker;
+    }
+    const next = state.chapWindows[i];
+    if (next && next.marker && next.marker.parentNode) {
+      next.marker.parentNode.insertBefore(next.el, next.marker);
+      next.marker.parentNode.removeChild(next.marker);
+      next.marker = null;
+    }
+    state.curChap = i;
+  }
+
+  // Lay out the single attached chapter and land on its first or last page.
+  paginateWindow(landLast) {
+    const { state, els } = this;
+    const { content } = els;
+    this.setupColumns();
+    void content.offsetWidth;
+    state.total = Math.max(1, Math.round(content.scrollWidth / state.stride));
+    els.progressEl.max = String(state.total - 1);
+    state.page = landLast ? state.total - 1 : 0;
+    this.goTo(state.page, false);
+    // No global chapter index in windowed mode — only one chapter is laid out, so
+    // pageOfElement on detached chapters is meaningless. Labels come from
+    // state.sectionLabels[curChap] instead (built at load).
+  }
+
   paginateQuick() {
     const { state, els } = this;
     const { content } = els;
+    if (state.windowed) { this.paginateWindow(false); return; }
     state.paginateGen++;
     const gen = state.paginateGen;
 
@@ -193,6 +270,21 @@ export class PaginationEngine {
     this.savePosMainFn();
   }
 
-  next() { if (this.state.page < this.state.total - 1) this.goTo(this.state.page + 1, true); }
-  prev() { if (this.state.page > 0) this.goTo(this.state.page - 1, true); }
+  next() {
+    const { state } = this;
+    if (state.page < state.total - 1) {
+      perf.time("page-turn", () => this.goTo(state.page + 1, true), { dir: "next" });
+    } else if (state.windowed && state.curChap < state.chapWindows.length - 1) {
+      // Cross a chapter boundary: attach the next chapter and re-lay-out the window.
+      perf.time("page-turn", () => { this.attachChap(state.curChap + 1); this.paginateWindow(false); }, { dir: "next", boundary: true });
+    }
+  }
+  prev() {
+    const { state } = this;
+    if (state.page > 0) {
+      perf.time("page-turn", () => this.goTo(state.page - 1, true), { dir: "prev" });
+    } else if (state.windowed && state.curChap > 0) {
+      perf.time("page-turn", () => { this.attachChap(state.curChap - 1); this.paginateWindow(true); }, { dir: "prev", boundary: true });
+    }
+  }
 }

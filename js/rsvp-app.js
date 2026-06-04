@@ -15,6 +15,7 @@ import { StatsTracker } from './rsvp/stats.js';
 import { TrainingManager } from './rsvp/training.js';
 import { createPicker } from './shared/picker.js';
 import { deriveBookId, buildPosition, resolvePosition } from './core/position.js';
+import * as perf from './core/perf.js';
 
 // Convert extractSections() output to the plain-text format the tokenizer expects.
 // Using the same extractor as Reader guarantees identical word lists and exact position transfer.
@@ -508,7 +509,7 @@ export function init(options = {}) {
 
   // ---------- EPUB loading ----------
   function loadText(text, chapterMeta) {
-    const result = tokenize(text);
+    const result = perf.time("rsvp:tokenize", () => tokenize(text));
     state.loadTokens(result);
     _rsvpSearchCache = null;
 
@@ -563,10 +564,11 @@ export function init(options = {}) {
       const bookTitle = (book.packaging && book.packaging.metadata && book.packaging.metadata.title)
         || file.name.replace(/\.epub$/i, '');
 
-      const { sections } = await extractSections(book, (msg) => {
-        els.statusMsg.textContent = msg;
-      });
-      const { text, chapters: chapterMeta } = sectionsToText(sections);
+      const { sections } = await perf.timeAsync("rsvp:extract", () =>
+        extractSections(book, (msg) => {
+          els.statusMsg.textContent = msg;
+        }));
+      const { text, chapters: chapterMeta } = perf.time("rsvp:sectionsToText", () => sectionsToText(sections));
       if (!text || text.length < 32) {
         throw new Error("No readable text found in this EPUB (it may be image-only or DRM-protected).");
       }

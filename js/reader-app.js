@@ -9,7 +9,7 @@ import { extractSections } from './epub/extractor.js';
 import { resolveImageUrls } from './epub/images.js';
 import { flattenToc, buildTOC, resolveHref } from './epub/toc.js';
 import { toLocator, resolveLocator } from './model/locator.js';
-import { currentLocator, pageOfElement, pageOfWord, wordAtPageStart } from './model/geometry.js';
+import { currentLocator, pageOfElement, pageOfWord, wordAtPageStart, wordAtPageStartRange } from './model/geometry.js';
 import { deriveBookId, buildPosition, resolvePosition } from './core/position.js';
 import { buildChapterIndex } from './reader/chapters.js';
 import { PaginationEngine } from './reader/pagination.js';
@@ -21,6 +21,7 @@ import { FootnoteManager } from './reader/footnotes.js';
 import { buildSample } from '../fixtures/sample.js';
 import { runSelftest } from './test/selftest.js';
 import { trapFocus } from './reader/focus-trap.js';
+import * as perf from './core/perf.js';
 
 export function init(options = {}) {
   const signal = options.signal || new AbortController().signal;
@@ -78,7 +79,9 @@ export function init(options = {}) {
   function getBookmarkContext() {
     if (!state.bookId || !state.doc.words.length) return null;
     const pos = getCanonicalPosition();
-    const chapterLabel = chrome ? chrome.currentChapterLabel() : '';
+    const chapterLabel = state.windowed
+      ? ((state.sectionLabels && state.sectionLabels[state.curChap]) || '')
+      : (chrome ? chrome.currentChapterLabel() : '');
     let text = '';
     const wi = currentRenderToken();
     if (wi >= 0) {
@@ -93,7 +96,15 @@ export function init(options = {}) {
       applyCanonicalPosition(item.position);
       return;
     }
-    if (state.isScrollMode) {
+    // Legacy bookmark without a canonical position — fall back to a fraction.
+    if (state.windowed) {
+      const n = state.chapWindows.length || 1;
+      const sec = Math.max(0, Math.min(n - 1, Math.floor((item.fraction || 0) * n)));
+      pagination.attachChap(sec);
+      pagination.paginateWindow(false);
+      const within = (item.fraction || 0) * n - sec;
+      pagination.goTo(Math.round(within * (state.total - 1)), false);
+    } else if (state.isScrollMode) {
       const sh = els.viewport.scrollHeight - els.viewport.clientHeight;
       els.viewport.scrollTop = Math.round((item.fraction || 0) * sh);
     } else {
@@ -122,8 +133,30 @@ export function init(options = {}) {
     if (state._resumeHlActive && !state.isScrollMode && state.page !== state._resumeHlPage) {
       clearResumeHighlight();
     }
-    chrome.updateProgress();
+    if (state.windowed) updateWindowedProgress();
+    else chrome.updateProgress();
     chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
+  }
+
+  // Cheap global progress for windowed mode: chapter index + page-within-chapter,
+  // no getBoundingClientRect so it stays off the page-turn hot path. The precise
+  // word ordinal is only computed on (debounced) save / bookmark, not every turn.
+  function updateWindowedProgress() {
+    // Word-based global fraction (matches how bookmarks store position.f), derived
+    // cheaply from the current chapter's word range + page-within-chapter — no
+    // getBoundingClientRect, so it stays off the turn hot path.
+    const totalWs = state.doc.wsToToken.length || 1;
+    const sec = state.doc.sections[state.curChap];
+    const within = state.total > 1 ? state.page / (state.total - 1) : 0;
+    const wsHere = sec ? sec.wsStart + within * (sec.wsEnd - sec.wsStart) : 0;
+    const frac = Math.max(0, Math.min(1, wsHere / totalWs));
+    const pct = Math.round(frac * 100);
+    els.progressEl.max = "1000";
+    els.progressEl.value = String(Math.round(frac * 1000));
+    // Page numbers are per-chapter while windowed; show chapter + page-in-chapter.
+    const ch = (state.sectionLabels && state.sectionLabels[state.curChap]) || ("Chapter " + (state.curChap + 1));
+    els.progressLabel.textContent = ch + " · p" + (state.page + 1) + (state.total > 1 ? " of " + state.total : "");
+    if (els.bookSubEl) els.bookSubEl.textContent = pct + "% read";
   }
 
   // ---------- Canonical position ----------
@@ -154,12 +187,60 @@ export function init(options = {}) {
   }
   // First render token currently on screen.
   function currentRenderToken() {
+    if (state.windowed) {
+      // Only the current chapter is laid out — scope the page→word search to it.
+      const sec = state.doc.sections[state.curChap];
+      if (!sec) return 0;
+      return wordAtPageStartRange(state, els.content, state.page, sec.wordStart, sec.wordEnd);
+    }
     if (state.isScrollMode) {
       const loc = currentLocatorFn();
       const wi = loc ? resolveLocator(state, loc) : 0;
       return wi >= 0 ? wi : 0;
     }
     return wordAtPageStart(state, els.content, state.page);
+  }
+
+  // Seek to a global render token. In windowed mode this attaches the token's
+  // chapter (laying it out) before mapping the word to a page; otherwise it's the
+  // normal page/scroll seek. The single funnel every navigation path goes through
+  // (position restore, search hit, bookmark, cross-mode handoff).
+  function seekToToken(tok) {
+    if (!state.doc.words.length) return;
+    tok = Math.max(0, Math.min(tok, state.doc.words.length - 1));
+    if (state.windowed) {
+      const sec = state.doc.words[tok].section;
+      if (sec !== state.curChap) {
+        pagination.attachChap(sec);
+        pagination.paginateWindow(false);
+      }
+      pagination.goTo(pageOfWord(state, els.content, tok), false);
+      return;
+    }
+    if (state.isScrollMode) pagination.scrollToWord(tok);
+    else pagination.goTo(pageOfWord(state, els.content, tok), false);
+  }
+
+  // Seek so that `el` is on screen, attaching its chapter first in windowed mode.
+  function seekToElement(el) {
+    if (state.windowed) {
+      const chap = el.closest && el.closest(".chap");
+      const sec = chap ? state.doc.sections.findIndex(s => s.el === chap) : -1;
+      if (sec >= 0 && sec !== state.curChap) {
+        pagination.attachChap(sec);
+        pagination.paginateWindow(false);
+      }
+    }
+    pagination.goTo(pageOfElement(state, els.content, el), false);
+  }
+
+  // Per-section heading labels, captured while all chapters are attached (before
+  // windowing detaches them). Used for the chapter label in windowed progress.
+  function captureSectionLabels() {
+    state.sectionLabels = state.doc.sections.map(s => {
+      const h = s.el && s.el.querySelector(".blk-h1, .blk-h2, .blk-h3");
+      return h ? h.textContent.trim() : (s.href || "");
+    });
   }
   // Whitespace-word ordinal of the first WHOLE word on screen. If the first
   // render token is a continuation (its word began on the previous page, e.g. a
@@ -183,8 +264,7 @@ export function init(options = {}) {
     const { wsToToken } = state.doc;
     const startWs = wsToToken.length ? Math.max(0, Math.min(ord, wsToToken.length - 1)) : 0;
     const tok = wsToToken.length ? wsToToken[startWs] : 0;
-    if (state.isScrollMode) pagination.scrollToWord(tok);
-    else pagination.goTo(pageOfWord(state, els.content, tok), false);
+    seekToToken(tok);
     // Highlight where we came from (1 word from RSVP, the whole sentence from
     // TTS). It persists until the next page turn / scroll — see updateProgressFn.
     if (pos && pos.hl) setResumeHighlight(startWs, pos.hl);
@@ -205,7 +285,9 @@ export function init(options = {}) {
       if (done || imgs.some(im => !im.complete)) return;
       done = true;
       if (state.page !== landedPage) return; // reader moved on — leave them be
-      pagination.paginate(false); // refresh stride/total against the final layout
+      // refresh stride/total against the final layout (windowed = current chapter only)
+      if (state.windowed) pagination.paginateWindow(false);
+      else pagination.paginate(false);
       if (pos) applyCanonicalPosition(pos);
       else storage.restorePos(applyCanonicalPosition);
     };
@@ -253,6 +335,7 @@ export function init(options = {}) {
 
   // ---------- Footnotes ----------
   const footnotes = new FootnoteManager(state, els, (targetEl) => {
+    if (state.windowed) { seekToElement(targetEl); return; }
     pagination.goTo(pageOfElement(state, els.content, targetEl), true);
   });
 
@@ -260,8 +343,7 @@ export function init(options = {}) {
   function goToLocator(loc) {
     const wi = resolveLocator(state, loc);
     if (wi < 0) return;
-    if (state.isScrollMode) pagination.scrollToWord(wi);
-    else pagination.goTo(pageOfWord(state, els.content, wi), false);
+    seekToToken(wi);
   }
 
   const search = new SearchManager(state, els, goToLocator, closePanels);
@@ -316,7 +398,7 @@ export function init(options = {}) {
       onReaderChange(key, value, needsRepaginate) {
         prefs.data[key] = value;
         applyPrefs();
-        if (needsRepaginate) pagination.paginateQuick();
+        if (needsRepaginate) relayout();
       },
     });
     updateAriaExpanded();
@@ -403,6 +485,7 @@ export function init(options = {}) {
 
   // ---------- Rendering ----------
   function renderBook(sections) {
+    perf.mark("reader:render");
     state.blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) { console.warn("render:revokeBlob", e); } });
     state.blobUrls = [];
     els.content.innerHTML = "";
@@ -431,7 +514,47 @@ export function init(options = {}) {
       frag.appendChild(wrap);
     });
     els.content.appendChild(frag);
-    annotateInlineText(els.content);
+    perf.measure("reader:render", { sections: sections.length });
+    perf.time("reader:annotate", () => annotateInlineText(els.content));
+  }
+
+  // Lay out a freshly-rendered book and land the reader on `pos` (or the saved
+  // position). Builds the global doc-model once while every chapter is attached,
+  // then either windows down to one chapter (paginated — the default) or lays out
+  // the whole book (scroll mode, which can't be windowed).
+  function finalizeLayout(epubToc, pos) {
+    pagination.ensureDocModel();      // global model; word→node refs survive windowing
+    captureSectionLabels();
+    if (state.isScrollMode) {
+      state.windowed = false;
+      perf.time("reader:paginate", () => pagination.paginate(false));
+    } else {
+      state.windowed = true;
+      pagination.setupWindow(0);
+      perf.time("reader:paginate", () => pagination.paginateWindow(false));
+    }
+    buildTOC(epubToc || [], state.headingToc, els.tocListEl, state.sectionEls,
+      seekToElement, closePanels,
+      (href) => resolveHref(href, els.content, state.sectionEls));
+    if (pos) applyCanonicalPosition(pos);
+    else storage.restorePos(applyCanonicalPosition);
+    if (!state.windowed) resyncAfterImages(pos);
+  }
+
+  // Re-lay-out in place (resize, font/margin change, or a layout-mode toggle),
+  // preserving the reading position via the canonical position. Handles entering
+  // windowed mode (paginated) and exiting it (scroll) at runtime.
+  function relayout() {
+    if (!state.docModelBuilt) return;
+    const pos = state.doc.words.length ? getCanonicalPosition() : null;
+    if (state.isScrollMode) {
+      if (state.windowed) { pagination.reattachAll(); state.windowed = false; }
+      pagination.paginate(false);
+    } else {
+      if (!state.windowed) { pagination.setupWindow(state.curChap || 0); state.windowed = true; }
+      pagination.paginateWindow(false);
+    }
+    if (pos) applyCanonicalPosition(pos);
   }
 
   // Wrap quoted speech and punctuation in spans for per-theme coloring.
@@ -526,9 +649,10 @@ export function init(options = {}) {
         epubToc = flattenToc(nav && nav.toc, 0, []);
       } catch (e) { console.warn("epub:toc", e); }
 
-      const { sections, allImgUrls } = await extractSections(book, (msg) => {
-        els.overlayMsg.textContent = msg;
-      });
+      const { sections, allImgUrls } = await perf.timeAsync("reader:extract", () =>
+        extractSections(book, (msg) => {
+          els.overlayMsg.textContent = msg;
+        }));
       const chars = sections.reduce((n, s) => n + s.blocks.reduce((m, b) => m + b.text.length, 0), 0);
       if (chars < 32) {
         throw new Error("No readable text found (this EPUB may be image-only or DRM-protected).");
@@ -563,18 +687,7 @@ export function init(options = {}) {
       await new Promise((resolve) => {
         requestAnimationFrame(() => {
           try {
-            pagination.paginate(false);
-            buildTOC(epubToc, state.headingToc, els.tocListEl, state.sectionEls,
-              (el) => pagination.goTo(pageOfElement(state, els.content, el), false),
-              closePanels,
-              (href) => resolveHref(href, els.content, state.sectionEls));
-            // A handed-off position is the single source of truth; otherwise
-            // fall back to the persisted position. Never both (that was a race).
-            if (pos) applyCanonicalPosition(pos);
-            else storage.restorePos(applyCanonicalPosition);
-            // Images decode after this first paint and only then take up space,
-            // which shifts the column flow; re-land once they settle.
-            resyncAfterImages(pos);
+            finalizeLayout(epubToc, pos);
             if (urlParams.get("selftest") === "1") {
               requestAnimationFrame(() => runSelftest(state));
             }
@@ -651,7 +764,18 @@ export function init(options = {}) {
     e.target.value = "";
     if (file) loadEpub(file);
   }, { signal });
-  els.progressEl.addEventListener("input", () => pagination.goTo(parseInt(els.progressEl.value, 10) || 0, false), { signal });
+  els.progressEl.addEventListener("input", () => {
+    if (state.windowed) {
+      // The bar is a 0–1000 word-fraction scrubber; map to a word and seek.
+      const totalWs = state.doc.wsToToken.length;
+      if (!totalWs) return;
+      const frac = (parseInt(els.progressEl.value, 10) || 0) / 1000;
+      const ws = Math.max(0, Math.min(totalWs - 1, Math.round(frac * (totalWs - 1))));
+      seekToToken(state.doc.wsToToken[ws]);
+      return;
+    }
+    pagination.goTo(parseInt(els.progressEl.value, 10) || 0, false);
+  }, { signal });
   els.content.addEventListener("click", (e) => footnotes.handleContentClick(e), { signal });
 
   // Scroll mode progress tracking (storage.savePos has its own debounce)
@@ -670,7 +794,7 @@ export function init(options = {}) {
   let resizeTimer = null;
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => pagination.paginateQuick(), RESIZE_DEBOUNCE_MS);
+    resizeTimer = setTimeout(() => relayout(), RESIZE_DEBOUNCE_MS);
   }, { signal });
 
   // Mode switch buttons
@@ -735,12 +859,7 @@ export function init(options = {}) {
     els.bookTitleEl.textContent = "Pride and Prejudice";
     renderBook(buildSample());
     requestAnimationFrame(() => {
-      pagination.paginate(false);
-      buildTOC([], state.headingToc, els.tocListEl, state.sectionEls,
-        (el) => pagination.goTo(pageOfElement(state, els.content, el), false),
-        closePanels,
-        (href) => resolveHref(href, els.content, state.sectionEls));
-      storage.restorePos(applyCanonicalPosition);
+      finalizeLayout([], null);
       if (urlParams.get("selftest") === "1") {
         requestAnimationFrame(() => runSelftest(state));
       }
