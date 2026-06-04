@@ -1,14 +1,24 @@
 // Build a best-effort TOC from the extracted sections when the EPUB provides no
-// navigation document. Uses the title captured during extraction (which preserves
-// CSS class information lost after blocks are flattened), falls back to a
-// human-readable label derived from the section filename.
+// navigation document. Iterates over every block flagged isTocHeading (set by
+// blocksFromDoc for semantic h1-h6 and common calibre/Word/Sigil CSS class
+// patterns). Each such block gets its own TOC entry using the synthetic id
+// assigned during extraction, so intra-file chapters are individually linkable.
+// Falls back to one section-level entry per file when a section has no headings.
 export function buildSyntheticToc(sections) {
   const items = [];
   sections.forEach((sec, i) => {
-    const label = (sec.title && sec.title.trim())
-      || sec.href.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ').trim()
-      || ('Section ' + (i + 1));
-    items.push({ label, href: sec.href, depth: 0 });
+    const headings = sec.blocks.filter(b => b.isTocHeading && b.text.trim());
+    if (headings.length) {
+      headings.forEach(b => {
+        const href = b.id ? sec.href + '#' + b.id : sec.href;
+        items.push({ label: b.text.trim(), href, depth: 0 });
+      });
+    } else {
+      // Section has no detected headings — add a file-level fallback entry.
+      const label = sec.href.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ').trim()
+        || ('Section ' + (i + 1));
+      items.push({ label, href: sec.href, depth: 0 });
+    }
   });
   return items;
 }
