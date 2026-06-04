@@ -58,22 +58,26 @@ reader.html
    ```
 
 9. Set `currentMode = targetMode`
-10. If `posInfo && cachedBook`: call `loadFromBuffer(buffer, fileName, posInfo.pos)`. The position is passed *into* the load; `loadFromBuffer` only resolves once the target mode has finished laying out (Reader/TTS paginate/segment inside a rAF) **and** applied the position. There is no separate rAF + `setTimeout(100ms)` seek and no second restore from localStorage — a single applier runs after layout, so the handoff is deterministic.
+10. If `posInfo && cachedSession`: call `loadFromSession(cachedSession, posInfo.pos)`. The cached **`BookSession`** (already parsed + extracted by whichever mode loaded first) is reused, so the switch does **no re-parse / re-extract** — only render + paginate. The position is passed *into* the load; `loadFromSession` only resolves once the target mode has finished laying out (Reader/TTS paginate/segment inside a rAF) **and** applied the position. There is no separate rAF + `setTimeout(100ms)` seek and no second restore from localStorage — a single applier runs after layout, so the handoff is deterministic.
 
 ---
 
 ## 2. Loading an EPUB File
 
-This flow is identical for all three modes, except RSVP uses `extractPlainText()` instead of `extractSections()`.
+The mode-agnostic parse + extract + image-resolve runs **once** in
+`BookSession.fromBuffer` (`core/book-session.js`); each mode then renders from
+the session. RSVP derives its plain-text stream from `session.sections` rather
+than running a separate extraction.
 
 ### 2a. File picker / drag-and-drop
 
 ```
 User action
   → File input change OR dragover/drop event
-  → reader-app.js: handleFile(file: File)
+  → reader-app.js: loadEpub(file: File)
     → file.arrayBuffer()
-    → loadFromBuffer(buffer, file.name)
+    → BookSession.fromBuffer(buffer, file.name, urlId)
+    → loadFromSession(session)
 ```
 
 ### 2b. URL parameter (`?src=`)
@@ -81,41 +85,40 @@ User action
 ```
 reader-app.js init()
   → urlParams.get('src') !== null
-  → fetch(src)
-  → response.arrayBuffer()
-  → loadFromBuffer(buffer, fileName)
+  → fetch(src) → response.blob() → File
+  → loadEpub(file)  → BookSession.fromBuffer → loadFromSession(session)
 ```
 
-### 2c. `loadFromBuffer(buffer, fileName)` (all modes)
+### 2c. `BookSession.fromBuffer(...)` then `loadFromSession(session)`
 
 ```
-loadFromBuffer(buffer, fileName)
-  │
-  ├─ onBookLoaded({ buffer: buffer.slice(0), fileName, bookId })
-  │    → mode-switcher.js stores cachedBook
+BookSession.fromBuffer(buffer, fileName, urlId)   [runs ONCE per book]
   │
   ├─ JSZip.loadAsync(buffer)           CDN: parse ZIP archive
   │
-  ├─ epub.js: Epub.open(zip)           CDN: parse OPF/NCX/NAV metadata
+  ├─ epub.js: ePub(buffer)             CDN: parse OPF/NCX/NAV metadata
   │
-  ├─ epub/toc.js: extractToc(epub)     Read navigation → flat TocEntry[]
+  ├─ epub/toc.js: flattenToc(nav)      Read navigation → flat TocEntry[]
   │
-  ├─ epub/images.js: detectCover(epub) Find cover → blob: URL
-  │
-  ├─ For Reader/TTS mode:
-  │    epub/extractor.js: extractSections(epub, signal)
+  ├─ epub/extractor.js: extractSections(book)
   │      └─ For each spine item:
-  │           epub.js: spine.get(item).load()   → XHTML document
+  │           spine item load()   → XHTML document
   │           Walk DOM with BLOCK_SEL/SKIP_SEL
-  │           Serialize safe HTML → Section { html, href, title }
-  │    epub/images.js: resolveImages(sections, epub)
-  │      └─ Replace relative img src → blob: URLs
+  │           Build safe block frags → Section { blocks, href }
   │
-  ├─ For RSVP mode:
-  │    epub/extractor.js: extractPlainText(epub, signal)
-  │      └─ For each spine item: textContent only → PlainSection
+  ├─ epub/images.js: resolveImageUrls(allImgUrls, book)
+  │      └─ Resolve relative img src → blob: URLs (baked onto template frags)
   │
-  ├─ renderBook(sections)
+  ├─ derive bookId/title; book.destroy()
+  └─ return BookSession { sections, toc, bookId, title, blobUrls }
+
+loadFromSession(session, pos)         [per mode; re-run on every mode switch]
+  │
+  ├─ onBookLoaded({ session })
+  │    → mode-switcher.js caches the session (disposes the previous one's blobs
+  │      only if it's a different book)
+  │
+  ├─ renderBook(session.sections)
   │    └─ Build DOM:
   │         content.innerHTML = ''
   │         For each section:

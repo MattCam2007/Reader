@@ -20,8 +20,10 @@
   --fg: #e8e8e8;
   --content-fg: #d9d9d9;
   --muted: rgba(232, 232, 232, 0.5);
+  --faint: rgba(232, 232, 232, 0.32);
   --chrome-bg: rgba(22, 22, 22, 0.92);
   --panel-bg: #232323;
+  --card-bg: #262626;
   --border: rgba(255, 255, 255, 0.12);
   --accent: #e74c3c;
   --shadow: rgba(0, 0, 0, 0.5);
@@ -52,8 +54,10 @@ body.theme-sepia {
   --fg: #5b4636;
   --content-fg: #5b4636;
   --muted: rgba(91, 70, 54, 0.6);
+  --faint: rgba(91, 70, 54, 0.4);
   --chrome-bg: rgba(244, 236, 216, 0.94);
   --panel-bg: #efe6cf;
+  --card-bg: #ece2c9;
   --border: rgba(91, 70, 54, 0.2);
   --accent: #b5651d;
   --shadow: rgba(91, 70, 54, 0.25);
@@ -81,8 +85,10 @@ body.theme-light {
   --fg: #1f1f1f;
   --content-fg: #262626;
   --muted: rgba(0, 0, 0, 0.45);
+  --faint: rgba(0, 0, 0, 0.32);
   --chrome-bg: rgba(255, 255, 255, 0.94);
   --panel-bg: #f4f4f4;
+  --card-bg: #f0f0f0;
   --border: rgba(0, 0, 0, 0.12);
   --accent: #c0392b;
   --shadow: rgba(0, 0, 0, 0.18);
@@ -399,8 +405,10 @@ body.theme-nord .tts-content .blk-h3 { color: #9ac8ff; }
     --fg: #1f1f1f;
     --content-fg: #262626;
     --muted: rgba(0, 0, 0, 0.45);
+    --faint: rgba(0, 0, 0, 0.32);
     --chrome-bg: rgba(255, 255, 255, 0.94);
     --panel-bg: #f4f4f4;
+    --card-bg: #f0f0f0;
     --border: rgba(0, 0, 0, 0.12);
     --accent: #c0392b;
     --shadow: rgba(0, 0, 0, 0.18);

@@ -10,6 +10,12 @@ export const COLUMN_GAP = 40;
 export const MIN_SIZE = 14;
 export const MAX_SIZE = 30;
 
+// Windowed rendering only pays off on books big enough that laying out the whole
+// multi-column tree is paint-bound. Below this whitespace-word count (or with a
+// single section) we render the whole book and skip the per-chapter-boundary
+// relayout overhead entirely. ~A short story; novels are far above it.
+export const WINDOW_MIN_WORDS = 6000;
+
 // Margins
 export const MARGINS = {
   narrow: "1rem",

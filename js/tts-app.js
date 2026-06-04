@@ -1,16 +1,18 @@
-import { FONT_MAP, FONT_SERIF, THEME_COLORS, GENERAL_DEFAULTS, ALL_THEME_NAMES } from './core/constants.js';
+import { FONT_MAP, FONT_SERIF, GENERAL_DEFAULTS } from './core/constants.js';
 import { PrefsManager } from './core/prefs.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
-import { extractSections } from './epub/extractor.js';
-import { resolveImageUrls } from './epub/images.js';
-import { flattenToc, buildTOC, resolveHref } from './epub/toc.js';
+import { BookSession, splitWords } from './core/book-session.js';
+import { renderSections, annotateInlineText } from './shared/render.js';
+import { renderSearchResults } from './shared/search.js';
+import { applyTheme, applyOsThemeFallback, savePosition as shellSavePosition, loadPosition } from './base-reader-app.js';
+import { buildTOC, resolveHref } from './epub/toc.js';
 import { buildSample } from '../fixtures/sample.js';
 import { TtsEngine } from './tts/engine.js';
 import { TtsHighlighter } from './tts/highlighter.js';
 import { TTS_DEFAULTS } from './tts/constants.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
-import { deriveBookId, buildPosition, resolvePosition } from './core/position.js';
+import { buildPosition, resolvePosition } from './core/position.js';
 import * as perf from './core/perf.js';
 
 export function init(options = {}) {
@@ -59,7 +61,6 @@ export function init(options = {}) {
   generalPrefs.load();
 
   const urlParams = new URLSearchParams(location.search);
-  const blobUrls = [];
   const sectionEls = new Map();
   let headingToc = [];
   let bookId = '';
@@ -343,7 +344,7 @@ export function init(options = {}) {
         ? wrapBlockSentences(blockEl, parts)
         : [blockEl];
       for (let i = 0; i < parts.length; i++) {
-        const words = parts[i].split(/\s+/).filter(Boolean);
+        const words = splitWords(parts[i]);
         result.push({ text: parts[i], blockEl, highlightEl: highlightEls[i] || blockEl, wordOffset, secHref: href });
         for (const w of words) ttsWords.push(w);
         wordOffset += words.length;
@@ -425,120 +426,22 @@ export function init(options = {}) {
   // ---------- Rendering ----------
   function renderBook(sections) {
     perf.mark("tts:render");
-    blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (_) {} });
-    blobUrls.length = 0;
-    els.content.innerHTML = '';
-    sectionEls.clear();
     headingToc = [];
-    const frag = document.createDocumentFragment();
-    sections.forEach((sec) => {
-      const wrap = document.createElement('div');
-      wrap.className = 'chap';
-      if (sec.href) { wrap.dataset.href = sec.href; sectionEls.set(sec.href, wrap); }
-      sec.blocks.forEach((b) => {
-        const el = document.createElement(
-          (b.type === 'figure' || b.type === 'table-wrap') ? 'div' : b.type
-        );
-        if (b.frag) el.appendChild(b.frag);
-        else el.textContent = b.text;
-        if (b.id) el.id = b.id;
-        el.className = 'blk blk-' + b.type;
-        if (b.type === 'figure') {
-          el.querySelectorAll('figcaption').forEach(fc => fc.className = 'blk-figcaption');
-        }
-        wrap.appendChild(el);
-        if (b.type === 'h1' || b.type === 'h2') {
-          headingToc.push({ label: b.text, el, depth: b.type === 'h1' ? 0 : 1 });
-        }
-      });
-      frag.appendChild(wrap);
+    renderSections(els.content, sections, {
+      sectionEls,
+      onHeading: (h) => headingToc.push(h),
     });
-    els.content.appendChild(frag);
     perf.measure("tts:render", { sections: sections.length });
     perf.time("tts:annotate", () => annotateInlineText(els.content));
   }
 
-  function annotateInlineText(root) {
-    root.querySelectorAll(".blk").forEach(annotateBlock);
-  }
-
-  function annotateBlock(blk) {
-    const SPLIT = /(["\u201C\u201D])|([.,:;!?\u2014\u2013\u2026()\[\]])/g;
-    const walker = document.createTreeWalker(blk, NodeFilter.SHOW_TEXT);
-    const nodes = [];
-    let nd;
-    while ((nd = walker.nextNode())) nodes.push(nd);
-
-    let inSpeech = false;
-    for (const node of nodes) {
-      const parent = node.parentNode;
-      if (!parent) continue;
-      if (parent.closest && parent.closest("code, pre")) continue;
-      const text = node.nodeValue;
-      let last = 0, m, hasMatch = false;
-      const parts = [];
-
-      const pushText = (t) => {
-        if (!t) return;
-        if (inSpeech) {
-          const sp = document.createElement("span");
-          sp.className = "inline-speech";
-          sp.textContent = t;
-          parts.push(sp);
-        } else {
-          parts.push(document.createTextNode(t));
-        }
-      };
-
-      SPLIT.lastIndex = 0;
-      while ((m = SPLIT.exec(text)) !== null) {
-        hasMatch = true;
-        pushText(text.slice(last, m.index));
-        const ch = m[0];
-        if (m[1]) {
-          const sp = document.createElement("span");
-          sp.className = "inline-speech";
-          sp.textContent = ch;
-          parts.push(sp);
-          if (ch === "\u201C") inSpeech = true;
-          else if (ch === "\u201D") inSpeech = false;
-          else inSpeech = !inSpeech;
-        } else {
-          const sp = document.createElement("span");
-          sp.className = inSpeech ? "inline-punct inline-punct-speech" : "inline-punct";
-          sp.textContent = ch;
-          parts.push(sp);
-        }
-        last = m.index + ch.length;
-      }
-
-      if (!hasMatch) {
-        if (inSpeech) {
-          const sp = document.createElement("span");
-          sp.className = "inline-speech";
-          sp.textContent = text;
-          parent.replaceChild(sp, node);
-        }
-        continue;
-      }
-
-      pushText(text.slice(last));
-      const frag2 = document.createDocumentFragment();
-      for (const p of parts) frag2.appendChild(p);
-      parent.replaceChild(frag2, node);
-    }
-  }
 
   // ---------- Prefs application ----------
   function applyPrefs() {
     const p = prefs.data;
 
     // Theme (reads from app-wide general prefs)
-    const theme = generalPrefs.data.theme;
-    document.body.classList.remove(...ALL_THEME_NAMES.map(t => `theme-${t}`));
-    if (theme !== 'dark') document.body.classList.add('theme-' + theme);
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta && THEME_COLORS[theme]) meta.setAttribute('content', THEME_COLORS[theme]);
+    applyTheme(generalPrefs.data.theme);
 
     // Font & size
     els.content.style.fontFamily = FONT_MAP[p.font] || FONT_SERIF;
@@ -620,6 +523,8 @@ export function init(options = {}) {
   }
 
   // ---------- EPUB loading ----------
+  // Build the mode-agnostic session once, then render + segment it. A mode
+  // switch reuses the session (loadFromSession) without re-parsing.
   async function loadEpub(file, pos) {
     engine.cancel();
     setPlaying(false);
@@ -627,46 +532,40 @@ export function init(options = {}) {
     sentences = [];
     currentSentenceIdx = 0;
 
-    showLoading('Loading ' + file.name + '\u2026');
+    showLoading('Loading ' + file.name + '…');
     closePanels();
-    let book = null;
     try {
-      if (typeof ePub !== 'function') {
-        throw new Error('EPUB library failed to load. Check your connection.');
-      }
       const buffer = await file.arrayBuffer();
-      book = ePub(buffer);
-      await book.ready;
-
-      let epubToc = [];
-      try {
-        const nav = await book.loaded.navigation;
-        epubToc = flattenToc(nav && nav.toc, 0, []);
-      } catch (e) { console.warn('tts:toc', e); }
-
-      const { sections, allImgUrls } = await perf.timeAsync("tts:extract", () =>
-        extractSections(book, (msg) => {
+      const session = await perf.timeAsync("tts:extract", () =>
+        BookSession.fromBuffer(buffer, file.name, urlParams.get('id'), (msg) => {
           els.overlayMsg.textContent = msg;
         }));
-      const chars = sections.reduce((n, s) => n + s.blocks.reduce((m, b) => m + b.text.length, 0), 0);
-      if (chars < 32) throw new Error('No readable text found (this EPUB may be image-only or DRM-protected).');
+      await loadFromSession(session, pos);
+    } catch (err) {
+      console.error('TTS EPUB load failed:', err);
+      showError(err && err.message ? err.message : "Couldn't read that file.");
+    }
+  }
 
-      const meta = (book.packaging && book.packaging.metadata) || {};
-      const title = (meta.title || file.name).trim();
-      bookId = deriveBookId(urlParams.get('id'), meta.title, file.name);
+  async function loadFromSession(session, pos) {
+    engine.cancel();
+    setPlaying(false);
+    highlighter.clearHighlight();
+    sentences = [];
+    currentSentenceIdx = 0;
+    closePanels();
+    try {
+      bookId = session.bookId;
       bookmarkManager.setBook(bookId);
-      els.bookTitleEl.textContent = title;
+      els.bookTitleEl.textContent = session.title || session.bookId;
       bookLoaded = true;
 
-      const newBlobUrls = allImgUrls.length ? await resolveImageUrls(allImgUrls, book) : [];
-      renderBook(sections);
-      newBlobUrls.forEach(u => blobUrls.push(u));
+      renderBook(session.sections);
       clearOverlay();
-
-      if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId });
+      if (onBookLoaded) onBookLoaded({ session });
 
       // Segment, restore and build TOC inside a rAF so the rendered DOM exists
-      // before we address sentences. Await it so loadFromBuffer only resolves
+      // before we address sentences. Await it so loadFromSession only resolves
       // once the position is applied — see mode-switcher handoff.
       await new Promise((resolve) => {
         requestAnimationFrame(() => {
@@ -679,7 +578,7 @@ export function init(options = {}) {
             if (pos) applyCanonicalPosition(pos);
             else currentSentenceIdx = restorePosition();
 
-            buildTOC(epubToc, headingToc, els.tocListEl, sectionEls,
+            buildTOC(session.toc, headingToc, els.tocListEl, sectionEls,
               (el) => seekToElementBlock(el),
               closePanels,
               (href) => resolveHref(href, els.content, sectionEls));
@@ -687,14 +586,9 @@ export function init(options = {}) {
           finally { resolve(); }
         });
       });
-
     } catch (err) {
-      console.error('TTS EPUB load failed:', err);
+      console.error('TTS render failed:', err);
       showError(err && err.message ? err.message : "Couldn't read that file.");
-    } finally {
-      if (book && typeof book.destroy === 'function') {
-        try { book.destroy(); } catch (_) {}
-      }
     }
   }
 
@@ -715,21 +609,15 @@ export function init(options = {}) {
   }
 
   // ---------- Position persistence ----------
-  function posKey() { return 'book:pos:' + bookId; }
-
   function savePosition() {
-    if (!bookId || !sentences.length) return;
-    const pos = getCanonicalPosition();
-    if (pos) try { localStorage.setItem(posKey(), JSON.stringify(pos)); } catch (_) {}
+    if (!sentences.length) return;
+    shellSavePosition(bookId, getCanonicalPosition);
   }
 
   function restorePosition() {
-    if (!bookId) return 0;
-    try {
-      const raw = localStorage.getItem(posKey());
-      if (!raw) return 0;
-      return sentenceIndexForOrdinal(resolvePosition(JSON.parse(raw), ttsSections, totalWords, wordAt));
-    } catch (_) { return 0; }
+    const pos = loadPosition(bookId);
+    if (!pos) return 0;
+    return sentenceIndexForOrdinal(resolvePosition(pos, ttsSections, totalWords, wordAt));
   }
 
   // ---------- Canonical position ----------
@@ -799,52 +687,12 @@ export function init(options = {}) {
   function runTtsSearch(query) {
     const resultsEl = els.ttsSearchResults;
     if (!resultsEl) return;
-    resultsEl.innerHTML = "";
-    if (!query || query.length < 2 || !sentences.length) {
-      if (query && query.length >= 2)
-        resultsEl.innerHTML = '<div class="reader-search-empty">No results</div>';
-      return;
-    }
+    if (!sentences.length) { resultsEl.innerHTML = ""; return; }
     const { text, sentenceCharStart } = buildTtsSearchCache();
-    const lower = text.toLowerCase();
-    const q = query.toLowerCase();
-    const hits = [];
-    let pos = 0;
-    while ((pos = lower.indexOf(q, pos)) !== -1 && hits.length < 200) {
-      hits.push(pos);
-      pos += q.length;
-    }
-    if (!hits.length) {
-      resultsEl.innerHTML = '<div class="reader-search-empty">No results</div>';
-      return;
-    }
-    const frag = document.createDocumentFragment();
-    hits.forEach((charOff) => {
-      let si = 0;
-      for (let j = 0; j < sentenceCharStart.length; j++) {
-        if (sentenceCharStart[j] <= charOff) si = j;
-        else break;
-      }
-      const snippetStart = Math.max(0, charOff - 40);
-      const snippetEnd = Math.min(text.length, charOff + query.length + 40);
-      const before = (snippetStart > 0 ? "…" : "") + text.slice(snippetStart, charOff);
-      const match = text.slice(charOff, charOff + query.length);
-      const after = text.slice(charOff + query.length, snippetEnd) + (snippetEnd < text.length ? "…" : "");
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "reader-search-result";
-      btn.appendChild(document.createTextNode(before));
-      const mark = document.createElement("mark");
-      mark.textContent = match;
-      btn.appendChild(mark);
-      btn.appendChild(document.createTextNode(after));
-      btn.addEventListener("click", () => {
-        seekToSentence(si);
-        closePanels();
-      });
-      frag.appendChild(btn);
+    renderSearchResults(resultsEl, {
+      text, charStart: sentenceCharStart, query,
+      onPick: (si) => { seekToSentence(si); closePanels(); },
     });
-    resultsEl.appendChild(frag);
   }
 
   if (els.ttsSearchBtn) {
@@ -959,13 +807,8 @@ export function init(options = {}) {
   engine.setRate(prefs.data.rate);
   engine.setPitch(prefs.data.pitch);
 
-  // Respect prefers-color-scheme on first load
-  if (!localStorage.getItem('tts:prefs')) {
-    if (window.matchMedia('(prefers-color-scheme: light)').matches) {
-      prefs.data.theme = 'light';
-      applyPrefs();
-    }
-  }
+  // Respect prefers-color-scheme on first load (theme lives in general prefs).
+  applyOsThemeFallback(generalPrefs, () => { generalPrefs.save(); applyPrefs(); });
 
   // Load voices asynchronously
   loadAndDisplayVoices().then(() => restoreVoice());
@@ -1019,16 +862,12 @@ export function init(options = {}) {
       engine.cancel();
       setPlaying(false);
       savePosition();
-      blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (_) {} });
-      blobUrls.length = 0;
+      // Image blob URLs belong to the shared BookSession, not the mode.
     },
     getPosition: getCanonicalPosition,
     getBookId() { return bookId; },
     isBookLoaded() { return bookLoaded; },
     applyPosition(pos) { applyCanonicalPosition(pos); },
-    loadFromBuffer(buffer, fileName, pos) {
-      const file = new File([buffer], fileName, { type: 'application/epub+zip' });
-      return loadEpub(file, pos);
-    },
+    loadFromSession(session, pos) { return loadFromSession(session, pos); },
   };
 }

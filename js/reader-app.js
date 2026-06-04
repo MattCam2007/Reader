@@ -1,16 +1,17 @@
-import { FONT_MAP, FONT_SERIF, THEME_COLORS, RESIZE_DEBOUNCE_MS, SAVE_DEBOUNCE_MS, GENERAL_DEFAULTS, ALL_THEME_NAMES } from './core/constants.js';
+import { FONT_MAP, FONT_SERIF, RESIZE_DEBOUNCE_MS, GENERAL_DEFAULTS, WINDOW_MIN_WORDS } from './core/constants.js';
+import { applyTheme, applyOsThemeFallback } from './base-reader-app.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
 import { PrefsManager } from './core/prefs.js';
 import { ReaderState } from './core/state.js';
 import { StorageManager } from './core/storage.js';
-import { extractSections } from './epub/extractor.js';
-import { resolveImageUrls } from './epub/images.js';
-import { flattenToc, buildTOC, resolveHref } from './epub/toc.js';
+import { BookSession } from './core/book-session.js';
+import { renderSections, annotateInlineText } from './shared/render.js';
+import { buildTOC, resolveHref } from './epub/toc.js';
 import { toLocator, resolveLocator } from './model/locator.js';
 import { currentLocator, pageOfElement, pageOfWord, wordAtPageStart, wordAtPageStartRange } from './model/geometry.js';
-import { deriveBookId, buildPosition, resolvePosition } from './core/position.js';
+import { buildPosition, resolvePosition } from './core/position.js';
 import { buildChapterIndex } from './reader/chapters.js';
 import { PaginationEngine } from './reader/pagination.js';
 import { ChromeManager } from './reader/chrome.js';
@@ -210,11 +211,14 @@ export function init(options = {}) {
     tok = Math.max(0, Math.min(tok, state.doc.words.length - 1));
     if (state.windowed) {
       const sec = state.doc.words[tok].section;
+      let attached = false;
       if (sec !== state.curChap) {
         pagination.attachChap(sec);
         pagination.paginateWindow(false);
+        attached = true;
       }
       pagination.goTo(pageOfWord(state, els.content, tok), false);
+      if (attached) resyncAfterImages();
       return;
     }
     if (state.isScrollMode) pagination.scrollToWord(tok);
@@ -223,15 +227,18 @@ export function init(options = {}) {
 
   // Seek so that `el` is on screen, attaching its chapter first in windowed mode.
   function seekToElement(el) {
+    let attached = false;
     if (state.windowed) {
       const chap = el.closest && el.closest(".chap");
       const sec = chap ? state.doc.sections.findIndex(s => s.el === chap) : -1;
       if (sec >= 0 && sec !== state.curChap) {
         pagination.attachChap(sec);
         pagination.paginateWindow(false);
+        attached = true;
       }
     }
     pagination.goTo(pageOfElement(state, els.content, el), false);
+    if (attached) resyncAfterImages();
   }
 
   // Per-section heading labels, captured while all chapters are attached (before
@@ -275,20 +282,29 @@ export function init(options = {}) {
   // they occupy no space, so the column flow — and thus every word's page — is
   // wrong. Once any pending images settle, re-land on the same position. Guarded
   // so we never yank a reader who has already turned the page in the meantime.
+  // Re-land after images in the currently-attached content decode. Works for the
+  // initial load (full or windowed chapter 0) AND for a newly-entered windowed
+  // chapter: images in a just-attached .chap occupy no space until decode, so its
+  // column flow — and the landed page — is wrong until then. Captures page +
+  // chapter so we never yank a reader who has turned away in the meantime.
   function resyncAfterImages(pos) {
     if (state.isScrollMode) return;
     const imgs = Array.from(els.content.querySelectorAll("img")).filter(im => !im.complete);
     if (!imgs.length) return;
     const landedPage = state.page;
+    const landedChap = state.curChap;
+    // On an explicit restore use the supplied position; otherwise keep the word
+    // we're currently on so the relayout lands back exactly where the reader is.
+    const reseek = pos || (state.windowed ? getCanonicalPosition() : null);
     let done = false;
     const settle = () => {
       if (done || imgs.some(im => !im.complete)) return;
       done = true;
-      if (state.page !== landedPage) return; // reader moved on — leave them be
+      if (state.page !== landedPage || (state.windowed && state.curChap !== landedChap)) return;
       // refresh stride/total against the final layout (windowed = current chapter only)
       if (state.windowed) pagination.paginateWindow(false);
       else pagination.paginate(false);
-      if (pos) applyCanonicalPosition(pos);
+      if (reseek) applyCanonicalPosition(reseek);
       else storage.restorePos(applyCanonicalPosition);
     };
     imgs.forEach(im => {
@@ -329,6 +345,9 @@ export function init(options = {}) {
 
   // ---------- Pagination ----------
   const pagination = new PaginationEngine(state, els, currentLocatorFn, buildChapterIndexFn, updateProgressFn, savePosMain);
+  // After a chapter-boundary page turn, re-land once the new chapter's images
+  // decode (their flow shifts until then). No-op when the chapter has no images.
+  pagination.onWindowTurn = () => resyncAfterImages();
 
   // ---------- Storage ----------
   const storage = new StorageManager(state);
@@ -442,10 +461,8 @@ export function init(options = {}) {
   // ---------- Prefs application (Phase 4: each concern subscribes) ----------
   function applyPrefs() {
     const p = prefs.data;
-    // Theme (reads from app-wide general prefs)
-    const theme = generalPrefs.data.theme;
-    document.body.classList.remove(...ALL_THEME_NAMES.map(t => `theme-${t}`));
-    if (theme !== "dark") document.body.classList.add("theme-" + theme);
+    // Theme (reads from app-wide general prefs) — body class + browser-chrome color.
+    applyTheme(generalPrefs.data.theme);
 
     // Font
     els.content.style.fontFamily = FONT_MAP[p.font] || FONT_SERIF;
@@ -473,11 +490,6 @@ export function init(options = {}) {
     // Layout mode
     document.body.classList.toggle("layout-scroll", p.layout === "scroll");
 
-    // Meta theme color
-    const tc = THEME_COLORS[theme];
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta && tc) meta.setAttribute("content", tc);
-
     // Comfort overlay
     if (els.comfortDim) els.comfortDim.style.opacity = String(1 - (p.brightness || 1));
     if (els.comfortWarm) els.comfortWarm.style.opacity = String(p.warmth || 0);
@@ -486,34 +498,12 @@ export function init(options = {}) {
   // ---------- Rendering ----------
   function renderBook(sections) {
     perf.mark("reader:render");
-    state.blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) { console.warn("render:revokeBlob", e); } });
-    state.blobUrls = [];
-    els.content.innerHTML = "";
-    state.sectionEls.clear();
     state.headingToc = [];
     state.docModelBuilt = false;
-    const frag = document.createDocumentFragment();
-    sections.forEach((sec) => {
-      const wrap = document.createElement("div");
-      wrap.className = "chap";
-      if (sec.href) { wrap.dataset.href = sec.href; state.sectionEls.set(sec.href, wrap); }
-      sec.blocks.forEach((b) => {
-        const el = document.createElement((b.type === "figure" || b.type === "table-wrap") ? "div" : b.type);
-        if (b.frag) el.appendChild(b.frag);
-        else el.textContent = b.text;
-        if (b.id) el.id = b.id;
-        el.className = "blk blk-" + b.type;
-        if (b.type === "figure") {
-          el.querySelectorAll("figcaption").forEach(fc => fc.className = "blk-figcaption");
-        }
-        wrap.appendChild(el);
-        if (b.type === "h1" || b.type === "h2") {
-          state.headingToc.push({ label: b.text, el, depth: b.type === "h1" ? 0 : 1 });
-        }
-      });
-      frag.appendChild(wrap);
+    renderSections(els.content, sections, {
+      sectionEls: state.sectionEls,
+      onHeading: (h) => state.headingToc.push(h),
     });
-    els.content.appendChild(frag);
     perf.measure("reader:render", { sections: sections.length });
     perf.time("reader:annotate", () => annotateInlineText(els.content));
   }
@@ -525,20 +515,30 @@ export function init(options = {}) {
   function finalizeLayout(epubToc, pos) {
     pagination.ensureDocModel();      // global model; word→node refs survive windowing
     captureSectionLabels();
-    if (state.isScrollMode) {
-      state.windowed = false;
-      perf.time("reader:paginate", () => pagination.paginate(false));
-    } else {
+    if (shouldWindow()) {
       state.windowed = true;
       pagination.setupWindow(0);
       perf.time("reader:paginate", () => pagination.paginateWindow(false));
+    } else {
+      state.windowed = false;
+      perf.time("reader:paginate", () => pagination.paginate(false));
     }
     buildTOC(epubToc || [], state.headingToc, els.tocListEl, state.sectionEls,
       seekToElement, closePanels,
       (href) => resolveHref(href, els.content, state.sectionEls));
     if (pos) applyCanonicalPosition(pos);
     else storage.restorePos(applyCanonicalPosition);
-    if (!state.windowed) resyncAfterImages(pos);
+    resyncAfterImages(pos);
+  }
+
+  // Window only when it pays off: paginated layout, more than one chapter, and a
+  // book large enough that whole-book layout is paint-bound (scroll layout can't
+  // be windowed — it needs the whole book in one flow). Small books render whole
+  // and skip the per-chapter-boundary relayout cost.
+  function shouldWindow() {
+    return !state.isScrollMode
+      && state.doc.sections.length > 1
+      && state.doc.wsToToken.length >= WINDOW_MIN_WORDS;
   }
 
   // Re-lay-out in place (resize, font/margin change, or a layout-mode toggle),
@@ -547,147 +547,62 @@ export function init(options = {}) {
   function relayout() {
     if (!state.docModelBuilt) return;
     const pos = state.doc.words.length ? getCanonicalPosition() : null;
-    if (state.isScrollMode) {
-      if (state.windowed) { pagination.reattachAll(); state.windowed = false; }
-      pagination.paginate(false);
-    } else {
+    if (shouldWindow()) {
       if (!state.windowed) { pagination.setupWindow(state.curChap || 0); state.windowed = true; }
       pagination.paginateWindow(false);
+    } else {
+      if (state.windowed) { pagination.reattachAll(); state.windowed = false; }
+      pagination.paginate(false);
     }
     if (pos) applyCanonicalPosition(pos);
   }
 
-  // Wrap quoted speech and punctuation in spans for per-theme coloring.
-  // Block-level so quote state can span inline elements like emphasis tags.
-  function annotateInlineText(root) {
-    root.querySelectorAll(".blk").forEach(annotateBlock);
-  }
-
-  function annotateBlock(blk) {
-    const SPLIT = /(["\u201C\u201D])|([.,:;!?\u2014\u2013\u2026()\[\]])/g;
-    const walker = document.createTreeWalker(blk, NodeFilter.SHOW_TEXT);
-    const nodes = [];
-    let nd;
-    while ((nd = walker.nextNode())) nodes.push(nd);
-
-    let inSpeech = false;
-    for (const node of nodes) {
-      const parent = node.parentNode;
-      if (!parent) continue;
-      if (parent.closest && parent.closest("code, pre")) continue;
-      const text = node.nodeValue;
-      let last = 0, m, hasMatch = false;
-      const parts = [];
-
-      const pushText = (t) => {
-        if (!t) return;
-        if (inSpeech) {
-          const sp = document.createElement("span");
-          sp.className = "inline-speech";
-          sp.textContent = t;
-          parts.push(sp);
-        } else {
-          parts.push(document.createTextNode(t));
-        }
-      };
-
-      SPLIT.lastIndex = 0;
-      while ((m = SPLIT.exec(text)) !== null) {
-        hasMatch = true;
-        pushText(text.slice(last, m.index));
-        const ch = m[0];
-        if (m[1]) {
-          const sp = document.createElement("span");
-          sp.className = "inline-speech";
-          sp.textContent = ch;
-          parts.push(sp);
-          if (ch === "\u201C") inSpeech = true;
-          else if (ch === "\u201D") inSpeech = false;
-          else inSpeech = !inSpeech;
-        } else {
-          const sp = document.createElement("span");
-          sp.className = inSpeech ? "inline-punct inline-punct-speech" : "inline-punct";
-          sp.textContent = ch;
-          parts.push(sp);
-        }
-        last = m.index + ch.length;
-      }
-
-      if (!hasMatch) {
-        if (inSpeech) {
-          const sp = document.createElement("span");
-          sp.className = "inline-speech";
-          sp.textContent = text;
-          parent.replaceChild(sp, node);
-        }
-        continue;
-      }
-
-      pushText(text.slice(last));
-      const frag2 = document.createDocumentFragment();
-      for (const p of parts) frag2.appendChild(p);
-      parent.replaceChild(frag2, node);
-    }
-  }
 
   // ---------- EPUB loading ----------
+  // Build the mode-agnostic session (parse + extract + resolve images) once,
+  // then render it. Switching modes later reuses the session via loadFromSession.
   async function loadEpub(file, pos) {
     showLoading("Loading " + file.name + "\u2026");
     closePanels();
-    let book = null;
     try {
-      if (typeof ePub !== "function") {
-        throw new Error("EPUB library failed to load. Check your connection.");
-      }
       const buffer = await file.arrayBuffer();
-      book = ePub(buffer);
-      await book.ready;
-
-      let epubToc = [];
-      try {
-        const nav = await book.loaded.navigation;
-        epubToc = flattenToc(nav && nav.toc, 0, []);
-      } catch (e) { console.warn("epub:toc", e); }
-
-      const { sections, allImgUrls } = await perf.timeAsync("reader:extract", () =>
-        extractSections(book, (msg) => {
+      const session = await perf.timeAsync("reader:extract", () =>
+        BookSession.fromBuffer(buffer, file.name, urlParams.get("id"), (msg) => {
           els.overlayMsg.textContent = msg;
         }));
-      const chars = sections.reduce((n, s) => n + s.blocks.reduce((m, b) => m + b.text.length, 0), 0);
-      if (chars < 32) {
-        throw new Error("No readable text found (this EPUB may be image-only or DRM-protected).");
-      }
+      await loadFromSession(session, pos);
+    } catch (err) {
+      console.error("EPUB load failed:", err);
+      showError(err && err.message ? err.message : "Couldn't read that file.");
+    }
+  }
 
-      const meta = (book.packaging && book.packaging.metadata) || {};
-      const title = (meta.title || file.name).trim();
-      state.bookId = deriveBookId(urlParams.get("id"), meta.title, file.name);
-      els.bookTitleEl.textContent = title;
+  // Render an already-extracted session (a fresh load, or a hand-off from
+  // another mode). Skips ePub()/extractSections entirely \u2014 that work is done.
+  async function loadFromSession(session, pos) {
+    closePanels();
+    try {
+      state.bookId = session.bookId;
+      els.bookTitleEl.textContent = session.title || session.bookId;
       bookmarkManager.setBook(state.bookId);
-
-      // Resolve images before renderBook so img.src is set when DOM is built.
-      // Don't add to state.blobUrls yet — renderBook revokes everything in there
-      // first (cleaning up the previous book). Track them after.
-      const newBlobUrls = allImgUrls.length ? await resolveImageUrls(allImgUrls, book) : [];
-      renderBook(sections);
-      newBlobUrls.forEach(u => state.blobUrls.push(u));
+      renderBook(session.sections);
       clearOverlay();
-      if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId: state.bookId });
+      if (onBookLoaded) onBookLoaded({ session });
       // Web fonts (e.g. OpenDyslexic, declared font-display:swap) reflow the
       // text when they finish loading. If we paginate against the fallback font's
-      // metrics, every word→page mapping is measured too wide/narrow and the
-      // handed-off position lands a page off — visible as a one-page overshoot on
-      // the very first switch into the Reader, then "stable" once the font is
-      // cached. Wait for fonts so the first pagination is already accurate.
+      // metrics, every word->page mapping is measured too wide/narrow and the
+      // handed-off position lands a page off. Wait for fonts so the first
+      // pagination is already accurate.
       if (typeof document !== "undefined" && document.fonts && document.fonts.ready) {
         try { await document.fonts.ready; } catch (_) {}
       }
       // Paginate and restore inside a rAF so layout (stride/total) is final
-      // before we map a word ordinal to a page. Await it so loadFromBuffer only
-      // resolves once the position is applied — see mode-switcher handoff.
+      // before we map a word ordinal to a page. Await it so loadFromSession only
+      // resolves once the position is applied \u2014 see mode-switcher handoff.
       await new Promise((resolve) => {
         requestAnimationFrame(() => {
           try {
-            finalizeLayout(epubToc, pos);
+            finalizeLayout(session.toc, pos);
             if (urlParams.get("selftest") === "1") {
               requestAnimationFrame(() => runSelftest(state));
             }
@@ -696,12 +611,8 @@ export function init(options = {}) {
         });
       });
     } catch (err) {
-      console.error("EPUB load failed:", err);
+      console.error("EPUB render failed:", err);
       showError(err && err.message ? err.message : "Couldn't read that file.");
-    } finally {
-      if (book && typeof book.destroy === "function") {
-        try { book.destroy(); } catch (e) { console.warn("epub:destroy", e); }
-      }
     }
   }
 
@@ -819,14 +730,7 @@ export function init(options = {}) {
   applyPrefs();
 
   // Respect prefers-color-scheme on first load (no stored general prefs)
-  if (!localStorage.getItem("general:prefs")) {
-    const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
-    if (prefersLight) {
-      generalPrefs.data.theme = "light";
-      generalPrefs.save();
-      applyPrefs();
-    }
-  }
+  applyOsThemeFallback(generalPrefs, () => { generalPrefs.save(); applyPrefs(); });
 
   // Respect prefers-reduced-motion
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -871,17 +775,14 @@ export function init(options = {}) {
     teardown() {
       closeSettingsScreen();
       storage.flushPos(getCanonicalPosition);
-      state.blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (_) {} });
-      state.blobUrls = [];
+      // Image blob URLs are owned by the BookSession (shared across modes), not
+      // by the mode — the mode-switcher disposes them when a new book loads.
       if (resizeTimer) clearTimeout(resizeTimer);
     },
     getPosition: getCanonicalPosition,
     getBookId() { return state.bookId; },
     isBookLoaded() { return state.bookId && state.bookId !== "Pride and Prejudice (sample)"; },
     applyPosition(pos) { applyCanonicalPosition(pos); },
-    loadFromBuffer(buffer, fileName, pos) {
-      const file = new File([buffer], fileName, { type: "application/epub+zip" });
-      return loadEpub(file, pos);
-    },
+    loadFromSession(session, pos) { return loadFromSession(session, pos); },
   };
 }

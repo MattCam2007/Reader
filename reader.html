@@ -7,20 +7,26 @@
 <meta name="theme-color" content="#0d3a8a">
 <meta name="build-version" content="__COMMIT_HASH__">
 <title>Reader</title>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
-<link rel="stylesheet" href="css/reader.css?v=__COMMIT_HASH__">
-<link rel="stylesheet" href="css/rsvp.css?v=__COMMIT_HASH__">
-<link rel="stylesheet" href="css/tts.css?v=__COMMIT_HASH__">
-<link rel="modulepreload" href="js/core/constants.js?v=__COMMIT_HASH__">
-<link rel="modulepreload" href="js/core/events.js?v=__COMMIT_HASH__">
-<link rel="modulepreload" href="js/core/prefs.js?v=__COMMIT_HASH__">
-<link rel="modulepreload" href="js/core/state.js?v=__COMMIT_HASH__">
-<link rel="modulepreload" href="js/mode-switcher.js?v=__COMMIT_HASH__">
+<!-- EPUB libs load deferred (not render-blocking); the service worker precaches
+     them so they're available offline and never gate first paint. -->
+<script defer src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+<link rel="stylesheet" href="css/reader.css">
+<link rel="stylesheet" href="css/rsvp.css">
+<link rel="stylesheet" href="css/tts.css">
+<link rel="modulepreload" href="js/core/constants.js">
+<link rel="modulepreload" href="js/core/events.js">
+<link rel="modulepreload" href="js/core/prefs.js">
+<link rel="modulepreload" href="js/core/state.js">
+<link rel="modulepreload" href="js/mode-switcher.js">
 </head>
 <body class="paused">
   <div id="app"></div>
   <input type="file" id="fileInput" accept=".epub,application/epub+zip" hidden>
-<script type="module" src="js/mode-switcher.js?v=__COMMIT_HASH__"></script>
+<script type="module" src="js/mode-switcher.js"></script>
+<script type="module">
+  import { registerServiceWorker } from './js/core/sw-register.js';
+  registerServiceWorker();
+</script>
 </body>
 </html>

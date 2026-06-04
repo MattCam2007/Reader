@@ -1,0 +1,383 @@
+/* Library layout. Theme tokens come from the shared css/tokens.css. */
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--fg);
+    overscroll-behavior-y: none;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  body { display: flex; flex-direction: column; min-height: 100dvh; }
+
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  /* ---------- App bar ---------- */
+  .appbar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: calc(env(safe-area-inset-top, 0px) + 0.6rem) 0.8rem 0.6rem;
+    background: var(--chrome-bg);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border);
+  }
+  .crumbs {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  .crumbs::-webkit-scrollbar { display: none; }
+  .crumb {
+    background: transparent;
+    border: 0;
+    padding: 0.3rem 0.15rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--fg);
+    letter-spacing: -0.01em;
+  }
+  .crumb.parent { color: var(--muted); font-weight: 600; font-size: 1rem; }
+  .crumb-sep { color: var(--faint); font-size: 0.9rem; padding: 0 0.1rem; }
+
+  .icon-btn {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 50%;
+  }
+  .icon-btn:active { background: var(--border); }
+  .icon-btn svg {
+    width: 22px; height: 22px;
+    fill: none; stroke: currentColor; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+
+  .searchrow {
+    display: none;
+    padding: 0 0.8rem 0.6rem;
+    background: var(--chrome-bg);
+    position: sticky;
+    top: 0;
+    z-index: 29;
+    border-bottom: 1px solid var(--border);
+  }
+  body.searching .searchrow { display: block; }
+  .searchrow input {
+    width: 100%;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--fg);
+    font-size: 1rem;
+    padding: 0.65rem 1rem;
+    outline: none;
+  }
+  .searchrow input::placeholder { color: var(--faint); }
+
+  /* ---------- Scroll body ---------- */
+  .scroll {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 2rem);
+  }
+
+  .section { padding: 1.1rem 0 0.4rem; }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0 1rem 0.65rem;
+  }
+  .section-title {
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .section-count { font-size: 0.72rem; color: var(--faint); }
+
+  /* Horizontal rail */
+  .rail {
+    display: flex;
+    gap: 0.85rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 1rem 0.4rem;
+    scroll-snap-type: x proximity;
+  }
+  .rail::-webkit-scrollbar { display: none; }
+  .rail > * { scroll-snap-align: start; }
+  .rail .card { width: 38vw; max-width: 130px; }
+
+  /* Responsive grid */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+    gap: 1.1rem 0.85rem;
+    padding: 0.2rem 1rem 0.5rem;
+  }
+
+  /* ---------- Card (book) ---------- */
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    text-align: left;
+  }
+  .cover {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--card-bg);
+    box-shadow: 0 4px 14px var(--shadow);
+  }
+  .cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .card:active .cover { transform: translateY(1px); }
+
+  .cover-gen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 0.7rem 0.65rem;
+    color: #fff;
+  }
+  .cover-gen .cg-title {
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 600;
+    font-size: 0.92rem;
+    line-height: 1.2;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.35);
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .cover-gen .cg-author {
+    font-size: 0.66rem;
+    opacity: 0.85;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.35);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .progress-track {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 4px;
+    background: rgba(0,0,0,0.35);
+  }
+  .progress-fill { height: 100%; background: var(--accent); }
+
+  .card-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--fg);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .card-author {
+    font-size: 0.72rem;
+    color: var(--muted);
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ---------- Folder tile ---------- */
+  .folder { /* same column flow as card */ }
+  .folder-art {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--card-bg);
+    box-shadow: 0 4px 14px var(--shadow);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 2px;
+  }
+  .folder-art .tile { position: relative; overflow: hidden; background: var(--panel-bg); }
+  .folder-art .tile img { width: 100%; height: 100%; object-fit: cover; }
+  .folder-art .tile .mini { position: absolute; inset: 0; }
+  .folder-badge {
+    position: absolute;
+    right: 0.4rem; bottom: 0.4rem;
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    font-size: 0.66rem;
+    font-weight: 600;
+    padding: 0.12rem 0.45rem;
+    border-radius: 999px;
+    backdrop-filter: blur(4px);
+  }
+  .folder-tag {
+    position: absolute;
+    left: 0.4rem; top: 0.4rem;
+    display: flex; align-items: center; gap: 0.25rem;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.16rem 0.45rem;
+    border-radius: 999px;
+  }
+  .folder-tag svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; }
+
+  /* ---------- Empty state ---------- */
+  .empty {
+    padding: 4rem 1.5rem;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+
+  /* ---------- Detail sheet ---------- */
+  .backdrop {
+    position: fixed; inset: 0; z-index: 40;
+    background: rgba(0,0,0,0.5);
+    opacity: 0; pointer-events: none;
+    transition: opacity 200ms ease;
+  }
+  body.show-sheet .backdrop { opacity: 1; pointer-events: auto; }
+
+  .sheet {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 50;
+    margin: 0 auto;
+    max-width: 34rem;
+    max-height: 92vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: var(--panel-bg);
+    border-radius: 1.2rem 1.2rem 0 0;
+    box-shadow: 0 -10px 40px var(--shadow);
+    transform: translateY(102%);
+    transition: transform 260ms cubic-bezier(0.22,0.61,0.36,1);
+    padding: 0.5rem 1.2rem calc(env(safe-area-inset-bottom, 0px) + 1.4rem);
+  }
+  body.show-sheet .sheet { transform: translateY(0); }
+  @media (min-width: 640px) {
+    .sheet {
+      bottom: auto; top: 50%; left: 50%; right: auto;
+      transform: translate(-50%, calc(-50% + 16px)) scale(0.98);
+      border-radius: 1.2rem;
+      opacity: 0;
+      transition: transform 220ms ease, opacity 220ms ease;
+    }
+    body.show-sheet .sheet { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  }
+  .sheet::before {
+    content: "";
+    display: block;
+    width: 38px; height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    margin: 0.4rem auto 1rem;
+  }
+  @media (min-width: 640px) { .sheet::before { display: none; } }
+
+  .sheet-top { display: flex; gap: 1.1rem; }
+  .sheet-cover {
+    flex: 0 0 38%;
+    max-width: 150px;
+    aspect-ratio: 2 / 3;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 6px 20px var(--shadow);
+    position: relative;
+    background: var(--card-bg);
+  }
+  .sheet-cover img { width: 100%; height: 100%; object-fit: cover; }
+  .sheet-meta { flex: 1 1 auto; min-width: 0; }
+  .sheet-title { font-size: 1.25rem; font-weight: 700; line-height: 1.2; }
+  .sheet-author { margin-top: 0.25rem; font-size: 0.92rem; color: var(--muted); }
+  .sheet-sub { margin-top: 0.5rem; font-size: 0.8rem; color: var(--faint); }
+  .stars { margin-top: 0.55rem; font-size: 0.95rem; letter-spacing: 0.08em; color: var(--accent); }
+  .stars .off { color: var(--faint); }
+  .tags { margin-top: 0.6rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+  .tag {
+    font-size: 0.68rem;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.2rem 0.6rem;
+  }
+  .sheet-desc {
+    margin-top: 1rem;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 0.96rem;
+    line-height: 1.6;
+    color: var(--fg);
+  }
+  .sheet-path {
+    margin-top: 0.9rem;
+    font-size: 0.74rem;
+    color: var(--faint);
+  }
+  .sheet-progress {
+    margin-top: 0.9rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .sheet-actions {
+    margin-top: 1.2rem;
+    display: flex;
+    gap: 0.7rem;
+  }
+  .btn {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.85rem 1rem;
+    font-size: 0.92rem;
+    font-weight: 600;
+    background: transparent;
+    color: var(--fg);
+  }
+  .btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn:active { transform: translateY(1px); }

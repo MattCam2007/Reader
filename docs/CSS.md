@@ -24,10 +24,11 @@ There are no build tools, no preprocessors, no PostCSS. Pure CSS with `@import` 
 
 ```
 css/
-├── tokens.css               Design tokens — 4 themes, typography, spacing, radii
+├── tokens.css               Design tokens — themes (incl. --faint, --card-bg), typography, spacing
 ├── reader.css               Reader mode: @imports tokens + component files
 ├── rsvp.css                 RSVP mode: @imports tokens + component files
 ├── tts.css                  TTS mode: @imports tokens + component files
+├── library.css              Bookshelf layout (links css/tokens.css for theme tokens)
 └── components/
     ├── chrome.css           Topbar, bottombar, toolbar buttons, progress slider
     ├── content.css          Reading surface: typography, column layout, tables, footnotes

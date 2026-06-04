@@ -1,10 +1,12 @@
-import { FONT_MAP, FONT_MONO, THEME_COLORS, GENERAL_DEFAULTS, ALL_THEME_NAMES } from './core/constants.js';
+import { FONT_MAP, FONT_MONO, GENERAL_DEFAULTS } from './core/constants.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
 import { PrefsManager } from './core/prefs.js';
 import { EventBus } from './core/events.js';
-import { extractSections } from './epub/extractor.js';
+import { BookSession, countWords } from './core/book-session.js';
+import { renderSearchResults } from './shared/search.js';
+import { applyTheme, applyOsThemeFallback, savePosition as shellSavePosition, loadPosition } from './base-reader-app.js';
 import { RSVP_DEFAULTS } from './rsvp/constants.js';
 import { RsvpState } from './rsvp/state.js';
 import { tokenize } from './rsvp/tokenizer.js';
@@ -14,7 +16,7 @@ import { RsvpInput } from './rsvp/input.js';
 import { StatsTracker } from './rsvp/stats.js';
 import { TrainingManager } from './rsvp/training.js';
 import { createPicker } from './shared/picker.js';
-import { deriveBookId, buildPosition, resolvePosition } from './core/position.js';
+import { buildPosition, resolvePosition } from './core/position.js';
 import * as perf from './core/perf.js';
 
 // Convert extractSections() output to the plain-text format the tokenizer expects.
@@ -29,7 +31,7 @@ function sectionsToText(sections) {
     const heading = sec.blocks.find(b => /^h[1-6]$/.test(b.type));
     chapters.push({ title: heading ? heading.text : '', wordOffset, href: sec.href || '' });
     const secText = blockTexts.join('\n\n');
-    wordOffset += secText.split(/\s+/).filter(Boolean).length;
+    wordOffset += countWords(secText);
     parts.push(secText);
   }
   return { text: parts.join('\n\n'), chapters };
@@ -172,13 +174,6 @@ export function init(options = {}) {
   });
 
   // ---------- Theme ----------
-  function applyTheme(name) {
-    document.body.classList.remove(...ALL_THEME_NAMES.map(t => `theme-${t}`));
-    if (name !== "dark") document.body.classList.add("theme-" + name);
-    const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim();
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = bg;
-  }
   bus.on('themeChange', applyTheme);
 
   // ---------- Font ----------
@@ -329,55 +324,18 @@ export function init(options = {}) {
 
   function runRsvpSearch(query) {
     if (!searchResults) return;
-    searchResults.innerHTML = "";
-    if (!query || query.length < 2 || !state.wordTokenIndices.length) {
-      if (query && query.length >= 2)
-        searchResults.innerHTML = '<div class="reader-search-empty">No results</div>';
-      return;
-    }
+    if (!state.wordTokenIndices.length) { searchResults.innerHTML = ""; return; }
     const { text, wordCharStart } = buildRsvpSearchCache();
-    const lower = text.toLowerCase();
-    const q = query.toLowerCase();
-    const hits = [];
-    let pos = 0;
-    while ((pos = lower.indexOf(q, pos)) !== -1 && hits.length < 200) {
-      hits.push(pos);
-      pos += q.length;
-    }
-    if (!hits.length) {
-      searchResults.innerHTML = '<div class="reader-search-empty">No results</div>';
-      return;
-    }
-    const frag = document.createDocumentFragment();
-    hits.forEach((charOff) => {
-      let wi = 0;
-      for (let j = 0; j < wordCharStart.length; j++) {
-        if (wordCharStart[j] <= charOff) wi = j;
-        else break;
-      }
-      const snippetStart = Math.max(0, charOff - 40);
-      const snippetEnd = Math.min(text.length, charOff + query.length + 40);
-      const before = (snippetStart > 0 ? "…" : "") + text.slice(snippetStart, charOff);
-      const match = text.slice(charOff, charOff + query.length);
-      const after = text.slice(charOff + query.length, snippetEnd) + (snippetEnd < text.length ? "…" : "");
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "reader-search-result";
-      btn.appendChild(document.createTextNode(before));
-      const mark = document.createElement("mark");
-      mark.textContent = match;
-      btn.appendChild(mark);
-      btn.appendChild(document.createTextNode(after));
-      btn.addEventListener("click", () => {
+    renderSearchResults(searchResults, {
+      text, charStart: wordCharStart, query,
+      onPick: (wi) => {
         if (state.playState === 'playing') playback.pause();
         else if (state.playState === 'countdown') playback.cancelCountdown();
         playback.seekTo(state.ordinalToIdx(wi));
         document.body.classList.remove('show-search');
         if (searchBtn) searchBtn.setAttribute('aria-expanded', 'false');
-      });
-      frag.appendChild(btn);
+      },
     });
-    searchResults.appendChild(frag);
   }
 
   if (searchBtn) {
@@ -544,6 +502,8 @@ export function init(options = {}) {
     }
   }
 
+  // Build the mode-agnostic session once, then derive RSVP's plain-text stream
+  // from its sections. A mode switch reuses the session (loadFromSession).
   async function loadEpub(file, pos) {
     playback.clearPending();
     state.rampRemaining = 0;
@@ -552,28 +512,25 @@ export function init(options = {}) {
     els.statusRetryBtn.hidden = true;
     els.statusMsg.textContent = "Loading " + file.name + "\u2026";
 
-    let book = null;
     try {
-      if (typeof ePub !== "function") {
-        throw new Error("EPUB library failed to load. Check your connection.");
-      }
       const buffer = await file.arrayBuffer();
-      book = ePub(buffer);
-      await book.ready;
-
-      const bookTitle = (book.packaging && book.packaging.metadata && book.packaging.metadata.title)
-        || file.name.replace(/\.epub$/i, '');
-
-      const { sections } = await perf.timeAsync("rsvp:extract", () =>
-        extractSections(book, (msg) => {
+      const session = await perf.timeAsync("rsvp:extract", () =>
+        BookSession.fromBuffer(buffer, file.name, urlParams.get('id'), (msg) => {
           els.statusMsg.textContent = msg;
         }));
-      const { text, chapters: chapterMeta } = perf.time("rsvp:sectionsToText", () => sectionsToText(sections));
+      await loadFromSession(session, pos);
+    } catch (err) {
+      showLoadError(err);
+    }
+  }
+
+  async function loadFromSession(session, pos) {
+    try {
+      const { text, chapters: chapterMeta } = perf.time("rsvp:sectionsToText", () => sectionsToText(session.sections));
       if (!text || text.length < 32) {
         throw new Error("No readable text found in this EPUB (it may be image-only or DRM-protected).");
       }
-      const meta = (book.packaging && book.packaging.metadata) || {};
-      state.bookId = deriveBookId(urlParams.get('id'), meta.title, file.name);
+      state.bookId = session.bookId;
       bookmarkManager.setBook(state.bookId);
       loadText(text, chapterMeta);
       // A handed-off position is the single source of truth; otherwise fall back
@@ -581,19 +538,19 @@ export function init(options = {}) {
       if (pos) applyCanonicalPosition(pos);
       else restorePosition();
       const bookTitleEl = document.getElementById("bookTitle");
-      if (bookTitleEl) bookTitleEl.textContent = bookTitle;
-      if (onBookLoaded) onBookLoaded({ buffer, fileName: file.name, bookId: state.bookId });
+      if (bookTitleEl) bookTitleEl.textContent = session.title || session.bookId;
+      if (onBookLoaded) onBookLoaded({ session });
     } catch (err) {
-      console.error("EPUB load failed:", err);
-      state.setPlayState('error');
-      els.statusMsg.classList.add("error");
-      els.statusMsg.textContent = err && err.message ? err.message : "Couldn't read that file.";
-      els.statusRetryBtn.hidden = false;
-    } finally {
-      if (book && typeof book.destroy === "function") {
-        try { book.destroy(); } catch (_) {}
-      }
+      showLoadError(err);
     }
+  }
+
+  function showLoadError(err) {
+    console.error("EPUB load failed:", err);
+    state.setPlayState('error');
+    els.statusMsg.classList.add("error");
+    els.statusMsg.textContent = err && err.message ? err.message : "Couldn't read that file.";
+    els.statusRetryBtn.hidden = false;
   }
 
   // ---------- Apply saved prefs ----------
@@ -604,13 +561,7 @@ export function init(options = {}) {
   document.body.classList.toggle('context-page', !!prefs.data.contextEnabled);
 
   // OS preference fallback
-  if (!localStorage.getItem("general:prefs")) {
-    if (window.matchMedia("(prefers-color-scheme: light)").matches) {
-      generalPrefs.data.theme = "light";
-      generalPrefs.save();
-      applyTheme("light");
-    }
-  }
+  applyOsThemeFallback(generalPrefs, (name) => { generalPrefs.save(); applyTheme(name); });
 
   // ---------- Sample text ----------
   const sampleText = `It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife.
@@ -684,18 +635,13 @@ This was invitation enough.
 
   // ---------- Handle ----------
   function savePosition() {
-    if (!state.bookId || !state.totalWords) return;
-    const pos = getCanonicalPosition();
-    if (pos) try { localStorage.setItem('book:pos:' + state.bookId, JSON.stringify(pos)); } catch (_) {}
+    if (!state.totalWords) return;
+    shellSavePosition(state.bookId, getCanonicalPosition);
   }
 
   function restorePosition() {
-    if (!state.bookId) return;
-    try {
-      const raw = localStorage.getItem('book:pos:' + state.bookId);
-      if (!raw) return;
-      applyCanonicalPosition(JSON.parse(raw));
-    } catch (_) {}
+    const pos = loadPosition(state.bookId);
+    if (pos) applyCanonicalPosition(pos);
   }
 
   return {
@@ -710,9 +656,6 @@ This was invitation enough.
     getBookId() { return state.bookId; },
     isBookLoaded() { return state.isEpubLoaded; },
     applyPosition(pos) { applyCanonicalPosition(pos); },
-    loadFromBuffer(buffer, fileName, pos) {
-      const file = new File([buffer], fileName, { type: "application/epub+zip" });
-      return loadEpub(file, pos);
-    },
+    loadFromSession(session, pos) { return loadFromSession(session, pos); },
   };
 }

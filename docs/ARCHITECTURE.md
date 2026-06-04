@@ -36,26 +36,31 @@ A thin orchestrator (`mode-switcher.js`) manages which mode is active, handles t
 ```
 Reader/
 │
-├── reader.html                  Entry point — 25 lines, loads mode-switcher.js
+├── reader.html                  Entry point — loads mode-switcher.js, registers SW
 ├── index.html                   Redirect → reader.html?mode=rsvp
-├── library.html                 Bookshelf UI (monolith, under construction)
+├── library.html                 Bookshelf UI (shell; loads js/library/* + shared CSS)
+├── sw.js                        Service worker — versioned cache, offline, CDN precache
 ├── manifest.json                PWA manifest (icons, display, theme color)
 ├── icon.svg                     App icon (source)
 ├── icon-192.png                 PWA icon 192×192
 ├── icon-512.png                 PWA icon 512×512
 │
 ├── js/
-│   ├── mode-switcher.js         Mode orchestrator — boot, switch, teardown
+│   ├── mode-switcher.js         Mode orchestrator — boot, switch, teardown, session cache
+│   ├── base-reader-app.js       Shared shell helpers — theme, OS fallback, position storage
 │   ├── reader-app.js            Paginated reader — exports init()
 │   ├── rsvp-app.js              RSVP speed reader — exports init()
 │   ├── tts-app.js               Text-to-speech reader — exports init()
 │   │
 │   ├── core/                    Shared infrastructure
 │   │   ├── constants.js         All app-wide constants, defaults, settings schema
+│   │   ├── book-session.js      BookSession — parse/extract a book ONCE, shared by all modes
 │   │   ├── events.js            EventBus (pub/sub, wildcard support)
 │   │   ├── prefs.js             PrefsManager — load/save/get/set with EventBus
 │   │   ├── state.js             ReaderState — paginated reader's state container
+│   │   ├── position.js          Canonical cross-mode position (build/resolve/store)
 │   │   ├── bookmarks.js         BookmarkManager — localStorage-backed bookmarks
+│   │   ├── sw-register.js       Service-worker registration + update toast
 │   │   └── storage.js           StorageManager — position save/restore
 │   │
 │   ├── epub/                    EPUB processing pipeline
@@ -106,7 +111,13 @@ Reader/
 │   │   └── settings-screen.js   Modal settings UI with tabbed controls (200+ lines)
 │   │
 │   ├── shared/
+│   │   ├── render.js            Build .chap/.blk DOM + inline annotation (Reader + TTS)
+│   │   ├── search.js            Full-text hit-finding + binary-search resolution (all modes)
 │   │   └── picker.js            Scroll-snap horizontal picker (WPM, speed values)
+│   │
+│   ├── library/
+│   │   ├── library.js          Bookshelf logic (folders, search, detail sheet, theme)
+│   │   └── data.js             Sample library data (until data/library.json exists)
 │   │
 │   └── test/
 │       └── selftest.js          Self-test suite with visual pass/fail reporter
@@ -244,7 +255,22 @@ When switching modes while a book is loaded, the switcher:
 
 ## EPUB Processing Pipeline
 
-EPUB files are ZIP archives containing XHTML documents. The processing pipeline:
+EPUB files are ZIP archives containing XHTML documents. The parse + extract +
+image-resolve pipeline is **mode-agnostic and runs exactly once per book**,
+owned by `core/book-session.js`:
+
+> **`BookSession`** — `BookSession.fromBuffer(buffer, fileName, urlId)` runs
+> `ePub()`, flattens the TOC, extracts sections, and resolves image blob URLs
+> (baking the resolved `src` onto the template block frags), then destroys the
+> epub.js book object. The resulting session — `{ sections, toc, bookId, title,
+> blobUrls }` — is cached by `mode-switcher.js`. On a **mode switch** the *same*
+> session object is handed to the next mode's `loadFromSession(session, pos)`,
+> which renders without re-parsing. Switching Reader → RSVP → TTS now parses the
+> EPUB once, not three times. The session owns the image blob URLs and disposes
+> them only when a genuinely new book loads (so `renderBook` clones the shared
+> frags rather than consuming them).
+
+The pipeline inside a session:
 
 ```
 File / URL
@@ -344,16 +370,43 @@ Each mode has its own root CSS file that uses `@import` to pull in the token sys
 
 When installed via Chrome's "Add to Home Screen" or desktop install flow, the app opens without browser UI in its own window. All state is stored in the origin's `localStorage`, so installed and browser versions share the same data.
 
+### Service Worker (`sw.js`)
+
+`sw.js` (registered by `core/sw-register.js` from both `reader.html` and
+`library.html`) gives the app offline support and instant repeat loads:
+
+- **Versioned cache.** The cache name is `reader-<commit-hash>` (the deploy
+  workflow stamps `__COMMIT_HASH__` into `sw.js`). On `activate` every other
+  cache is deleted, so a new deploy refetches each asset exactly once.
+- **Precache.** The app shell (HTML, the three top-level CSS files, icons,
+  manifest, `mode-switcher.js`) plus the two CDN libraries (`jszip`, `epub.js`)
+  are precached on `install` with `cache:'reload'`.
+- **Runtime.** Same-origin assets and the CDN libs are cache-first (misses fetch
+  with `cache:'reload'` so a fresh deploy bypasses any stale HTTP cache);
+  navigations fall back to the cached HTML shell for offline; `?src=` books are
+  network-first with a cache fallback.
+- **Updates.** `skipWaiting` + `clients.claim`; a new build shows a "reload to
+  update" toast wired to `postMessage('SKIP_WAITING')`.
+
+Because the service worker versions assets, the CDN libraries load **deferred**
+(no longer render-blocking) and the deploy workflow no longer rewrites every JS
+import path with a `?v=hash` query — see `docs/PERFORMANCE.md`.
+
 ---
 
 ## Self-Test Suite
 
 Running `reader.html?selftest=1` activates the self-test suite (`js/test/selftest.js`). It exercises:
 
-- `buildDocModel` — word/block/section indexing
+- `buildDocModel` — word/block/section indexing, incl. the render-token ↔
+  whitespace-word bridge
 - `toLocator` / `resolveLocator` — position encoding roundtrips
+- `buildPosition` / `resolvePosition` — canonical cross-mode position math
 - Geometry calculations — page-to-word mapping
 - EPUB extraction — block parsing
+- `book-session` — shared `splitWords` / `countWords` word counting
+- `shared/search` — `findHits` + binary-search `indexForOffset` hit resolution
+- `shared/render` — `renderSections` tree-building + `annotateInlineText`
 - `EventBus` — pub/sub semantics
 - `PrefsManager` — load/save/get/set
 - Chapter index builder
