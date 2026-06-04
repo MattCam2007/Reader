@@ -218,7 +218,18 @@ export function init(options = {}) {
         attached = true;
       }
       pagination.goTo(pageOfWord(state, els.content, tok), false);
-      if (attached) resyncAfterImages();
+      if (attached) {
+        // pageOfWord (and thus getCanonicalPosition) may return the wrong page
+        // before images in the newly-attached chapter have decoded — they occupy
+        // no layout space until then, so words appear to be on page 0. Build the
+        // reseek position from the target token's ws ordinal instead: it is
+        // layout-independent and resolves to the correct page once images settle.
+        const wsOrd = Math.max(0, Math.min(
+          state.doc.tokenToWs[tok] ?? 0,
+          state.doc.wsToToken.length - 1
+        ));
+        resyncAfterImages(buildPosition(readerSections(), totalWsWords(), wsOrd, wsWordText));
+      }
       return;
     }
     if (state.isScrollMode) pagination.scrollToWord(tok);
@@ -228,17 +239,36 @@ export function init(options = {}) {
   // Seek so that `el` is on screen, attaching its chapter first in windowed mode.
   function seekToElement(el) {
     let attached = false;
+    let attachedSecIdx = -1;
     if (state.windowed) {
       const chap = el.closest && el.closest(".chap");
-      const sec = chap ? state.doc.sections.findIndex(s => s.el === chap) : -1;
-      if (sec >= 0 && sec !== state.curChap) {
-        pagination.attachChap(sec);
+      const secIdx = chap ? state.doc.sections.findIndex(s => s.el === chap) : -1;
+      if (secIdx >= 0 && secIdx !== state.curChap) {
+        pagination.attachChap(secIdx);
         pagination.paginateWindow(false);
         attached = true;
+        attachedSecIdx = secIdx;
       }
     }
     pagination.goTo(pageOfElement(state, els.content, el), false);
-    if (attached) resyncAfterImages();
+    if (attached) {
+      // Same image-decode hazard as seekToToken: pageOfElement may be wrong before
+      // images settle. Find the first word inside el to build a layout-independent
+      // reseek position; fall back to the section start if el contains no words.
+      const sec = state.doc.sections[attachedSecIdx];
+      let wsOrd = sec ? sec.wsStart : 0;
+      if (sec) {
+        const { words, tokenToWs } = state.doc;
+        for (let i = sec.wordStart; i < sec.wordEnd; i++) {
+          if (el.contains(words[i].node)) { wsOrd = tokenToWs[i]; break; }
+        }
+      }
+      resyncAfterImages(buildPosition(
+        readerSections(), totalWsWords(),
+        Math.max(0, Math.min(wsOrd, state.doc.wsToToken.length - 1)),
+        wsWordText
+      ));
+    }
   }
 
   // Per-section heading labels, captured while all chapters are attached (before
