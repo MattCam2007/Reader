@@ -67,6 +67,10 @@ export function init(options = {}) {
   const state = new ReaderState();
   state.setPrefs(prefs);
   const urlParams = new URLSearchParams(location.search);
+  // Temporary Phase 0 diagnostic: ?noannotate=1 skips the per-punctuation span
+  // wrapping so we can A/B whether annotation node-inflation drives turn-latency.
+  const SKIP_ANNOTATE = urlParams.get("noannotate") === "1";
+  if (SKIP_ANNOTATE) console.warn("perf: annotation DISABLED (?noannotate=1) — diagnostic only");
 
   // ---------- Bookmarks ----------
   const bookmarkManager = new BookmarkManager();
@@ -434,7 +438,7 @@ export function init(options = {}) {
     });
     els.content.appendChild(frag);
     perf.measure("reader:render", { sections: sections.length });
-    perf.time("reader:annotate", () => annotateInlineText(els.content));
+    if (!SKIP_ANNOTATE) perf.time("reader:annotate", () => annotateInlineText(els.content));
   }
 
   // Wrap quoted speech and punctuation in spans for per-theme coloring.
