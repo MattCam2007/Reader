@@ -7,6 +7,9 @@ import { FONT_MAP, SETTINGS, DEFAULT_PREFS } from '../core/constants.js';
 import { PrefsManager } from '../core/prefs.js';
 import { buildDocModel } from '../model/doc-model.js';
 import { buildChapterIndex } from '../reader/chapters.js';
+import { countWords, splitWords } from '../core/book-session.js';
+import { findHits, indexForOffset } from '../shared/search.js';
+import { renderSections, annotateInlineText } from '../shared/render.js';
 
 export function runSelftest(state) {
   const results = [];
@@ -327,6 +330,57 @@ export function runSelftest(state) {
     } finally {
       document.body.removeChild(chapContent);
     }
+  }
+
+  // --- core/book-session: shared word counting (cross-mode count anchor) ---
+  {
+    assert("book-session", "splitWords ignores runs of whitespace",
+      splitWords("  one \t two\nthree  ").length === 3);
+    assert("book-session", "countWords matches splitWords length",
+      countWords("one two three four") === splitWords("one two three four").length);
+    assert("book-session", "countWords empty/nullish is 0",
+      countWords("") === 0 && countWords(null) === 0 && countWords("   ") === 0);
+  }
+
+  // --- shared/search: binary-search hit resolution (the O(hits×words) fix) ---
+  {
+    const charStart = [0, 5, 11, 20, 33, 50];
+    // Reference: the old linear "last index whose start <= off".
+    const linear = (off) => { let r = 0; for (let i = 0; i < charStart.length; i++) { if (charStart[i] <= off) r = i; else break; } return r; };
+    let matches = true;
+    for (let off = 0; off <= 60; off++) if (indexForOffset(charStart, off) !== linear(off)) matches = false;
+    assert("search", "indexForOffset (binary) matches linear scan", matches);
+    assert("search", "indexForOffset clamps below first start", indexForOffset(charStart, -5) === 0);
+
+    const haystack = "the cat sat on the mat near the dog";
+    const hits = findHits(haystack, "the", 50);
+    assert("search", "findHits finds every occurrence", hits.length === 3);
+    assert("search", "findHits hits point at real offsets",
+      hits.every(h => haystack.substr(h, 3).toLowerCase() === "the"));
+    assert("search", "findHits respects maxHits", findHits("a a a a a", "a", 2).length === 2);
+    assert("search", "findHits empty query yields nothing", findHits("abc", "", 10).length === 0);
+  }
+
+  // --- shared/render: build the .chap/.blk tree + inline annotation ---
+  {
+    const c = document.createElement("div");
+    const headings = [];
+    renderSections(c, [{
+      href: "s1",
+      blocks: [
+        { type: "h1", text: "A Title" },
+        { type: "p", text: 'She said “Hello.” Right.' },
+      ],
+    }], { onHeading: (h) => headings.push(h) });
+    assert("render", "renderSections builds one .chap", c.querySelectorAll(".chap").length === 1);
+    assert("render", "renderSections builds two .blk", c.querySelectorAll(".blk").length === 2);
+    assert("render", "renderSections reports headings", headings.length === 1 && headings[0].depth === 0);
+    annotateInlineText(c);
+    assert("render", "annotate wraps quoted speech", c.querySelector(".inline-speech") !== null);
+    assert("render", "annotate wraps punctuation", c.querySelector(".inline-punct") !== null);
+    // Annotation must not change the rendered text (positions depend on it).
+    assert("render", "annotate preserves text content",
+      c.querySelectorAll(".blk")[1].textContent === 'She said “Hello.” Right.');
   }
 
   // --- Report ---
