@@ -28,29 +28,14 @@ jobs:
           HASH=$(git rev-parse --short HEAD)
           echo "Stamping build with $HASH"
 
-          # Replace __COMMIT_HASH__ placeholder in HTML files (CSS/script tags)
+          # Stamp the commit hash into the HTML build-version meta and the
+          # service worker's cache version. The service worker now handles
+          # cache-busting (a new hash = a new versioned cache that refetches
+          # every asset once), so the old per-file JS import-path rewriting is
+          # no longer needed and has been removed.
           find . -name "*.html" -not -path "./.git/*" \
             -exec sed -i "s/__COMMIT_HASH__/$HASH/g" {} +
-
-          # Rewrite relative .js import paths in all JS files to add ?v=HASH.
-          # This busts the browser cache for every module on every deploy.
-          python3 - "$HASH" <<'PYEOF'
-          import re, os, sys
-          h = sys.argv[1]
-          pattern = re.compile(r"""(from\s+)(['"])(\.\.?/[^'"]*?\.js)\2""")
-          dyn     = re.compile(r"""(import\s*\(\s*)(['"])(\.\.?/[^'"]*?\.js)\2""")
-          for root, dirs, files in os.walk('.'):
-              dirs[:] = [d for d in dirs if d != '.git']
-              for fname in files:
-                  if not fname.endswith('.js'):
-                      continue
-                  path = os.path.join(root, fname)
-                  txt  = open(path).read()
-                  out  = pattern.sub(lambda m: f"{m.group(1)}{m.group(2)}{m.group(3)}?v={h}{m.group(2)}", txt)
-                  out  = dyn.sub(    lambda m: f"{m.group(1)}{m.group(2)}{m.group(3)}?v={h}{m.group(2)}", out)
-                  if out != txt:
-                      open(path, 'w').write(out)
-          PYEOF
+          sed -i "s/__COMMIT_HASH__/$HASH/g" sw.js
 
       - uses: actions/configure-pages@v5
 
