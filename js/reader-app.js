@@ -14,6 +14,7 @@ import { currentLocator, pageOfElement, pageOfWord, wordAtPageStart, wordAtPageS
 import { buildPosition, resolvePosition } from './core/position.js';
 import { buildChapterIndex } from './reader/chapters.js';
 import { PaginationEngine } from './reader/pagination.js';
+import { PageCounter } from './reader/page-counter.js';
 import { ChromeManager } from './reader/chrome.js';
 import { InputHandler } from './reader/input.js';
 import { SearchManager } from './reader/search.js';
@@ -47,6 +48,7 @@ export function init(options = {}) {
     overlayBtn:    document.getElementById("overlayBtn"),
     fileInput:     document.getElementById("fileInput"),
     bookSubEl:     document.getElementById("bookSub"),
+    contentClip:   document.getElementById("contentClip"),
     coachEl:       document.getElementById("coach"),
     searchInput:   document.getElementById("searchInput"),
     searchResults: document.getElementById("searchResults"),
@@ -157,7 +159,17 @@ export function init(options = {}) {
     // Page numbers are per-chapter while windowed; show chapter + page-in-chapter.
     const ch = (state.sectionLabels && state.sectionLabels[state.curChap]) || ("Chapter " + (state.curChap + 1));
     els.progressLabel.textContent = ch + " · p" + (state.page + 1) + (state.total > 1 ? " of " + state.total : "");
-    if (els.bookSubEl) els.bookSubEl.textContent = pct + "% read";
+    // Whole-book page indicator in the subtitle (idle-measured, cached).
+    pageCounter.recordCurrent();
+    if (els.bookSubEl) {
+      if (state.windowed && state.pageCounts.length > 0) {
+        const ov = pageCounter.overall(state.curChap, state.page);
+        const pfx = ov.approx ? "~" : "";
+        els.bookSubEl.textContent = pfx + "Page " + ov.page + " of " + pfx + ov.total + " · " + pct + "%";
+      } else {
+        els.bookSubEl.textContent = pct + "% read";
+      }
+    }
   }
 
   // ---------- Canonical position ----------
@@ -373,6 +385,9 @@ export function init(options = {}) {
     }
   }
 
+  // ---------- Page counter (whole-book page numbers in windowed mode) ----------
+  const pageCounter = new PageCounter(state, els, prefs);
+
   // ---------- Pagination ----------
   const pagination = new PaginationEngine(state, els, currentLocatorFn, buildChapterIndexFn, updateProgressFn, savePosMain);
   // After a chapter-boundary page turn, re-land once the new chapter's images
@@ -549,6 +564,7 @@ export function init(options = {}) {
       state.windowed = true;
       pagination.setupWindow(0);
       perf.time("reader:paginate", () => pagination.paginateWindow(false));
+      pageCounter.begin(updateProgressFn);
     } else {
       state.windowed = false;
       perf.time("reader:paginate", () => pagination.paginate(false));
@@ -580,8 +596,14 @@ export function init(options = {}) {
     if (shouldWindow()) {
       if (!state.windowed) { pagination.setupWindow(state.curChap || 0); state.windowed = true; }
       pagination.paginateWindow(false);
+      const newSig = pageCounter.computeSignature();
+      if (newSig !== state.pageCountSig) pageCounter.invalidate(updateProgressFn);
     } else {
-      if (state.windowed) { pagination.reattachAll(); state.windowed = false; }
+      if (state.windowed) {
+        pagination.reattachAll();
+        state.windowed = false;
+        pageCounter.destroy();
+      }
       pagination.paginate(false);
     }
     if (pos) applyCanonicalPosition(pos);
@@ -805,6 +827,7 @@ export function init(options = {}) {
     teardown() {
       closeSettingsScreen();
       storage.flushPos(getCanonicalPosition);
+      pageCounter.destroy();
       // Image blob URLs are owned by the BookSession (shared across modes), not
       // by the mode — the mode-switcher disposes them when a new book loads.
       if (resizeTimer) clearTimeout(resizeTimer);

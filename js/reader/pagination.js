@@ -4,6 +4,14 @@ import { pageOfWord } from '../model/geometry.js';
 import { resolveLocator } from '../model/locator.js';
 import * as perf from '../core/perf.js';
 
+// Shared pure helper: column count + stride from viewport width + prefs.
+// Used by both PaginationEngine and PageCounter so the measuring path
+// uses the identical column rule as the live path.
+export function columnLayout(vpW, prefs) {
+  const cols = (prefs.columns === "2" || (prefs.columns === "auto" && vpW > 700)) ? 2 : 1;
+  return { cols, stride: vpW + COLUMN_GAP };
+}
+
 export class PaginationEngine {
   constructor(state, els, currentLocatorFn, buildChapterIndexFn, updateProgressFn, savePosMainFn) {
     this.state = state;
@@ -20,9 +28,7 @@ export class PaginationEngine {
     content.style.transition = "none";
     content.style.setProperty("--page-offset", "0px");
     const vpW = content.getBoundingClientRect().width;
-    let cols = 1;
-    const prefs = state._prefs.data;
-    if (prefs.columns === "2" || (prefs.columns === "auto" && vpW > 700)) cols = 2;
+    const { cols, stride } = columnLayout(vpW, state._prefs.data);
     if (cols === 2) {
       content.style.columnCount = "2";
       content.style.columnWidth = "";
@@ -31,7 +37,7 @@ export class PaginationEngine {
       content.style.columnWidth = vpW + "px";
     }
     content.style.columnGap = COLUMN_GAP + "px";
-    state.stride = vpW + COLUMN_GAP;
+    state.stride = stride;
   }
 
   paginate(keepFraction) {

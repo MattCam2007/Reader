@@ -163,6 +163,14 @@ class ReaderState {
     this.curChap = 0;        // index of the currently-attached chapter
     this.sectionLabels = []; // per-section heading label, for windowed progress
 
+    // Whole-book page counts (windowed mode only). PageCounter fills these lazily
+    // during idle time. undefined = not yet measured; complete = all filled.
+    // Cached in localStorage keyed by pageCountSig; loaded instantly on re-open
+    // with the same layout (same font/size/viewport/etc). Off the hot path.
+    this.pageCounts = [];          // exact pages per section (undefined = unmeasured)
+    this.pageCountsComplete = false;
+    this.pageCountSig = "";        // layout signature pageCounts belong to
+
     this.doc = {
       words: [],
       blocks: [],
@@ -365,6 +373,7 @@ Each mode now stores the canonical `position` in its bookmarks, so bookmarks are
 | Key pattern | Contents | Created by |
 |-------------|----------|------------|
 | `book:pos:{id}` | Canonical position object | `StorageManager` / each app's `savePosition()` |
+| `book:pages:{id}` | Per-section page counts + layout signature | `PageCounter` (windowed mode) |
 | `reader:bookmarks:{id}` | Bookmark array | `BookmarkManager` |
 | `general:prefs` | General prefs | `PrefsManager.save()` |
 | `reader:prefs` | Reader prefs | `PrefsManager.save()` |

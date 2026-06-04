@@ -286,6 +286,31 @@ applyAll(): void
 
 ---
 
+### `js/core/page-cache.js`
+
+Persistence layer for per-book page counts (windowed mode only). Pure module — no DOM access.
+
+**Exports:**
+```js
+PAGE_KEY_PREFIX   // 'book:pages:'
+
+loadPageCache(bookId)
+  // Read { v, sig, counts } from localStorage. Returns null on miss, version
+  // mismatch, parse error, or missing bookId. Shape: { v:1, sig:string, counts:number[] }
+
+savePageCache(bookId, sig, counts)
+  // Write { v:1, sig, counts } to localStorage. Silently ignores errors (quota, etc.).
+```
+
+Stored entry shape:
+```js
+{ v: 1, sig: string, counts: number[] }
+// sig  — layout signature (see PageCounter.computeSignature)
+// counts[i] — exact page count for section i under that layout
+```
+
+---
+
 ### `js/core/position.js`
 
 The shared, mode-independent position layer. See [STATE.md → Canonical Position System](STATE.md#canonical-position-system) for the full design.
@@ -498,9 +523,54 @@ For scroll mode: maps a 0–1 scroll fraction to the nearest word index.
 
 ## `js/reader/` — Paginated Reader Sub-Modules
 
+### `js/reader/page-counter.js`
+
+Whole-book page-number engine for windowed mode. Measures each chapter's page count
+once in an offscreen host during idle time, then caches the result by layout signature
+so subsequent opens are instant (no measuring pass needed).
+
+**Class: `PageCounter`**
+
+**Constructor:** `new PageCounter(state, els, prefs)`
+
+**`computeSignature()`** → `string`  
+Builds a `|`-joined string from every layout input that affects page count: content
+width/height, font, size, weight, line-height, margin, paragraph spacing, alignment,
+hyphens, images, and resolved column count. Used to validate cached counts.
+
+**`begin(onUpdate)`**  
+Called from `finalizeLayout` once windowed. Resets `state.pageCounts`, records the
+current chapter's exact count, then either adopts a matching cache entry (instant,
+no measuring) or schedules the idle pass. `onUpdate` is called after each chapter
+measurement so the UI label stays current.
+
+**`recordCurrent()`**  
+Captures `state.total` (the live chapter's exact page count) into `state.pageCounts[curChap]`.
+Safe on the hot path — no DOM reads.
+
+**`overall(curChap, pageInChap)`** → `{ page, total, approx }`  
+Pure arithmetic over `state.pageCounts`. Unknown chapters are estimated via a
+self-calibrating words/page ratio derived from already-measured chapters (fallback: 300 wpp).
+`approx` is `true` while any chapter is still unmeasured; the `~` disappears once
+the cache is complete.
+
+**`invalidate(onUpdate?)`**  
+Cancel any in-flight pass, clear counts, and `begin()` again with a fresh signature.
+Called from `relayout()` when the signature changes (resize, font, column change).
+
+**`destroy()`**  
+Cancel the pass and remove the offscreen host. Called on teardown and on windowed→scroll switch.
+
+---
+
 ### `js/reader/pagination.js`
 
 The layout engine for the paginated reader.
+
+**`columnLayout(vpW, prefs)`** → `{ cols, stride }`  
+Exported pure helper: resolves the column count (1 or 2) and page stride (px) from
+the viewport width and prefs. Shared by `PaginationEngine.setupColumns()` and
+`PageCounter._measureChapter()` so both paths use the identical column rule.
 
 **Class: `PaginationEngine`**
 
