@@ -92,7 +92,7 @@ export class PaginationEngine {
     }
   }
 
-  // ---------- Windowed rendering prototype (?window=1) ----------
+  // ---------- Windowed rendering (default for paginated layout) ----------
   // Detach every chapter except `keep` into comment-marker placeholders, so the
   // browser only lays out / paints one chapter at a time. Built once after render.
   setupWindow(keep) {
@@ -106,6 +106,18 @@ export class PaginationEngine {
       w.el.parentNode.insertBefore(marker, w.el);
       w.el.parentNode.removeChild(w.el);
       w.marker = marker;
+    });
+  }
+
+  // Re-attach every detached chapter (exit windowed mode, e.g. switching to
+  // scroll layout where the whole book must be in one flow).
+  reattachAll() {
+    this.state.chapWindows.forEach((w) => {
+      if (w.marker && w.marker.parentNode) {
+        w.marker.parentNode.insertBefore(w.el, w.marker);
+        w.marker.parentNode.removeChild(w.marker);
+        w.marker = null;
+      }
     });
   }
 

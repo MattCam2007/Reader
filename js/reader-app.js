@@ -67,14 +67,6 @@ export function init(options = {}) {
   const state = new ReaderState();
   state.setPrefs(prefs);
   const urlParams = new URLSearchParams(location.search);
-  // Temporary Phase 0 diagnostic: ?noannotate=1 skips the per-punctuation span
-  // wrapping so we can A/B whether annotation node-inflation drives turn-latency.
-  const SKIP_ANNOTATE = urlParams.get("noannotate") === "1";
-  if (SKIP_ANNOTATE) console.warn("perf: annotation DISABLED (?noannotate=1) — diagnostic only");
-  // Phase 6 prototype: ?window=1 renders one chapter at a time (see pagination.js).
-  const WINDOWED = urlParams.get("window") === "1";
-  state.windowed = WINDOWED;
-  if (WINDOWED) console.warn("perf: WINDOWED rendering ON (?window=1) — diagnostic; no position save/restore");
 
   // ---------- Bookmarks ----------
   const bookmarkManager = new BookmarkManager();
@@ -87,7 +79,9 @@ export function init(options = {}) {
   function getBookmarkContext() {
     if (!state.bookId || !state.doc.words.length) return null;
     const pos = getCanonicalPosition();
-    const chapterLabel = chrome ? chrome.currentChapterLabel() : '';
+    const chapterLabel = state.windowed
+      ? ((state.sectionLabels && state.sectionLabels[state.curChap]) || '')
+      : (chrome ? chrome.currentChapterLabel() : '');
     let text = '';
     const wi = currentRenderToken();
     if (wi >= 0) {
@@ -154,11 +148,10 @@ export function init(options = {}) {
     const pct = Math.round(frac * 100);
     els.progressEl.max = "1000";
     els.progressEl.value = String(Math.round(frac * 1000));
-    els.progressLabel.textContent = pct + "% read";
-    if (els.bookSubEl) {
-      const ch = (state.sectionLabels && state.sectionLabels[state.curChap]) || "";
-      els.bookSubEl.textContent = ch ? ch + " · " + pct + "%" : pct + "%";
-    }
+    // Page numbers are per-chapter while windowed; show chapter + page-in-chapter.
+    const ch = (state.sectionLabels && state.sectionLabels[state.curChap]) || ("Chapter " + (state.curChap + 1));
+    els.progressLabel.textContent = ch + " · p" + (state.page + 1) + (state.total > 1 ? " of " + state.total : "");
+    if (els.bookSubEl) els.bookSubEl.textContent = pct + "% read";
   }
 
   // ---------- Canonical position ----------
@@ -287,7 +280,9 @@ export function init(options = {}) {
       if (done || imgs.some(im => !im.complete)) return;
       done = true;
       if (state.page !== landedPage) return; // reader moved on — leave them be
-      pagination.paginate(false); // refresh stride/total against the final layout
+      // refresh stride/total against the final layout (windowed = current chapter only)
+      if (state.windowed) pagination.paginateWindow(false);
+      else pagination.paginate(false);
       if (pos) applyCanonicalPosition(pos);
       else storage.restorePos(applyCanonicalPosition);
     };
@@ -398,7 +393,7 @@ export function init(options = {}) {
       onReaderChange(key, value, needsRepaginate) {
         prefs.data[key] = value;
         applyPrefs();
-        if (needsRepaginate) pagination.paginateQuick();
+        if (needsRepaginate) relayout();
       },
     });
     updateAriaExpanded();
@@ -515,7 +510,46 @@ export function init(options = {}) {
     });
     els.content.appendChild(frag);
     perf.measure("reader:render", { sections: sections.length });
-    if (!SKIP_ANNOTATE) perf.time("reader:annotate", () => annotateInlineText(els.content));
+    perf.time("reader:annotate", () => annotateInlineText(els.content));
+  }
+
+  // Lay out a freshly-rendered book and land the reader on `pos` (or the saved
+  // position). Builds the global doc-model once while every chapter is attached,
+  // then either windows down to one chapter (paginated — the default) or lays out
+  // the whole book (scroll mode, which can't be windowed).
+  function finalizeLayout(epubToc, pos) {
+    pagination.ensureDocModel();      // global model; word→node refs survive windowing
+    captureSectionLabels();
+    if (state.isScrollMode) {
+      state.windowed = false;
+      perf.time("reader:paginate", () => pagination.paginate(false));
+    } else {
+      state.windowed = true;
+      pagination.setupWindow(0);
+      perf.time("reader:paginate", () => pagination.paginateWindow(false));
+    }
+    buildTOC(epubToc || [], state.headingToc, els.tocListEl, state.sectionEls,
+      seekToElement, closePanels,
+      (href) => resolveHref(href, els.content, state.sectionEls));
+    if (pos) applyCanonicalPosition(pos);
+    else storage.restorePos(applyCanonicalPosition);
+    if (!state.windowed) resyncAfterImages(pos);
+  }
+
+  // Re-lay-out in place (resize, font/margin change, or a layout-mode toggle),
+  // preserving the reading position via the canonical position. Handles entering
+  // windowed mode (paginated) and exiting it (scroll) at runtime.
+  function relayout() {
+    if (!state.docModelBuilt) return;
+    const pos = state.doc.words.length ? getCanonicalPosition() : null;
+    if (state.isScrollMode) {
+      if (state.windowed) { pagination.reattachAll(); state.windowed = false; }
+      pagination.paginate(false);
+    } else {
+      if (!state.windowed) { pagination.setupWindow(state.curChap || 0); state.windowed = true; }
+      pagination.paginateWindow(false);
+    }
+    if (pos) applyCanonicalPosition(pos);
   }
 
   // Wrap quoted speech and punctuation in spans for per-theme coloring.
@@ -648,34 +682,7 @@ export function init(options = {}) {
       await new Promise((resolve) => {
         requestAnimationFrame(() => {
           try {
-            if (state.windowed) {
-              // Build the global doc-model while every chapter is still attached
-              // (its word→node refs survive detachment), capture per-section labels,
-              // then window down to one chapter for layout. Search, bookmarks and
-              // canonical position all work off the global model.
-              pagination.ensureDocModel();
-              captureSectionLabels();
-              pagination.setupWindow(0);
-              perf.time("reader:paginate", () => pagination.paginateWindow(false));
-              buildTOC(epubToc, state.headingToc, els.tocListEl, state.sectionEls,
-                seekToElement, closePanels,
-                (href) => resolveHref(href, els.content, state.sectionEls));
-              if (pos) applyCanonicalPosition(pos);
-              else storage.restorePos(applyCanonicalPosition);
-            } else {
-              perf.time("reader:paginate", () => pagination.paginate(false));
-              buildTOC(epubToc, state.headingToc, els.tocListEl, state.sectionEls,
-                (el) => pagination.goTo(pageOfElement(state, els.content, el), false),
-                closePanels,
-                (href) => resolveHref(href, els.content, state.sectionEls));
-              // A handed-off position is the single source of truth; otherwise
-              // fall back to the persisted position. Never both (that was a race).
-              if (pos) applyCanonicalPosition(pos);
-              else storage.restorePos(applyCanonicalPosition);
-              // Images decode after this first paint and only then take up space,
-              // which shifts the column flow; re-land once they settle.
-              resyncAfterImages(pos);
-            }
+            finalizeLayout(epubToc, pos);
             if (urlParams.get("selftest") === "1") {
               requestAnimationFrame(() => runSelftest(state));
             }
@@ -783,7 +790,7 @@ export function init(options = {}) {
   let resizeTimer = null;
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => pagination.paginateQuick(), RESIZE_DEBOUNCE_MS);
+    resizeTimer = setTimeout(() => relayout(), RESIZE_DEBOUNCE_MS);
   }, { signal });
 
   // Mode switch buttons
@@ -848,12 +855,7 @@ export function init(options = {}) {
     els.bookTitleEl.textContent = "Pride and Prejudice";
     renderBook(buildSample());
     requestAnimationFrame(() => {
-      pagination.paginate(false);
-      buildTOC([], state.headingToc, els.tocListEl, state.sectionEls,
-        (el) => pagination.goTo(pageOfElement(state, els.content, el), false),
-        closePanels,
-        (href) => resolveHref(href, els.content, state.sectionEls));
-      storage.restorePos(applyCanonicalPosition);
+      finalizeLayout([], null);
       if (urlParams.get("selftest") === "1") {
         requestAnimationFrame(() => runSelftest(state));
       }

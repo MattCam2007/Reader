@@ -451,30 +451,37 @@ current ±1 section) and section-windowed pagination (Phase 6)**. Recommend prom
 node-count reduction ahead of Phase 3; mode-switch (388 ms, the re-extract cost) remains
 the other top target via Phase 1.
 
-### A.4 Follow-up experiments (diagnostic flags)
+### A.4 Diagnosis & the shipped fix (windowed rendering)
 
-Two temporary, opt-in flags (Reader only) to isolate the paint cost. Both are
-diagnostic-grade and will be removed when the real fix lands.
+Two diagnostic flags isolated the paint cost (both now removed):
 
-- **`?noannotate=1`** — skips the per-punctuation span annotation. *Result on Pawn of
+- **`?noannotate=1`** — skipped the per-punctuation span annotation. *Result on Pawn of
   Prophecy: turn-latency got **worse** (1.3 s → 3.7 s avg).* Conclusion: node count is
   **not** the lever — annotation pre-segments text and *reduces* per-strip paint work.
   Lazy annotation is therefore **not** the fix.
-- **`?window=1`** — single-section windowed rendering: only the current chapter is
-  attached to the DOM, so the browser lays out/paints one chapter instead of the whole
-  book. **Result: `turn-latency` 1308 ms → 21 ms avg (62×).** Confirmed: the whole-book
-  multi-column layout was the entire cost.
+- **`?window=1`** — laid out only the current chapter. *Result: `turn-latency`
+  1308 ms → 21 ms avg (62×).* Confirmed: the whole-book multi-column layout was the
+  entire cost.
 
-  *Now hardened to preserve correctness* (still flag-gated; normal mode untouched):
-  the global doc-model is built once at load (word→node refs survive chapter
-  detachment), and every seek is section-aware — to navigate anywhere it attaches that
-  chapter, lays it out, then maps the word to a page. So **full-text search, bookmarks,
-  canonical position save/restore, cross-mode hand-off, TOC and footnote jumps all work**
-  while only one chapter is ever laid out. Progress is a global 0–1000 scrubber computed
-  cheaply (no per-turn `getBoundingClientRect`). Known limits while windowed: page numbers
-  are per-chapter; assumes paginated (not scroll) layout.
+**Shipped (Phase 6, brought forward):** windowed rendering is now the **default for
+paginated layout** — no flag. Only the current chapter (`.chap`) is attached to the DOM;
+the rest are detached into comment-marker placeholders. Correctness is preserved:
 
-  *Capture procedure:* open `reader.html?perf=1&window=1`, turn ~20 pages into a full
-  chapter, tap **Reset** on the perf panel, turn ~10 more within that chapter, then
-  **Copy**. The next step is promoting windowing to the default behind a word-count
-  threshold, with the cross-mode self-test as the gate (plan Phase 6).
+- The global doc-model is built once at load while all chapters are attached; word→node
+  references survive detachment, so **full-text search** (over `doc.text`), **bookmarks**,
+  **canonical position save/restore** and **cross-mode hand-off** all work off the global
+  model.
+- Every navigation goes through a **section-aware seek**: attach the target chapter, lay
+  it out, map the word→page. Covers position restore, search hits, bookmark nav, TOC and
+  footnote jumps.
+- Progress is a global 0–1000 scrubber computed **without** per-turn `getBoundingClientRect`,
+  so turns stay ~20 ms. The page label shows **chapter + page-in-chapter** (page numbers
+  are per-chapter while windowed).
+- **Scroll layout** can't be windowed (it needs the whole book in one flow), so it falls
+  back to full render automatically — including when the layout pref is toggled at runtime
+  (`relayout()` enters/exits windowing and re-lands the canonical position).
+
+Remaining hardening for a follow-up: per-chapter image resync on chapter entry, a
+word-threshold to skip windowing for tiny books, and self-test coverage of the
+window-boundary position round-trip (plan Phase 9). The old whole-book `paginateQuick`
+detach path is now dead code pending removal.
