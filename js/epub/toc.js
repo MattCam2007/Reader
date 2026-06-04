@@ -17,8 +17,7 @@ export function buildTOC(epubToc, headingToc, tocListEl, sectionEls, goToPageFn,
   if (!items.length) {
     const empty = document.createElement("div");
     empty.className = "reader-toc-empty";
-    // TEMP diagnostic: surface why it's empty (epub nav count + heading count).
-    empty.textContent = `No contents available. [nav=${epubToc ? epubToc.length : -1} h=${headingToc ? headingToc.length : -1}]`;
+    empty.textContent = "No contents available.";
     tocListEl.appendChild(empty);
     return;
   }

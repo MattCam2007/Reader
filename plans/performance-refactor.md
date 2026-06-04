@@ -1,17 +1,68 @@
 # Performance & Architecture Refactor Plan
 
 **Author:** Staff Engineer (inherited ownership)
-**Date:** 2026-06-03
-**Status:** Proposed — awaiting review before execution
+**Date:** 2026-06-03 (updated 2026-06-04)
+**Status:** In progress — **Phase 0 ✅ and Phase 6 (windowing) ✅ landed**; remaining phases open.
 **Scope:** `js/`, `css/`, `*.html`, `docs/`. One focused refactor pass before the next feature wave.
+**Branch:** `claude/app-perf-refactor-phase-0-r8g2s`
 
-> **Reviewer note (2026-06-03):** The owner confirmed the felt symptom is specifically
-> **page turns in Reader mode** (not mode switches or cold load). **Phase 3 (reflow-free
-> page turns) is therefore the most direct fix and should be promoted ahead of Phases 1–2
-> when execution starts.** Phase 3 depends only on Phase 0 (instrumentation), so it can run
-> immediately after baselining. Phases 1, 2, 4 remain high-value but address adjacent
-> latencies (mode switches, search, cold load) rather than the primary complaint. Suggested
-> execution order: **0 → 3 → 1 → 2 → 4 → 5 → 8 → 7 → 6**, with Phase 9 continuous.
+> ## ⏩ Handoff to the next context (read this first)
+>
+> **What's done (on the branch above, all pushed):**
+> - **Phase 0 — instrumentation & baseline.** `js/core/perf.js` (no-op unless `?perf=1`;
+>   on-screen panel + Copy/Reset, console `__perf`). Spans wired across the pipeline and
+>   the hot paths. Baseline captured for Pawn of Prophecy — see Appendix A.3.
+> - **Phase 6 — windowed rendering, shipped as the default for paginated layout** (brought
+>   forward because the baseline proved page turns are **paint-bound**, not JS-bound:
+>   `turn-latency` 1308 ms → 21 ms). See Appendix A.4 for the full design and the
+>   diagnosis that got us here. Search, bookmarks, canonical position save/restore,
+>   cross-mode hand-off, TOC and footnote jumps were all reworked to be **section-aware**
+>   and verified by the owner.
+>
+> **The key finding that reorders the plan:** the felt "2+ second page turn" was **100%
+> layout/paint of the whole-book multi-column tree**, not JavaScript and not annotation
+> node-count (proven by the `?noannotate=1` experiment, which made it *worse*). So the
+> original "promote Phase 3" advice below is **superseded** — Phase 3's deferrals act on the
+> ~0.2 ms synchronous path and cannot move the felt cost. Windowing (Phase 6) was the fix.
+>
+> **Recommended remaining order:** **1 (session cache) → 2 (shared render/search) →
+> 4 (service worker) → 5 (BaseReaderApp) → 7 (library) → 8 (css)**, with **9 (tests/docs)
+> continuous**. Phase 3 is largely moot for turns but its `requestIdleCallback` deferral of
+> `savePos`/bookmark markers is still a minor polish; fold whatever's useful into Phase 1.
+>
+> **Windowing follow-ups still owed (carried as Phase 6 debt):**
+> 1. **Per-chapter image resync.** `resyncAfterImages` only runs for the first chapter at
+>    load now. Images in a *newly-entered* chapter can shift its column flow until decode —
+>    re-run a windowed resync after `attachChap`. (Low impact for text-only books.)
+> 2. **Tiny-book threshold.** Skip windowing (full render) for books below a word/section
+>    count where it isn't needed, to avoid the per-chapter-boundary relayout overhead.
+> 3. **Self-test coverage (Phase 9).** Window-boundary position round-trip, search-hit
+>    resolution across a detached chapter, TOC jump into a detached chapter.
+> 4. **Remove dead code.** `PaginationEngine.paginateQuick()` (the old whole-book detach
+>    trick) is no longer called — resize/settings/layout-toggle go through reader-app
+>    `relayout()`. Delete it.
+> 5. **Page-number label.** Per-chapter while windowed ("Chapter · pN of M"); global % bar
+>    is accurate. Owner accepted this; revisit only if a global page estimate is wanted.
+>
+> **Where the windowing code lives:** `state.windowed`/`chapWindows`/`curChap`/`sectionLabels`
+> (`core/state.js`); `setupWindow`/`attachChap`/`reattachAll`/`paginateWindow`/`ensureDocModel`
+> (`reader/pagination.js`); `finalizeLayout`/`relayout`/`seekToToken`/`seekToElement`/
+> `currentRenderToken`/`updateWindowedProgress` + the windowed branches in
+> `getCanonicalPosition`/`applyCanonicalPosition`/`navigateToBookmark`/progress-input
+> (`reader-app.js`); `wordAtPageStartRange` (`model/geometry.js`); windowed
+> `_bookmarksOnCurrentPage` (`reader/chrome.js`); detached-subtree search in `resolveHref`
+> (`epub/toc.js`).
+>
+> **Invariant to protect (unchanged):** canonical word-level position must round-trip across
+> modes and across the window boundary. Run the cross-mode self-test (`?selftest=1`) before
+> any merge that touches extraction, counting, render, pagination, or windowing.
+
+---
+
+> **Original reviewer note (2026-06-03, superseded by the Phase 0 baseline above):** The
+> owner confirmed the felt symptom is page turns in Reader mode. Phase 3 was suggested as the
+> most direct fix — but instrumentation showed the cost is paint, not the synchronous turn
+> path, so windowing (Phase 6) was promoted instead.
 
 ---
 
@@ -192,7 +243,7 @@ in-memory structure, with **one** word-counting implementation shared by all thr
 Each phase: **goal · changes · effort · risk · how we verify.** Effort is rough dev-days.
 Phases are ordered so the biggest wins come first and each is shippable on its own.
 
-### Phase 0 — Instrumentation & baseline *(0.5d, no risk)*
+### Phase 0 — Instrumentation & baseline *(0.5d, no risk)* — ✅ DONE
 **Goal:** Replace inference with numbers; prove every later win.
 - Add a tiny `core/perf.js` (`perf.mark`/`measure` wrappers, no-op unless `?perf=1`) and
   instrument: extract, render, annotate, doc-model, paginate, mode-switch, page-turn.
@@ -228,7 +279,10 @@ shows zero `extractSections` calls on switch. Cross-mode position self-test gree
 **Risk:** Low — pure code movement + one algorithmic fix, covered by self-test.
 **Verify:** Line count drops; search self-test green; search on a large book is instant.
 
-### Phase 3 — Make page turns reflow-free *(1.5d, low risk, fixes the literal complaint)*
+### Phase 3 — Make page turns reflow-free *(1.5d)* — ⚠️ SUPERSEDED by Phase 6
+*(Baseline showed turns are paint-bound, not JS-bound (~0.2 ms synchronous), so this phase's
+deferrals don't move the felt cost. Windowing fixed it instead. Keep only the minor
+`requestIdleCallback` polish for `savePos`/bookmark markers — fold into Phase 1 if useful.)*
 **Goal:** Page turn = one transform + cheap state update. No synchronous layout on the hot path.
 - Cache word→page mapping after pagination (a `pageStarts[]` array of word ordinals per
   page) so `wordAtPageStart`/`pageOfWord` become array lookups, not `getBoundingClientRect`
@@ -269,7 +323,7 @@ pieces already exist; land mode-by-mode behind the self-test.
 **Verify:** ~700–900 fewer lines across the three apps; all modes behave identically; full
 self-test + manual smoke of each mode + mode switches green.
 
-### Phase 6 — Windowed rendering for large books *(3–4d, medium/high risk, scales the ceiling)*
+### Phase 6 — Windowed rendering for large books *(3–4d, medium/high risk)* — ✅ DONE (shipped as default; see Appendix A.4 + handoff debt at top)
 **Goal:** Stop forcing the whole book through render/annotate/layout at once.
 - **Lazy annotation:** annotate blocks on demand (as sections enter the viewport / current
   ±1 section), not the whole book in `renderBook`. This removes the worst node-inflation
