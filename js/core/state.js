@@ -5,8 +5,6 @@ export class ReaderState {
     this.stride = 1;
     this.bookId = "sample";
     this.docModelBuilt = false;
-    this.paginateGen = 0;
-    this.pendingDetached = [];
     this.sectionEls = new Map();
     this.headingToc = [];
     this.chapterIndex = [];

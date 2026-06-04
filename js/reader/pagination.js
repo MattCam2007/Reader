@@ -1,6 +1,6 @@
 import { COLUMN_GAP } from '../core/constants.js';
 import { buildDocModel } from '../model/doc-model.js';
-import { pageOfWord, wordAtPageStart } from '../model/geometry.js';
+import { pageOfWord } from '../model/geometry.js';
 import { resolveLocator } from '../model/locator.js';
 import * as perf from '../core/perf.js';
 
@@ -157,81 +157,6 @@ export class PaginationEngine {
     // state.sectionLabels[curChap] instead (built at load).
   }
 
-  paginateQuick() {
-    const { state, els } = this;
-    const { content } = els;
-    if (state.windowed) { this.paginateWindow(false); return; }
-    state.paginateGen++;
-    const gen = state.paginateGen;
-
-    if (state.pendingDetached.length) {
-      state.pendingDetached.forEach(d => {
-        if (d.marker.parentNode) {
-          d.marker.parentNode.insertBefore(d.el, d.marker);
-          d.marker.parentNode.removeChild(d.marker);
-        }
-      });
-      state.pendingDetached = [];
-    }
-
-    const frac = state.total > 1 ? state.page / (state.total - 1) : 0;
-
-    if (state.isScrollMode || !state.docModelBuilt || state.doc.words.length === 0) {
-      this.paginate(true);
-      return;
-    }
-
-    const estWordIdx = Math.min(Math.round(frac * (state.doc.words.length - 1)), state.doc.words.length - 1);
-    const curSec = state.doc.words[estWordIdx].section;
-    const firstSec = Math.max(0, curSec - 1);
-    const lastSec = Math.min(state.doc.sections.length - 1, curSec + 1);
-    const chaps = Array.from(content.children);
-    const detached = [];
-    chaps.forEach((c, i) => {
-      if (i < firstSec || i > lastSec) {
-        const marker = document.createComment("p" + i);
-        content.insertBefore(marker, c);
-        content.removeChild(c);
-        detached.push({ el: c, marker });
-      }
-    });
-
-    this.setupColumns();
-    void content.offsetWidth;
-    const quickTotal = Math.max(1, Math.round(content.scrollWidth / state.stride));
-
-    const visStart = state.doc.sections[firstSec].wordStart;
-    const visEnd = state.doc.sections[lastSec].wordEnd;
-    const visFrac = visEnd > visStart ? (estWordIdx - visStart) / (visEnd - visStart) : 0;
-    state.page = Math.max(0, Math.min(quickTotal - 1, Math.round(visFrac * (quickTotal - 1))));
-    state.total = quickTotal;
-    this.goTo(state.page, false);
-
-    state.pendingDetached = detached;
-
-    setTimeout(() => {
-      if (gen !== state.paginateGen) return;
-      content.style.visibility = "hidden";
-      state.pendingDetached.forEach(d => {
-        if (d.marker.parentNode) {
-          d.marker.parentNode.insertBefore(d.el, d.marker);
-          d.marker.parentNode.removeChild(d.marker);
-        }
-      });
-      state.pendingDetached = [];
-      void content.offsetWidth;
-      state.total = Math.max(1, Math.round(content.scrollWidth / state.stride));
-      els.progressEl.max = String(state.total - 1);
-      state.page = pageOfWord(state, content, estWordIdx);
-      content.style.transition = "none";
-      content.style.setProperty("--page-offset", -(state.page * state.stride) + "px");
-      content.style.visibility = "";
-      this.updateProgressFn();
-      this.savePosMainFn();
-      this.buildChapterIndexFn();
-    });
-  }
-
   scrollToWord(wi) {
     const { state, els } = this;
     const { doc } = state;
@@ -276,7 +201,11 @@ export class PaginationEngine {
       perf.time("page-turn", () => this.goTo(state.page + 1, true), { dir: "next" });
     } else if (state.windowed && state.curChap < state.chapWindows.length - 1) {
       // Cross a chapter boundary: attach the next chapter and re-lay-out the window.
-      perf.time("page-turn", () => { this.attachChap(state.curChap + 1); this.paginateWindow(false); }, { dir: "next", boundary: true });
+      perf.time("page-turn", () => {
+        this.attachChap(state.curChap + 1);
+        this.paginateWindow(false);
+        if (this.onWindowTurn) this.onWindowTurn();
+      }, { dir: "next", boundary: true });
     }
   }
   prev() {
@@ -284,7 +213,11 @@ export class PaginationEngine {
     if (state.page > 0) {
       perf.time("page-turn", () => this.goTo(state.page - 1, true), { dir: "prev" });
     } else if (state.windowed && state.curChap > 0) {
-      perf.time("page-turn", () => { this.attachChap(state.curChap - 1); this.paginateWindow(true); }, { dir: "prev", boundary: true });
+      perf.time("page-turn", () => {
+        this.attachChap(state.curChap - 1);
+        this.paginateWindow(true);
+        if (this.onWindowTurn) this.onWindowTurn();
+      }, { dir: "prev", boundary: true });
     }
   }
 }

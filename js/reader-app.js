@@ -1,4 +1,4 @@
-import { FONT_MAP, FONT_SERIF, THEME_COLORS, RESIZE_DEBOUNCE_MS, SAVE_DEBOUNCE_MS, GENERAL_DEFAULTS, ALL_THEME_NAMES } from './core/constants.js';
+import { FONT_MAP, FONT_SERIF, THEME_COLORS, RESIZE_DEBOUNCE_MS, SAVE_DEBOUNCE_MS, GENERAL_DEFAULTS, ALL_THEME_NAMES, WINDOW_MIN_WORDS } from './core/constants.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
@@ -210,11 +210,14 @@ export function init(options = {}) {
     tok = Math.max(0, Math.min(tok, state.doc.words.length - 1));
     if (state.windowed) {
       const sec = state.doc.words[tok].section;
+      let attached = false;
       if (sec !== state.curChap) {
         pagination.attachChap(sec);
         pagination.paginateWindow(false);
+        attached = true;
       }
       pagination.goTo(pageOfWord(state, els.content, tok), false);
+      if (attached) resyncAfterImages();
       return;
     }
     if (state.isScrollMode) pagination.scrollToWord(tok);
@@ -223,15 +226,18 @@ export function init(options = {}) {
 
   // Seek so that `el` is on screen, attaching its chapter first in windowed mode.
   function seekToElement(el) {
+    let attached = false;
     if (state.windowed) {
       const chap = el.closest && el.closest(".chap");
       const sec = chap ? state.doc.sections.findIndex(s => s.el === chap) : -1;
       if (sec >= 0 && sec !== state.curChap) {
         pagination.attachChap(sec);
         pagination.paginateWindow(false);
+        attached = true;
       }
     }
     pagination.goTo(pageOfElement(state, els.content, el), false);
+    if (attached) resyncAfterImages();
   }
 
   // Per-section heading labels, captured while all chapters are attached (before
@@ -275,20 +281,29 @@ export function init(options = {}) {
   // they occupy no space, so the column flow — and thus every word's page — is
   // wrong. Once any pending images settle, re-land on the same position. Guarded
   // so we never yank a reader who has already turned the page in the meantime.
+  // Re-land after images in the currently-attached content decode. Works for the
+  // initial load (full or windowed chapter 0) AND for a newly-entered windowed
+  // chapter: images in a just-attached .chap occupy no space until decode, so its
+  // column flow — and the landed page — is wrong until then. Captures page +
+  // chapter so we never yank a reader who has turned away in the meantime.
   function resyncAfterImages(pos) {
     if (state.isScrollMode) return;
     const imgs = Array.from(els.content.querySelectorAll("img")).filter(im => !im.complete);
     if (!imgs.length) return;
     const landedPage = state.page;
+    const landedChap = state.curChap;
+    // On an explicit restore use the supplied position; otherwise keep the word
+    // we're currently on so the relayout lands back exactly where the reader is.
+    const reseek = pos || (state.windowed ? getCanonicalPosition() : null);
     let done = false;
     const settle = () => {
       if (done || imgs.some(im => !im.complete)) return;
       done = true;
-      if (state.page !== landedPage) return; // reader moved on — leave them be
+      if (state.page !== landedPage || (state.windowed && state.curChap !== landedChap)) return;
       // refresh stride/total against the final layout (windowed = current chapter only)
       if (state.windowed) pagination.paginateWindow(false);
       else pagination.paginate(false);
-      if (pos) applyCanonicalPosition(pos);
+      if (reseek) applyCanonicalPosition(reseek);
       else storage.restorePos(applyCanonicalPosition);
     };
     imgs.forEach(im => {
@@ -329,6 +344,9 @@ export function init(options = {}) {
 
   // ---------- Pagination ----------
   const pagination = new PaginationEngine(state, els, currentLocatorFn, buildChapterIndexFn, updateProgressFn, savePosMain);
+  // After a chapter-boundary page turn, re-land once the new chapter's images
+  // decode (their flow shifts until then). No-op when the chapter has no images.
+  pagination.onWindowTurn = () => resyncAfterImages();
 
   // ---------- Storage ----------
   const storage = new StorageManager(state);
@@ -503,20 +521,30 @@ export function init(options = {}) {
   function finalizeLayout(epubToc, pos) {
     pagination.ensureDocModel();      // global model; word→node refs survive windowing
     captureSectionLabels();
-    if (state.isScrollMode) {
-      state.windowed = false;
-      perf.time("reader:paginate", () => pagination.paginate(false));
-    } else {
+    if (shouldWindow()) {
       state.windowed = true;
       pagination.setupWindow(0);
       perf.time("reader:paginate", () => pagination.paginateWindow(false));
+    } else {
+      state.windowed = false;
+      perf.time("reader:paginate", () => pagination.paginate(false));
     }
     buildTOC(epubToc || [], state.headingToc, els.tocListEl, state.sectionEls,
       seekToElement, closePanels,
       (href) => resolveHref(href, els.content, state.sectionEls));
     if (pos) applyCanonicalPosition(pos);
     else storage.restorePos(applyCanonicalPosition);
-    if (!state.windowed) resyncAfterImages(pos);
+    resyncAfterImages(pos);
+  }
+
+  // Window only when it pays off: paginated layout, more than one chapter, and a
+  // book large enough that whole-book layout is paint-bound (scroll layout can't
+  // be windowed — it needs the whole book in one flow). Small books render whole
+  // and skip the per-chapter-boundary relayout cost.
+  function shouldWindow() {
+    return !state.isScrollMode
+      && state.doc.sections.length > 1
+      && state.doc.wsToToken.length >= WINDOW_MIN_WORDS;
   }
 
   // Re-lay-out in place (resize, font/margin change, or a layout-mode toggle),
@@ -525,12 +553,12 @@ export function init(options = {}) {
   function relayout() {
     if (!state.docModelBuilt) return;
     const pos = state.doc.words.length ? getCanonicalPosition() : null;
-    if (state.isScrollMode) {
-      if (state.windowed) { pagination.reattachAll(); state.windowed = false; }
-      pagination.paginate(false);
-    } else {
+    if (shouldWindow()) {
       if (!state.windowed) { pagination.setupWindow(state.curChap || 0); state.windowed = true; }
       pagination.paginateWindow(false);
+    } else {
+      if (state.windowed) { pagination.reattachAll(); state.windowed = false; }
+      pagination.paginate(false);
     }
     if (pos) applyCanonicalPosition(pos);
   }
