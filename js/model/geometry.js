@@ -39,6 +39,22 @@ export function wordAtPageStart(state, content, p) {
   return result;
 }
 
+// First render token at/after page `p`, searching only the token range
+// [lo, hiExcl). Used by windowed rendering, where only the current chapter is
+// laid out so a whole-book binary search would read zeroed rects from detached
+// chapters. Same monotonic logic as wordAtPageStart, bounded to one chapter.
+export function wordAtPageStartRange(state, content, p, lo, hiExcl) {
+  let result = lo;
+  let hi = hiExcl - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1;
+    const wp = pageOfWord(state, content, mid);
+    if (wp < p) lo = mid + 1;
+    else { result = mid; hi = mid - 1; }
+  }
+  return result;
+}
+
 // Scroll-mode locator: binary search instead of sampling (Phase 8b)
 export function currentLocator(state, content, viewport, toLocatorFn) {
   if (state.isScrollMode) {

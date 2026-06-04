@@ -82,6 +82,16 @@ export class PaginationEngine {
     this.buildChapterIndexFn();
   }
 
+  // Build the global doc-model once (requires every chapter attached). Safe to
+  // call before windowing detaches chapters — the word→node references survive.
+  ensureDocModel() {
+    const { state, els } = this;
+    if (!state.docModelBuilt) {
+      perf.time("doc-model", () => buildDocModel(state, els.content));
+      state.docModelBuilt = true;
+    }
+  }
+
   // ---------- Windowed rendering prototype (?window=1) ----------
   // Detach every chapter except `keep` into comment-marker placeholders, so the
   // browser only lays out / paints one chapter at a time. Built once after render.
@@ -130,7 +140,9 @@ export class PaginationEngine {
     els.progressEl.max = String(state.total - 1);
     state.page = landLast ? state.total - 1 : 0;
     this.goTo(state.page, false);
-    this.buildChapterIndexFn();
+    // No global chapter index in windowed mode — only one chapter is laid out, so
+    // pageOfElement on detached chapters is meaningless. Labels come from
+    // state.sectionLabels[curChap] instead (built at load).
   }
 
   paginateQuick() {

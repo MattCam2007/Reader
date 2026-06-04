@@ -462,8 +462,19 @@ diagnostic-grade and will be removed when the real fix lands.
   Lazy annotation is therefore **not** the fix.
 - **`?window=1`** — single-section windowed rendering: only the current chapter is
   attached to the DOM, so the browser lays out/paints one chapter instead of the whole
-  book. No doc-model / position save-restore while active (starts at chapter 0).
-  *Capture procedure:* open `reader.html?perf=1&window=1`, turn ~20 pages to get into a
-  full chapter, tap **Reset** on the perf panel, turn ~10 more pages within that chapter,
-  then **Copy**. Compare `turn-latency` against the 1.3 s baseline. A large drop confirms
-  the whole-book multi-column layout is the cost and that windowing is the fix to harden.
+  book. **Result: `turn-latency` 1308 ms → 21 ms avg (62×).** Confirmed: the whole-book
+  multi-column layout was the entire cost.
+
+  *Now hardened to preserve correctness* (still flag-gated; normal mode untouched):
+  the global doc-model is built once at load (word→node refs survive chapter
+  detachment), and every seek is section-aware — to navigate anywhere it attaches that
+  chapter, lays it out, then maps the word to a page. So **full-text search, bookmarks,
+  canonical position save/restore, cross-mode hand-off, TOC and footnote jumps all work**
+  while only one chapter is ever laid out. Progress is a global 0–1000 scrubber computed
+  cheaply (no per-turn `getBoundingClientRect`). Known limits while windowed: page numbers
+  are per-chapter; assumes paginated (not scroll) layout.
+
+  *Capture procedure:* open `reader.html?perf=1&window=1`, turn ~20 pages into a full
+  chapter, tap **Reset** on the perf panel, turn ~10 more within that chapter, then
+  **Copy**. The next step is promoting windowing to the default behind a word-count
+  threshold, with the cross-mode self-test as the gate (plan Phase 6).

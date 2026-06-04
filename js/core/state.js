@@ -20,6 +20,7 @@ export class ReaderState {
     this.windowed = false;
     this.chapWindows = [];   // [{ el, marker }] for every chapter, in order
     this.curChap = 0;        // index of the currently-attached chapter
+    this.sectionLabels = []; // per-section heading label, for windowed progress
 
     // Document model
     this.doc = {
