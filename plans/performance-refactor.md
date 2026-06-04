@@ -399,15 +399,19 @@ Suggested sample books (already in `books/`):
 
 Procedure (repeat per book):
 1. Serve the repo (`python3 -m http.server` from the repo root) and open
-   `reader.html?perf=1` in the browser.
+   `reader.html?perf=1` in the browser. A small **perf panel** appears bottom-right;
+   no DevTools console is needed.
 2. Open the file (folder icon) and pick the sample `.epub`. The load pipeline spans
-   (`reader:extract` → `reader:paginate`) log to the console.
+   (`reader:extract` → `reader:paginate`) fill in the panel as they run.
 3. Turn a few pages (←/→ or tap) to populate `page-turn`.
 4. Switch to RSVP, then TTS (the bottom mode buttons) to populate `mode-switch`,
    `rsvp:*`, `tts:*`.
-5. In the console run `__perf.report()` for the aggregated min/avg/max table. Record
-   the **avg** (and note the max for `page-turn`).
-6. `__perf.reset()` between books to isolate runs.
+5. Tap **Copy** on the panel — it puts a Markdown table (avg/min/max/count per op) on
+   the clipboard. Paste it into A.3. Record the **avg** (and note the max for `page-turn`).
+6. Tap **Reset** on the panel between books to isolate runs.
+
+(For anyone who *does* have a console, `__perf.report()` / `__perf.markdownTable()` /
+`__perf.reset()` do the same.)
 
 For **cold vs. warm load**: cold = first DevTools "Disable cache" + hard reload; warm =
 normal reload. (Warm/SW row stays empty until Phase 4 adds the service worker.)
