@@ -19,7 +19,9 @@ export function runSelftest(state) {
   const { doc } = state;
 
   // --- core/constants ---
-  assert("constants", "FONT_MAP has 3 entries", Object.keys(FONT_MAP).length === 3);
+  assert("constants", "FONT_MAP has the 4 font keys",
+    ["serif", "sans", "dyslexic", "mono"].every(k => typeof FONT_MAP[k] === "string")
+    && Object.keys(FONT_MAP).length === 4);
   assert("constants", "SETTINGS is non-empty array", Array.isArray(SETTINGS) && SETTINGS.length > 0);
   assert("constants", "DEFAULT_PREFS has theme", typeof DEFAULT_PREFS.theme === "string");
 
