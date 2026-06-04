@@ -1,4 +1,4 @@
-import { FONT_MAP, FONT_MONO, THEME_COLORS, GENERAL_DEFAULTS, ALL_THEME_NAMES } from './core/constants.js';
+import { FONT_MAP, FONT_MONO, GENERAL_DEFAULTS } from './core/constants.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
@@ -6,6 +6,7 @@ import { PrefsManager } from './core/prefs.js';
 import { EventBus } from './core/events.js';
 import { BookSession, countWords } from './core/book-session.js';
 import { renderSearchResults } from './shared/search.js';
+import { applyTheme, applyOsThemeFallback, savePosition as shellSavePosition, loadPosition } from './base-reader-app.js';
 import { RSVP_DEFAULTS } from './rsvp/constants.js';
 import { RsvpState } from './rsvp/state.js';
 import { tokenize } from './rsvp/tokenizer.js';
@@ -173,13 +174,6 @@ export function init(options = {}) {
   });
 
   // ---------- Theme ----------
-  function applyTheme(name) {
-    document.body.classList.remove(...ALL_THEME_NAMES.map(t => `theme-${t}`));
-    if (name !== "dark") document.body.classList.add("theme-" + name);
-    const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim();
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = bg;
-  }
   bus.on('themeChange', applyTheme);
 
   // ---------- Font ----------
@@ -567,13 +561,7 @@ export function init(options = {}) {
   document.body.classList.toggle('context-page', !!prefs.data.contextEnabled);
 
   // OS preference fallback
-  if (!localStorage.getItem("general:prefs")) {
-    if (window.matchMedia("(prefers-color-scheme: light)").matches) {
-      generalPrefs.data.theme = "light";
-      generalPrefs.save();
-      applyTheme("light");
-    }
-  }
+  applyOsThemeFallback(generalPrefs, (name) => { generalPrefs.save(); applyTheme(name); });
 
   // ---------- Sample text ----------
   const sampleText = `It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife.
@@ -647,18 +635,13 @@ This was invitation enough.
 
   // ---------- Handle ----------
   function savePosition() {
-    if (!state.bookId || !state.totalWords) return;
-    const pos = getCanonicalPosition();
-    if (pos) try { localStorage.setItem('book:pos:' + state.bookId, JSON.stringify(pos)); } catch (_) {}
+    if (!state.totalWords) return;
+    shellSavePosition(state.bookId, getCanonicalPosition);
   }
 
   function restorePosition() {
-    if (!state.bookId) return;
-    try {
-      const raw = localStorage.getItem('book:pos:' + state.bookId);
-      if (!raw) return;
-      applyCanonicalPosition(JSON.parse(raw));
-    } catch (_) {}
+    const pos = loadPosition(state.bookId);
+    if (pos) applyCanonicalPosition(pos);
   }
 
   return {

@@ -1,10 +1,11 @@
-import { FONT_MAP, FONT_SERIF, THEME_COLORS, GENERAL_DEFAULTS, ALL_THEME_NAMES } from './core/constants.js';
+import { FONT_MAP, FONT_SERIF, GENERAL_DEFAULTS } from './core/constants.js';
 import { PrefsManager } from './core/prefs.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
 import { BookSession, splitWords } from './core/book-session.js';
 import { renderSections, annotateInlineText } from './shared/render.js';
 import { renderSearchResults } from './shared/search.js';
+import { applyTheme, applyOsThemeFallback, savePosition as shellSavePosition, loadPosition } from './base-reader-app.js';
 import { buildTOC, resolveHref } from './epub/toc.js';
 import { buildSample } from '../fixtures/sample.js';
 import { TtsEngine } from './tts/engine.js';
@@ -440,11 +441,7 @@ export function init(options = {}) {
     const p = prefs.data;
 
     // Theme (reads from app-wide general prefs)
-    const theme = generalPrefs.data.theme;
-    document.body.classList.remove(...ALL_THEME_NAMES.map(t => `theme-${t}`));
-    if (theme !== 'dark') document.body.classList.add('theme-' + theme);
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta && THEME_COLORS[theme]) meta.setAttribute('content', THEME_COLORS[theme]);
+    applyTheme(generalPrefs.data.theme);
 
     // Font & size
     els.content.style.fontFamily = FONT_MAP[p.font] || FONT_SERIF;
@@ -612,21 +609,15 @@ export function init(options = {}) {
   }
 
   // ---------- Position persistence ----------
-  function posKey() { return 'book:pos:' + bookId; }
-
   function savePosition() {
-    if (!bookId || !sentences.length) return;
-    const pos = getCanonicalPosition();
-    if (pos) try { localStorage.setItem(posKey(), JSON.stringify(pos)); } catch (_) {}
+    if (!sentences.length) return;
+    shellSavePosition(bookId, getCanonicalPosition);
   }
 
   function restorePosition() {
-    if (!bookId) return 0;
-    try {
-      const raw = localStorage.getItem(posKey());
-      if (!raw) return 0;
-      return sentenceIndexForOrdinal(resolvePosition(JSON.parse(raw), ttsSections, totalWords, wordAt));
-    } catch (_) { return 0; }
+    const pos = loadPosition(bookId);
+    if (!pos) return 0;
+    return sentenceIndexForOrdinal(resolvePosition(pos, ttsSections, totalWords, wordAt));
   }
 
   // ---------- Canonical position ----------
@@ -816,13 +807,8 @@ export function init(options = {}) {
   engine.setRate(prefs.data.rate);
   engine.setPitch(prefs.data.pitch);
 
-  // Respect prefers-color-scheme on first load
-  if (!localStorage.getItem('tts:prefs')) {
-    if (window.matchMedia('(prefers-color-scheme: light)').matches) {
-      prefs.data.theme = 'light';
-      applyPrefs();
-    }
-  }
+  // Respect prefers-color-scheme on first load (theme lives in general prefs).
+  applyOsThemeFallback(generalPrefs, () => { generalPrefs.save(); applyPrefs(); });
 
   // Load voices asynchronously
   loadAndDisplayVoices().then(() => restoreVoice());
