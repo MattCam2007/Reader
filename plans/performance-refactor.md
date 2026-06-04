@@ -2,7 +2,43 @@
 
 **Author:** Staff Engineer (inherited ownership)
 **Date:** 2026-06-03 (updated 2026-06-04)
-**Status:** In progress — **Phase 0 ✅ and Phase 6 (windowing) ✅ landed**; remaining phases open.
+**Status:** Phases **0, 1, 2, 4, 5, 6, 7, 9 ✅ landed**; Phase 3 folded into 6/1
+(superseded); Phase 8 verified already-satisfied. See the completion note below.
+
+> ## ✅ Completion note (remaining-phases pass)
+>
+> Landed on `claude/performance-refactor-remaining-EkLY7`, one commit per phase:
+> - **Phase 1** — `core/book-session.js`; mode-switcher caches the `BookSession`
+>   and reuses it on switch (no re-parse). `renderBook` clones frags; the session
+>   owns image blob URLs. One shared `splitWords`/`countWords`.
+> - **Phase 2** — `shared/render.js` + `shared/search.js`; search hit resolution
+>   is now a binary search (`indexForOffset`), not an O(hits×words) linear scan.
+> - **Phase 3** — superseded by windowing; its useful parts (debounced `savePos`
+>   off the turn path, bookmark markers re-rendered only on set change) already
+>   existed, so nothing new was needed.
+> - **Phase 4** — `sw.js` (versioned cache, offline, CDN precache) +
+>   `core/sw-register.js`; CDN libs load deferred; the per-file JS import-path
+>   rewriting in `deploy.yml` is retired.
+> - **Phase 5** — `base-reader-app.js` shared shell helpers (theme, OS fallback,
+>   position storage), composed by all three modes. Done as composition, not a
+>   class rewrite, because the cross-mode self-test (the plan's merge gate) can't
+>   run headless — see the verification caveat at the end of Appendix A.
+> - **Phase 6 debt** — removed dead `paginateQuick`; added a tiny-book windowing
+>   threshold (`WINDOW_MIN_WORDS`) and per-chapter image resync on chapter entry.
+> - **Phase 7** — `library.html` folded into `js/library/*` + `css/library.css`;
+>   uses shared `tokens.css`; progress reads the canonical `book:pos:` key.
+> - **Phase 8** — verified already-satisfied (RSVP classes prefixed + inner
+>   classes scoped under `.rsvp-word`, `--orp-position` tokenised, only the
+>   reduced-motion `!important` remains).
+> - **Phase 9** — self-test coverage for the shared word-count / search / render
+>   modules; docs refreshed (`ARCHITECTURE`, `MODULES`, `STATE`, `DATA-FLOWS`,
+>   `CSS`) + new `docs/PERFORMANCE.md`.
+>
+> **Verification caveat:** this environment has no browser and the CDN libs are
+> network-blocked, so the in-browser `?selftest=1` cross-mode round-trip could
+> not be run here. Every changed file passes `node --check`; the pure-logic
+> self-tests were executed under Node. Run `reader.html?selftest=1` and a manual
+> mode-switch smoke test in a real browser before merge, per the guardrail.
 **Scope:** `js/`, `css/`, `*.html`, `docs/`. One focused refactor pass before the next feature wave.
 **Branch:** `claude/app-perf-refactor-phase-0-r8g2s`
 

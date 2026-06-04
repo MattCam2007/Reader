@@ -92,6 +92,26 @@ Entry point for the text-to-speech mode.
 5. Sets up voice/rate pickers and playback controls
 6. Restores saved position from the shared `book:pos:{bookId}` canonical position
 
+**Mode loading.** All three entry points expose `loadFromSession(session, pos)`
+on their handle. `loadEpub(file)` builds a `BookSession` (parse + extract once)
+then calls `loadFromSession`; the mode-switcher hands the cached session straight
+to `loadFromSession` on a mode switch (no re-parse). See `core/book-session.js`.
+
+### `js/base-reader-app.js`
+
+Shared app-shell helpers composed by all three modes (Phase 5):
+
+| Export | Purpose |
+|--------|---------|
+| `applyTheme(name)` | Body theme class + browser-chrome `theme-color` meta |
+| `applyThemeClass` / `setMetaThemeColor` | The two halves, separately |
+| `applyOsThemeFallback(generalPrefs, onApply)` | First-run `prefers-color-scheme: light` |
+| `savePosition(bookId, getPos)` / `loadPosition(bookId)` | Canonical `book:pos:` plumbing |
+
+Done as composition rather than a base class: the modes' closure/AbortController
+lifecycles are position-critical, so the genuinely-shared pieces are factored out
+while each mode keeps its own (DOM-specific) panel wiring.
+
 ---
 
 ## `js/core/` — Shared Infrastructure
@@ -274,6 +294,29 @@ The shared, mode-independent position layer. See [STATE.md → Canonical Positio
 - `buildPosition(sections, totalWords, globalOrd)` → canonical position object.
 - `resolvePosition(pos, sections, totalWords)` → global word ordinal for this mode.
 - `loadStoredPosition(bookId)` / `saveStoredPosition(bookId, pos)` — read/write `book:pos:{bookId}`.
+
+### `js/core/book-session.js`
+
+The mode-agnostic book pipeline, built **once** and shared by all modes.
+
+- **`BookSession.fromBuffer(buffer, fileName, urlId, onProgress)`** — `async`.
+  Runs `ePub()`, flattens the TOC, extracts sections, resolves image blob URLs
+  (baking `src` onto the template frags), derives the `bookId`/`title`, then
+  destroys the epub.js book. Returns a `BookSession` `{ sections, allImgUrls,
+  toc, bookId, fileName, title, buffer }`.
+- **`BookSession.fromSample(sections, bookId, title)`** — wraps an in-memory
+  sections array (the built-in sample) as a session.
+- **`session.dispose()`** — revokes the owned image blob URLs. The mode-switcher
+  calls this only when a genuinely new book replaces the cached session; a mode
+  switch reuses the same object, so blobs survive.
+- **`splitWords(text)` / `countWords(text)`** — the single whitespace-word
+  tokenisation rule shared by RSVP (`sectionsToText`) and TTS (`segmentContent`)
+  so per-section word counts (the cross-mode position anchor) can't drift.
+
+### `js/core/sw-register.js`
+
+`registerServiceWorker()` — registers `sw.js` and shows a "reload to update"
+toast when a new build is deployed. Used by `reader.html` and `library.html`.
 
 ### `js/core/storage.js`
 
@@ -935,6 +978,42 @@ Closes and removes the settings modal. Called by mode-switcher before mode switc
 Every control change immediately calls `prefs.set()`, which fires the EventBus and updates the live document — no "Apply" button needed.
 
 ---
+
+## `js/shared/render.js`
+
+Shared book rendering, used by the Reader and TTS (it was byte-identical in both).
+
+- **`renderSections(content, sections, { sectionEls, onHeading })`** — clears
+  `content` and builds the `.chap` / `.blk` DOM tree from extracted sections.
+  Clones each block frag (the session's `sections` are shared across modes, so
+  the template must not be consumed). Calls `onHeading({ label, el, depth })` for
+  each h1/h2. Does **not** annotate (callers run that in their own perf span).
+- **`annotateInlineText(root)`** — wraps quoted speech and punctuation in
+  `.inline-speech` / `.inline-punct` spans for per-theme colouring, preserving
+  the rendered text exactly (word positions depend on it).
+
+## `js/shared/search.js`
+
+Shared full-text search, used by all three modes (it was copy-pasted into each).
+
+- **`findHits(text, query, maxHits)`** — case-insensitive match offsets.
+- **`indexForOffset(charStart, charOff)`** — **binary search** over the sorted
+  char-start array (the fix for the old O(hits × words) linear scan).
+- **`renderSearchResults(resultsEl, { text, charStart, query, onPick, onHits })`**
+  — renders result buttons; `onPick(itemIndex, charOff)` fires on click. Reader
+  maps the index → word → locator, RSVP → word ordinal, TTS → sentence index.
+
+## `js/library/`
+
+The bookshelf (`library.html`), folded into the module system (Phase 7).
+
+- **`library.js`** — folder navigation, search, the detail sheet, and theme
+  cycling. Reading progress is read from the canonical `book:pos:{bookId}` key
+  (`POS_KEY_PREFIX`); theme apply + meta colour reuse `base-reader-app`.
+- **`data.js`** — `SAMPLE` library data, used until `data/library.json` exists.
+
+Layout styles live in `css/library.css`; theme tokens come from the shared
+`css/tokens.css`.
 
 ## `js/shared/picker.js`
 

@@ -147,11 +147,21 @@ class ReaderState {
   constructor() {
     this.page = 0;
     this.total = 1;
-    this.stride = 0;
-    this.bookId = null;
+    this.stride = 1;
+    this.bookId = "sample";
     this.docModelBuilt = false;
-    this.isScrollMode = false;
+    this.sectionEls = new Map();   // href -> .chap element
+    this.headingToc = [];
+    this.chapterIndex = [];
     this.sectionBlockStart = [];
+
+    // Windowed rendering (default for paginated layout): only one .chap is
+    // attached to the DOM at a time. The global doc-model is still built once at
+    // load (all chapters attached), so search/bookmarks/position work globally.
+    this.windowed = false;
+    this.chapWindows = [];   // [{ el, marker }] for every chapter, in order
+    this.curChap = 0;        // index of the currently-attached chapter
+    this.sectionLabels = []; // per-section heading label, for windowed progress
 
     this.doc = {
       words: [],
@@ -159,10 +169,24 @@ class ReaderState {
       sections: [],
       text: '',
       wordCharStart: [],
+      // render-token ↔ whitespace-word bridge (cross-mode count-exactness)
+      tokenToWs: [],   // render-token index -> whitespace-word ordinal
+      wsToToken: [],   // whitespace-word ordinal -> first render-token index
     };
   }
+
+  get isScrollMode() { return this._prefs && this._prefs.data.layout === "scroll"; }
 }
 ```
+
+> **Windowed rendering.** In paginated layout, books at/above `WINDOW_MIN_WORDS`
+> render only the current chapter; the rest live detached in comment-marker
+> placeholders (`chapWindows`). `curChap` is the attached chapter; navigation
+> (`seekToToken`, TOC/footnote/bookmark jumps, boundary page turns) attaches the
+> target chapter on demand. Because the doc-model is built once with every
+> chapter attached, the word→node references survive detachment, so `doc.text`
+> search, bookmarks and canonical position all resolve against the global model.
+> Scroll layout and small/single-chapter books render whole (`windowed = false`).
 
 **`words[]`** — the most granular level. Each entry is:
 ```js
