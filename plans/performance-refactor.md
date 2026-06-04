@@ -417,17 +417,36 @@ Procedure (repeat per book):
 For **cold vs. warm load**: cold = first DevTools "Disable cache" + hard reload; warm =
 normal reload. (Warm/SW row stays empty until Phase 4 adds the service worker.)
 
-### A.3 Results (paste captured numbers here)
+### A.3 Results
 
-| Operation | Small EPUB | Medium | Large (Sanderson) |
-|-----------|-----------|--------|-------------------|
-| `reader:extract` | — | — | — |
-| `reader:render` | — | — | — |
-| `reader:annotate` | — | — | — |
-| `doc-model` | — | — | — |
-| `reader:paginate` (initial) | — | — | — |
-| **`mode-switch` (Reader→RSVP)** | — | — | — |
-| **`page-turn`** (sync JS, avg / max) | — | — | — |
-| **`turn-latency`** (input→paint, avg / max) | — | — | — |
-| Cold load (no SW) | — | — | — |
-| Warm load (with SW) | — | — | — |
+First captured run (owner's device, 2026-06-04), book **Pawn of Prophecy** (David
+Eddings, ~505 KB EPUB) — the owner's daily reading book. Values are avg ms unless noted.
+
+| Operation | Pawn of Prophecy (~505 KB) | Small | Medium | Large (Sanderson) |
+|-----------|---------------------------:|-------|--------|-------------------|
+| `reader:extract` | 64.7 | — | — | — |
+| `reader:render` | 4.0 | — | — | — |
+| `reader:annotate` | 20.1 | — | — | — |
+| `doc-model` | 14.7 | — | — | — |
+| `reader:paginate` (initial) | 41.4 | — | — | — |
+| **`mode-switch` (Reader→RSVP/TTS)** | 388.5 (142–544) | — | — | — |
+| **`page-turn`** (sync JS, avg / max) | **0.2 / 0.8** | — | — | — |
+| **`turn-latency`** (input→paint, avg / max) | **1307.9 / 2621.8** | — | — | — |
+| `rsvp:extract` / `sectionsToText` / `tokenize` | 46.5 / 4.6 / 10.2 | — | — | — |
+| `tts:extract` / `render` / `annotate` / `segment` | 43.9 / 1.4 / 12.1 / 43.4 | — | — | — |
+| Cold load (no SW) | — | — | — | — |
+| Warm load (with SW) | — | — | — | — |
+
+**Headline finding.** The felt "2+ seconds to turn a page" is **entirely layout/paint,
+not JavaScript**: synchronous turn work is 0.2 ms while input→paint latency averages
+**1.3 s (peaks 2.6 s)** on a ~500 KB book. The whole book is laid out as one giant
+multi-column element, inflated several-fold by the per-punctuation annotation spans, and
+composited as one oversized layer — so each turn must rasterize a fresh strip of that
+huge span-heavy layer.
+
+**Consequence for sequencing.** Phase 3 as written (defer `savePos`/bookmark markers)
+targets the 0.2 ms synchronous path and therefore *cannot* move `turn-latency`. The fix
+is to cut what gets laid out/painted per turn — **lazy annotation (annotate only the
+current ±1 section) and section-windowed pagination (Phase 6)**. Recommend promoting the
+node-count reduction ahead of Phase 3; mode-switch (388 ms, the re-extract cost) remains
+the other top target via Phase 1.
