@@ -67,6 +67,21 @@ export function time(label, fn, meta) {
   finally { measure(label, meta); }
 }
 
+// Run `action` (e.g. a page turn) and record the latency from now until the
+// frame is actually painted — the "felt" cost. A double rAF lands just after
+// the browser paints the next frame, so if the main thread/paint is blocked the
+// recorded duration reflects that block (whereas a plain `time()` of the same
+// action only sees the cheap synchronous JS). Returns action()'s value.
+export function latencyToPaint(label, action, meta) {
+  if (!PERF_ENABLED) return action();
+  const t0 = _now();
+  const ret = action();
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => { _record(label, _now() - t0, meta); });
+  });
+  return ret;
+}
+
 // Time an async function — awaits the returned promise before recording.
 export async function timeAsync(label, fn, meta) {
   if (!PERF_ENABLED) return fn();

@@ -380,7 +380,8 @@ Spans wired in this phase (label → operation):
 | `reader:annotate` | Pass 3 — `annotateInlineText` (punctuation spans) | `reader-app.js: renderBook` |
 | `doc-model` | Pass 4 — `buildDocModel` | `reader/pagination.js: paginate` |
 | `reader:paginate` | Pass 5 — initial `paginate(false)` (layout + `scrollWidth`) | `reader-app.js: loadEpub` |
-| `page-turn` | `next()`/`prev()` synchronous work (transform + progress + savePos) | `reader/pagination.js` |
+| `page-turn` | `next()`/`prev()` **synchronous JS** only (transform + progress + savePos) | `reader/pagination.js` |
+| `turn-latency` | **Input → next painted frame** for a turn (tap/swipe/key; meta `{via,dir}`) — the *felt* cost, incl. layout/paint | `reader/input.js` |
 | `mode-switch` | Whole `switchMode` incl. teardown + `loadFromBuffer` (meta `{from,to}`) | `mode-switcher.js` |
 | `rsvp:extract` / `rsvp:sectionsToText` / `rsvp:tokenize` | RSVP load pipeline | `rsvp-app.js` |
 | `tts:extract` / `tts:render` / `tts:annotate` / `tts:segment` | TTS load pipeline | `tts-app.js` |
@@ -426,6 +427,7 @@ normal reload. (Warm/SW row stays empty until Phase 4 adds the service worker.)
 | `doc-model` | — | — | — |
 | `reader:paginate` (initial) | — | — | — |
 | **`mode-switch` (Reader→RSVP)** | — | — | — |
-| **`page-turn`** (avg / max) | — | — | — |
+| **`page-turn`** (sync JS, avg / max) | — | — | — |
+| **`turn-latency`** (input→paint, avg / max) | — | — | — |
 | Cold load (no SW) | — | — | — |
 | Warm load (with SW) | — | — | — |

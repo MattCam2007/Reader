@@ -3,6 +3,7 @@ import {
   TAP_ZONE_LEFT, TAP_ZONE_RIGHT,
   SYNTHETIC_CLICK_GUARD_MS, TAP_TIMEOUT_MS
 } from '../core/constants.js';
+import * as perf from '../core/perf.js';
 
 export class InputHandler {
   constructor(state, els, pagination, callbacks, signal) {
@@ -70,8 +71,8 @@ export class InputHandler {
       const dy = t ? t.clientY - this._startY : 0;
       if (this._decided === "h") {
         const threshold = Math.min(SWIPE_THRESHOLD_MAX_PX, viewport.clientWidth * SWIPE_THRESHOLD_VP_FRACTION);
-        if (dx <= -threshold) this.pagination.goTo(this.state.page + 1, true);
-        else if (dx >= threshold) this.pagination.goTo(this.state.page - 1, true);
+        if (dx <= -threshold) perf.latencyToPaint("turn-latency", () => this.pagination.goTo(this.state.page + 1, true), { via: "swipe", dir: "next" });
+        else if (dx >= threshold) perf.latencyToPaint("turn-latency", () => this.pagination.goTo(this.state.page - 1, true), { via: "swipe", dir: "prev" });
         else this.pagination.goTo(this.state.page, true);
       } else if (this._decided !== "v" && Math.abs(dx) < 10 && Math.abs(dy) < 10 && (Date.now() - this._startT) < TAP_TIMEOUT_MS) {
         this._handleTap(this._startX);
@@ -95,11 +96,11 @@ export class InputHandler {
       if (e.key === "ArrowRight" || e.key === "PageDown" || e.code === "Space") {
         if (inInput) return;
         e.preventDefault();
-        this.pagination.next();
+        perf.latencyToPaint("turn-latency", () => this.pagination.next(), { via: "key", dir: "next" });
       } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
         if (inInput) return;
         e.preventDefault();
-        this.pagination.prev();
+        perf.latencyToPaint("turn-latency", () => this.pagination.prev(), { via: "key", dir: "prev" });
       } else if (e.key === "Escape") {
         this.callbacks.dismissCoach();
         this.callbacks.closePanels();
@@ -128,8 +129,8 @@ export class InputHandler {
       return;
     }
     const w = this.els.viewport.clientWidth;
-    if (x < w * TAP_ZONE_LEFT) this.pagination.prev();
-    else if (x > w * TAP_ZONE_RIGHT) this.pagination.next();
+    if (x < w * TAP_ZONE_LEFT) perf.latencyToPaint("turn-latency", () => this.pagination.prev(), { via: "tap", dir: "prev" });
+    else if (x > w * TAP_ZONE_RIGHT) perf.latencyToPaint("turn-latency", () => this.pagination.next(), { via: "tap", dir: "next" });
     else this.callbacks.toggleChrome();
   }
 }
