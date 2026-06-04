@@ -139,7 +139,7 @@ function _buildOverlay() {
   const wrap = document.createElement('div');
   wrap.id = 'perfPanel';
   wrap.style.cssText = [
-    'position:fixed', 'right:8px', 'bottom:8px', 'z-index:2147483647',
+    'position:fixed', 'left:8px', 'top:8px', 'z-index:2147483647',
     'max-width:min(92vw,420px)', 'max-height:60vh', 'overflow:auto',
     'background:rgba(17,17,17,0.92)', 'color:#e5e5e5', 'font:11px/1.4 ui-monospace,Menlo,Consolas,monospace',
     'border:1px solid #333', 'border-radius:8px', 'padding:8px 10px',
