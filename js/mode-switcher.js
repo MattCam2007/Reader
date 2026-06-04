@@ -2,6 +2,7 @@ import { readerTemplate } from './reader/template.js';
 import { rsvpTemplate } from './rsvp/template.js';
 import { ttsTemplate } from './tts/template.js';
 import { closeSettingsScreen } from './settings/settings-screen.js';
+import * as perf from './core/perf.js';
 
 const READER_BODY_CLASSES = [
   'chrome-hidden', 'loading', 'error', 'show-toc', 'show-search', 'show-bookmarks',
@@ -37,6 +38,8 @@ function onBookLoaded({ buffer, fileName, bookId }) {
 }
 
 async function switchMode(targetMode, posInfo) {
+  const fromMode = currentMode;
+  perf.mark("mode-switch");
   // Tear down current mode
   closeSettingsScreen();
   if (currentHandle) {
@@ -108,6 +111,7 @@ async function switchMode(targetMode, posInfo) {
       console.warn('switcher:transfer', e);
     }
   }
+  perf.measure("mode-switch", { from: fromMode, to: targetMode });
 }
 
 // ---------- Boot ----------

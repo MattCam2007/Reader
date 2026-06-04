@@ -2,6 +2,7 @@ import { COLUMN_GAP } from '../core/constants.js';
 import { buildDocModel } from '../model/doc-model.js';
 import { pageOfWord, wordAtPageStart } from '../model/geometry.js';
 import { resolveLocator } from '../model/locator.js';
+import * as perf from '../core/perf.js';
 
 export class PaginationEngine {
   constructor(state, els, currentLocatorFn, buildChapterIndexFn, updateProgressFn, savePosMainFn) {
@@ -51,7 +52,7 @@ export class PaginationEngine {
       state.total = 1;
       state.page = 0;
       els.progressEl.max = "0";
-      if (!state.docModelBuilt) { buildDocModel(state, content); state.docModelBuilt = true; }
+      if (!state.docModelBuilt) { perf.time("doc-model", () => buildDocModel(state, content)); state.docModelBuilt = true; }
       this.buildChapterIndexFn();
       if (savedLoc && state.doc.words.length) {
         const wi = resolveLocator(state, savedLoc);
@@ -65,7 +66,7 @@ export class PaginationEngine {
     state.total = Math.max(1, Math.round(content.scrollWidth / state.stride));
     els.progressEl.max = String(state.total - 1);
 
-    if (!state.docModelBuilt) { buildDocModel(state, content); state.docModelBuilt = true; }
+    if (!state.docModelBuilt) { perf.time("doc-model", () => buildDocModel(state, content)); state.docModelBuilt = true; }
 
     if (savedLoc && state.doc.words.length) {
       const wi = resolveLocator(state, savedLoc);
@@ -193,6 +194,14 @@ export class PaginationEngine {
     this.savePosMainFn();
   }
 
-  next() { if (this.state.page < this.state.total - 1) this.goTo(this.state.page + 1, true); }
-  prev() { if (this.state.page > 0) this.goTo(this.state.page - 1, true); }
+  next() {
+    if (this.state.page < this.state.total - 1) {
+      perf.time("page-turn", () => this.goTo(this.state.page + 1, true), { dir: "next" });
+    }
+  }
+  prev() {
+    if (this.state.page > 0) {
+      perf.time("page-turn", () => this.goTo(this.state.page - 1, true), { dir: "prev" });
+    }
+  }
 }

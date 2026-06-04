@@ -21,6 +21,7 @@ import { FootnoteManager } from './reader/footnotes.js';
 import { buildSample } from '../fixtures/sample.js';
 import { runSelftest } from './test/selftest.js';
 import { trapFocus } from './reader/focus-trap.js';
+import * as perf from './core/perf.js';
 
 export function init(options = {}) {
   const signal = options.signal || new AbortController().signal;
@@ -403,6 +404,7 @@ export function init(options = {}) {
 
   // ---------- Rendering ----------
   function renderBook(sections) {
+    perf.mark("reader:render");
     state.blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) { console.warn("render:revokeBlob", e); } });
     state.blobUrls = [];
     els.content.innerHTML = "";
@@ -431,7 +433,8 @@ export function init(options = {}) {
       frag.appendChild(wrap);
     });
     els.content.appendChild(frag);
-    annotateInlineText(els.content);
+    perf.measure("reader:render", { sections: sections.length });
+    perf.time("reader:annotate", () => annotateInlineText(els.content));
   }
 
   // Wrap quoted speech and punctuation in spans for per-theme coloring.
@@ -526,9 +529,10 @@ export function init(options = {}) {
         epubToc = flattenToc(nav && nav.toc, 0, []);
       } catch (e) { console.warn("epub:toc", e); }
 
-      const { sections, allImgUrls } = await extractSections(book, (msg) => {
-        els.overlayMsg.textContent = msg;
-      });
+      const { sections, allImgUrls } = await perf.timeAsync("reader:extract", () =>
+        extractSections(book, (msg) => {
+          els.overlayMsg.textContent = msg;
+        }));
       const chars = sections.reduce((n, s) => n + s.blocks.reduce((m, b) => m + b.text.length, 0), 0);
       if (chars < 32) {
         throw new Error("No readable text found (this EPUB may be image-only or DRM-protected).");
@@ -563,7 +567,7 @@ export function init(options = {}) {
       await new Promise((resolve) => {
         requestAnimationFrame(() => {
           try {
-            pagination.paginate(false);
+            perf.time("reader:paginate", () => pagination.paginate(false));
             buildTOC(epubToc, state.headingToc, els.tocListEl, state.sectionEls,
               (el) => pagination.goTo(pageOfElement(state, els.content, el), false),
               closePanels,

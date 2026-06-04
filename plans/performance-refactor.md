@@ -361,16 +361,67 @@ Phases 5–8 are the **architecture track**; they depend on the shared pieces fr
 
 ---
 
-## Appendix A — Baseline measurements (to be filled by Phase 0)
+## Appendix A — Baseline measurements
+
+### A.1 Instrumentation (Phase 0 — landed)
+
+`js/core/perf.js` provides `mark`/`measure`/`time`/`timeAsync` wrappers around the
+User Timing API. **They are a no-op unless the page is loaded with `?perf=1`** — zero
+cost on a normal load. When enabled, every span (a) emits a `performance.measure` so it
+shows on the DevTools Performance track, (b) logs a dimmed `⏱ label Xms` console line,
+and (c) is recorded for a labelled summary table via `window.__perf`.
+
+Spans wired in this phase (label → operation):
+
+| Span label | Operation | Source |
+|------------|-----------|--------|
+| `reader:extract` | Pass 1 — `extractSections` (Reader) | `reader-app.js` |
+| `reader:render` | Pass 2 — build the `.content` DOM tree | `reader-app.js: renderBook` |
+| `reader:annotate` | Pass 3 — `annotateInlineText` (punctuation spans) | `reader-app.js: renderBook` |
+| `doc-model` | Pass 4 — `buildDocModel` | `reader/pagination.js: paginate` |
+| `reader:paginate` | Pass 5 — initial `paginate(false)` (layout + `scrollWidth`) | `reader-app.js: loadEpub` |
+| `page-turn` | `next()`/`prev()` synchronous work (transform + progress + savePos) | `reader/pagination.js` |
+| `mode-switch` | Whole `switchMode` incl. teardown + `loadFromBuffer` (meta `{from,to}`) | `mode-switcher.js` |
+| `rsvp:extract` / `rsvp:sectionsToText` / `rsvp:tokenize` | RSVP load pipeline | `rsvp-app.js` |
+| `tts:extract` / `tts:render` / `tts:annotate` / `tts:segment` | TTS load pipeline | `tts-app.js` |
+
+### A.2 How to capture the baseline
+
+> ⚠️ **Not captured in the CI/agent environment.** The app loads `jszip` + `epub.js` from
+> `cdn.jsdelivr.net`, which is network-blocked here (HTTP 403), and no browser is installed,
+> so a real EPUB can't be parsed. Capture these numbers from a normal browser session
+> against the sample books below, then paste them into A.3.
+
+Suggested sample books (already in `books/`):
+- **Small** — `books/Battletech/14 - Robert Thurston - Bloodname (1991).epub` (~256 KB)
+- **Medium** — `books/Brandon Sanderson/Mistborn/02 - ... The Well of Ascension (2007).epub` (~716 KB)
+- **Large (Sanderson)** — `books/Brandon Sanderson/Mistborn/01 - ... The Final Empire (2006).epub` (~1.1 MB)
+
+Procedure (repeat per book):
+1. Serve the repo (`python3 -m http.server` from the repo root) and open
+   `reader.html?perf=1` in the browser.
+2. Open the file (folder icon) and pick the sample `.epub`. The load pipeline spans
+   (`reader:extract` → `reader:paginate`) log to the console.
+3. Turn a few pages (←/→ or tap) to populate `page-turn`.
+4. Switch to RSVP, then TTS (the bottom mode buttons) to populate `mode-switch`,
+   `rsvp:*`, `tts:*`.
+5. In the console run `__perf.report()` for the aggregated min/avg/max table. Record
+   the **avg** (and note the max for `page-turn`).
+6. `__perf.reset()` between books to isolate runs.
+
+For **cold vs. warm load**: cold = first DevTools "Disable cache" + hard reload; warm =
+normal reload. (Warm/SW row stays empty until Phase 4 adds the service worker.)
+
+### A.3 Results (paste captured numbers here)
 
 | Operation | Small EPUB | Medium | Large (Sanderson) |
 |-----------|-----------|--------|-------------------|
-| extractSections | — | — | — |
-| renderBook | — | — | — |
-| annotateInlineText | — | — | — |
-| buildDocModel | — | — | — |
-| paginate (initial) | — | — | — |
-| **Mode switch (Reader→RSVP)** | — | — | — |
-| **Page turn** | — | — | — |
+| `reader:extract` | — | — | — |
+| `reader:render` | — | — | — |
+| `reader:annotate` | — | — | — |
+| `doc-model` | — | — | — |
+| `reader:paginate` (initial) | — | — | — |
+| **`mode-switch` (Reader→RSVP)** | — | — | — |
+| **`page-turn`** (avg / max) | — | — | — |
 | Cold load (no SW) | — | — | — |
 | Warm load (with SW) | — | — | — |

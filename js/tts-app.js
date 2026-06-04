@@ -11,6 +11,7 @@ import { TtsHighlighter } from './tts/highlighter.js';
 import { TTS_DEFAULTS } from './tts/constants.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 import { deriveBookId, buildPosition, resolvePosition } from './core/position.js';
+import * as perf from './core/perf.js';
 
 export function init(options = {}) {
   const signal = options.signal || new AbortController().signal;
@@ -423,6 +424,7 @@ export function init(options = {}) {
 
   // ---------- Rendering ----------
   function renderBook(sections) {
+    perf.mark("tts:render");
     blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (_) {} });
     blobUrls.length = 0;
     els.content.innerHTML = '';
@@ -452,7 +454,8 @@ export function init(options = {}) {
       frag.appendChild(wrap);
     });
     els.content.appendChild(frag);
-    annotateInlineText(els.content);
+    perf.measure("tts:render", { sections: sections.length });
+    perf.time("tts:annotate", () => annotateInlineText(els.content));
   }
 
   function annotateInlineText(root) {
@@ -641,9 +644,10 @@ export function init(options = {}) {
         epubToc = flattenToc(nav && nav.toc, 0, []);
       } catch (e) { console.warn('tts:toc', e); }
 
-      const { sections, allImgUrls } = await extractSections(book, (msg) => {
-        els.overlayMsg.textContent = msg;
-      });
+      const { sections, allImgUrls } = await perf.timeAsync("tts:extract", () =>
+        extractSections(book, (msg) => {
+          els.overlayMsg.textContent = msg;
+        }));
       const chars = sections.reduce((n, s) => n + s.blocks.reduce((m, b) => m + b.text.length, 0), 0);
       if (chars < 32) throw new Error('No readable text found (this EPUB may be image-only or DRM-protected).');
 
@@ -667,7 +671,7 @@ export function init(options = {}) {
       await new Promise((resolve) => {
         requestAnimationFrame(() => {
           try {
-            sentences = segmentContent();
+            sentences = perf.time("tts:segment", () => segmentContent());
             _ttsSearchCache = null;
             highlighter.setSentences(sentences);
             // A handed-off position is the single source of truth; otherwise
