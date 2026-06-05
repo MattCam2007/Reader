@@ -20,6 +20,7 @@ export class PageCounter {
     this._host = null;   // { viewport, clip, content }
     this._idle = null;   // scheduleIdle handle
     this._onUpdate = null;
+    this._gen = 0;       // incremented on each begin() to invalidate in-flight callbacks
   }
 
   // ---- Signature ----
@@ -47,6 +48,7 @@ export class PageCounter {
     cancelIdle(this._idle);
     this._idle = null;
     this._removeHost();
+    this._gen++;         // invalidate any _measureChapter promises still in-flight
     this._onUpdate = onUpdate;
     const sig = this.computeSignature();
     this.state.pageCountSig = sig;
@@ -207,9 +209,11 @@ export class PageCounter {
     for (let i = this.state.curChap + 1; i < n; i++) order.push(i);
 
     let orderIdx = 0;
+    const gen = this._gen;
 
     const step = (deadline) => {
       this._idle = null;
+      if (gen !== this._gen) return;
       if (this.state.pageCountsComplete) return;
 
       // Advance past already-measured chapters
@@ -224,7 +228,7 @@ export class PageCounter {
 
       const i = order[orderIdx++];
       this._measureChapter(i).then(count => {
-        if (!this.state.pageCounts) return;
+        if (gen !== this._gen) return;
         if (count !== undefined) {
           this.state.pageCounts[i] = count;
           this._maybeComplete();
@@ -234,6 +238,7 @@ export class PageCounter {
           this._idle = scheduleIdle(step);
         }
       }).catch(() => {
+        if (gen !== this._gen) return;
         if (!this.state.pageCountsComplete && this._idle === null) {
           this._idle = scheduleIdle(step);
         }
