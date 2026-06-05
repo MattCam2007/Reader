@@ -547,7 +547,11 @@ export function init(options = {}) {
     }
   }
 
+  let _suppressSampleLayout = false;
   async function loadFromSession(session, pos) {
+    // Cancel the sample-book rAF so it doesn't overwrite the real TOC that this
+    // function builds, and so segmentContent() isn't called twice on stale DOM.
+    _suppressSampleLayout = true;
     engine.cancel();
     setPlaying(false);
     highlighter.clearHighlight();
@@ -830,6 +834,7 @@ export function init(options = {}) {
     els.bookTitleEl.textContent = 'Pride and Prejudice';
     renderBook(buildSample());
     requestAnimationFrame(() => {
+      if (_suppressSampleLayout) return;
       sentences = segmentContent();
       _ttsSearchCache = null;
       highlighter.setSentences(sentences);

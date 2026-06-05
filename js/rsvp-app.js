@@ -593,10 +593,25 @@ This was invitation enough.
 "Oh! Single, my dear, to be sure! A single man of large fortune; four or five thousand a year. What a fine thing for our girls!"`;
 
   // ---------- Init ----------
-  state.bookId = 'Pride and Prejudice (sample)';
-  bookmarkManager.setBook(state.bookId);
-  loadText(sampleText, []);
-  restorePosition();
+  const srcUrl = urlParams.get('src');
+  if (srcUrl) {
+    state.setPlayState('loading');
+    els.statusMsg.classList.remove('error');
+    els.statusRetryBtn.hidden = true;
+    els.statusMsg.textContent = 'Fetching book…';
+    fetch(srcUrl)
+      .then(r => { if (!r.ok) throw new Error('Fetch failed: ' + r.status); return r.blob(); })
+      .then(blob => {
+        const fn = srcUrl.split('/').pop() || 'book.epub';
+        return loadEpub(new File([blob], fn, { type: 'application/epub+zip' }));
+      })
+      .catch(err => showLoadError(err));
+  } else {
+    state.bookId = 'Pride and Prejudice (sample)';
+    bookmarkManager.setBook(state.bookId);
+    loadText(sampleText, []);
+    restorePosition();
+  }
 
   // ---------- Canonical position ----------
   // Section table keyed by stable spine href — shared anchor across modes.
