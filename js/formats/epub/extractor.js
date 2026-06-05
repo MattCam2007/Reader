@@ -1,4 +1,4 @@
-import { RICH_INLINE, BLOCK_SEL, SKIP_SEL, INLINE_TAGS, SAFE_ATTRS } from '../core/constants.js';
+import { RICH_INLINE, BLOCK_SEL, SKIP_SEL, INLINE_TAGS, SAFE_ATTRS } from '../../core/constants.js';
 
 export function sanitizeInline(srcNode) {
   const frag = document.createDocumentFragment();

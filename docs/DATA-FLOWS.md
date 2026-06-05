@@ -62,12 +62,14 @@ reader.html
 
 ---
 
-## 2. Loading an EPUB File
+## 2. Loading a Book File
 
-The mode-agnostic parse + extract + image-resolve runs **once** in
-`BookSession.fromBuffer` (`core/book-session.js`); each mode then renders from
-the session. RSVP derives its plain-text stream from `session.sections` rather
-than running a separate extraction.
+The mode-agnostic parse pipeline runs **once** in `BookSession.fromBuffer`
+(`core/book-session.js`); each mode then renders from the session. RSVP derives
+its plain-text stream from `session.sections` rather than running a separate
+extraction. The pipeline is **format-agnostic**: `fromBuffer` detects the format
+and delegates to the matching `FormatAdapter`; adding a new format means adding
+one adapter, nothing else.
 
 ### 2a. File picker / drag-and-drop
 
@@ -94,23 +96,27 @@ reader-app.js init()
 ```
 BookSession.fromBuffer(buffer, fileName, urlId)   [runs ONCE per book]
   │
-  ├─ JSZip.loadAsync(buffer)           CDN: parse ZIP archive
+  ├─ formats/registry.js: selectAdapter(buffer, fileName)
+  │      → magic-byte + extension detection → FormatAdapter
+  │      → null? throw friendly "can't open .X files yet" error
   │
-  ├─ epub.js: ePub(buffer)             CDN: parse OPF/NCX/NAV metadata
-  │
-  ├─ epub/toc.js: flattenToc(nav)      Read navigation → flat TocEntry[]
-  │
-  ├─ epub/extractor.js: extractSections(book)
-  │      └─ For each spine item:
-  │           spine item load()   → XHTML document
-  │           Walk DOM with BLOCK_SEL/SKIP_SEL
-  │           Build safe block frags → Section { blocks, href }
-  │
-  ├─ epub/images.js: resolveImageUrls(allImgUrls, book)
-  │      └─ Resolve relative img src → blob: URLs (baked onto template frags)
-  │
-  ├─ derive bookId/title; book.destroy()
-  └─ return BookSession { sections, toc, bookId, title, blobUrls }
+  └─ adapter.parse(buffer, fileName, { onProgress })   [format-specific]
+         │
+         │  (EPUB adapter — formats/epub/epub-adapter.js)
+         ├─ epub.js: ePub(buffer)             CDN: parse OPF/NCX/NAV metadata
+         ├─ formats/epub/toc.js: flattenToc   Read navigation → TocEntry[]
+         ├─ formats/epub/extractor.js: extractSections(book)
+         │      └─ For each spine item:
+         │           spine item load()   → XHTML document
+         │           Walk DOM with BLOCK_SEL/SKIP_SEL
+         │           Build safe block frags → Section { blocks, href }
+         ├─ formats/epub/images.js: resolveImageUrls(allImgUrls, book)
+         │      └─ Resolve relative img src → blob: URLs (baked onto frags)
+         └─ return ParsedBook { sections, toc, title, metaTitle, blobUrls }
+
+  → deriveBookId(urlId, metaTitle, fileName) → bookId
+  → return BookSession { sections, toc, bookId, title, blobUrls,
+                         format:'epub', capabilities:{reflow:true,…} }
 
 loadFromSession(session, pos)         [per mode; re-run on every mode switch]
   │

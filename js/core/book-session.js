@@ -1,7 +1,7 @@
-import { extractSections } from '../epub/extractor.js';
-import { resolveImageUrls } from '../epub/images.js';
-import { flattenToc, buildSyntheticToc } from '../epub/toc.js';
 import { deriveBookId } from './position.js';
+import { selectAdapter, supportedLabels } from '../formats/registry.js';
+import { makeCapabilities, FULL_CAPABILITIES } from '../formats/capabilities.js';
+import '../formats/index.js'; // ensure all adapters are registered (side-effect import)
 import * as perf from './perf.js';
 
 // The single whitespace-word tokenisation rule every mode must agree on. RSVP's
@@ -19,10 +19,7 @@ export function countWords(text) {
 
 // A BookSession owns the parsed book and its mode-agnostic extracted data —
 // built ONCE and shared by every mode. Switching modes reuses this instead of
-// re-running ePub()/extractSections from scratch (the multi-second stall the
-// performance plan targets). The expensive, mode-agnostic work (parse, extract,
-// resolve images) happens exactly once per book regardless of how many modes
-// the reader visits.
+// re-running the format-specific parse from scratch.
 //
 // Image blob URLs are resolved once and baked onto the template frag <img>
 // nodes; renderBook clones those frags, so the resolved src rides along into
@@ -31,7 +28,6 @@ export function countWords(text) {
 export class BookSession {
   constructor(data) {
     this.sections = data.sections || [];
-    this.allImgUrls = data.allImgUrls || [];
     this.toc = data.toc || [];
     this.bookId = data.bookId || '';
     this.fileName = data.fileName || '';
@@ -39,59 +35,55 @@ export class BookSession {
     this.buffer = data.buffer || null;
     this._blobUrls = data.blobUrls || [];
     this.isSample = !!data.isSample;
+    // Phase 0: format id and capabilities are carried on the session so modes
+    // and UI can degrade gracefully without knowing which format was opened.
+    this.format = data.format || '';
+    this.capabilities = data.capabilities || makeCapabilities();
   }
 
-  // Build a session from raw EPUB bytes. Runs the whole mode-agnostic pipeline
-  // (parse → flatten toc → extract sections → resolve images) once, then
-  // destroys the epub.js book object since the blob URLs are already
-  // materialised and the rest of the data is plain JS.
+  // Parse a file from raw bytes. Detects the format, selects the registered
+  // adapter, runs adapter.parse() to produce the canonical IR, then wraps the
+  // result. Throws a descriptive Error for unsupported or corrupt files.
   static async fromBuffer(buffer, fileName, urlId, onProgress) {
-    if (typeof ePub !== 'function') {
-      throw new Error('EPUB library failed to load. Check your connection.');
-    }
-    const book = ePub(buffer);
-    await book.ready;
-
-    let toc = [];
-    try {
-      const nav = await book.loaded.navigation;
-      toc = flattenToc(nav && nav.toc, 0, []);
-    } catch (e) { console.warn('session:toc', e); }
-
-    const { sections, allImgUrls } = await perf.timeAsync('session:extract', () =>
-      extractSections(book, onProgress));
-
-    const chars = sections.reduce((n, s) => n + s.blocks.reduce((m, b) => m + b.text.length, 0), 0);
-    if (chars < 32) {
-      try { if (typeof book.destroy === 'function') book.destroy(); } catch (_) {}
-      throw new Error('No readable text found (this EPUB may be image-only or DRM-protected).');
+    const adapter = selectAdapter(buffer, fileName);
+    if (!adapter) {
+      const ext = (fileName || '').split('.').pop().toLowerCase();
+      const supported = supportedLabels().join(', ');
+      throw new Error(
+        `Reader can't open .${ext} files yet. Supported formats: ${supported}.`
+      );
     }
 
-    // When the EPUB provides no navigation document (empty NCX navMap or missing
-    // nav.xhtml) synthesize a TOC from section titles captured during extraction.
-    // Common in older calibre exports where headings are styled <p> elements.
-    if (!toc.length && sections.length > 1) {
-      toc = buildSyntheticToc(sections);
-    }
+    const parsed = await perf.timeAsync('session:parse', () =>
+      adapter.parse(buffer, fileName, { onProgress }));
 
-    // Resolve images once, baking src onto the template frag <img> nodes.
-    const blobUrls = allImgUrls.length
-      ? await perf.timeAsync('session:images', () => resolveImageUrls(allImgUrls, book))
-      : [];
+    const bookId = deriveBookId(urlId, parsed.metaTitle, fileName);
 
-    const meta = (book.packaging && book.packaging.metadata) || {};
-    const title = (meta.title || fileName).trim();
-    const bookId = deriveBookId(urlId, meta.title, fileName);
-
-    try { if (typeof book.destroy === 'function') book.destroy(); } catch (e) { console.warn('session:destroy', e); }
-
-    return new BookSession({ sections, allImgUrls, toc, bookId, fileName, title, buffer, blobUrls });
+    return new BookSession({
+      sections: parsed.sections,
+      toc: parsed.toc,
+      title: parsed.title,
+      blobUrls: parsed.blobUrls,
+      bookId,
+      fileName,
+      buffer,
+      format: adapter.id,
+      capabilities: adapter.capabilities,
+    });
   }
 
   // Wrap an in-memory sections array (the built-in sample) as a session so the
-  // load path is uniform. No book, no images.
+  // load path is uniform. No book, no images. Full capabilities by convention.
   static fromSample(sections, bookId, title) {
-    return new BookSession({ sections, toc: [], bookId, title, isSample: true });
+    return new BookSession({
+      sections,
+      toc: [],
+      bookId,
+      title,
+      isSample: true,
+      format: 'sample',
+      capabilities: FULL_CAPABILITIES,
+    });
   }
 
   // Release the owned image blob URLs. Call when this session is being replaced

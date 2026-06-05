@@ -63,10 +63,17 @@ Reader/
 │   │   ├── sw-register.js       Service-worker registration + update toast
 │   │   └── storage.js           StorageManager — position save/restore
 │   │
-│   ├── epub/                    EPUB processing pipeline
-│   │   ├── extractor.js         Extract rich/plain text blocks from EPUB spine
-│   │   ├── images.js            Resolve image blob URLs; detect cover image
-│   │   └── toc.js               Flatten EPUB navigation; render TOC; resolve hrefs
+│   ├── formats/                 Format-abstraction layer (Phase 0+)
+│   │   ├── types.js             JSDoc IR typedefs: Block, Section, TocEntry, ParsedBook, FormatAdapter
+│   │   ├── capabilities.js      makeCapabilities(), FULL_CAPABILITIES, NO_CAPABILITIES
+│   │   ├── detect.js            magicBytes(), startsWith(), ZIP_MAGIC
+│   │   ├── registry.js          registerAdapter(), selectAdapter(), acceptString()
+│   │   ├── index.js             Adapter barrel — imports each adapter so it self-registers
+│   │   └── epub/                EPUB format adapter
+│   │       ├── epub-adapter.js  FormatAdapter for EPUB — detect, loadLibs, parse
+│   │       ├── extractor.js     Extract rich/plain text blocks from EPUB spine
+│   │       ├── images.js        Resolve image blob URLs; detect cover image
+│   │       └── toc.js           Flatten EPUB navigation; render TOC; resolve hrefs
 │   │
 │   ├── model/                   Document model and geometry
 │   │   ├── doc-model.js         Build word/block/section index from rendered DOM
@@ -169,8 +176,10 @@ The dependency flow is strictly layered. Higher layers import from lower layers;
             └──────┬─────┘ └────┬────┘ └────┬────┘
                    │            │            │
         ┌──────────▼────────────▼────────────▼──────────────┐
-        │                   EPUB Processing                  │
-        │          epub/extractor  epub/images  epub/toc     │
+        │              Format Adapter Layer                  │
+        │  formats/registry  →  FormatAdapter.parse()       │
+        │  (EPUB: formats/epub/{epub-adapter,extractor,     │
+        │   images,toc})                                     │
         └──────────────────────────┬─────────────────────────┘
                                    │
         ┌──────────────────────────▼─────────────────────────┐
@@ -253,46 +262,56 @@ When switching modes while a book is loaded, the switcher:
 
 ---
 
-## EPUB Processing Pipeline
+## Format Adapter Pipeline
 
-EPUB files are ZIP archives containing XHTML documents. The parse + extract +
-image-resolve pipeline is **mode-agnostic and runs exactly once per book**,
-owned by `core/book-session.js`:
+Reader supports multiple file formats through a **format-adapter interface**
+(`js/formats/`). Each adapter translates a file's bytes into a canonical
+Intermediate Representation (IR) — `Section[]` / `Block[]` / `TocEntry[]` —
+that every downstream module consumes. Adding a new format means writing one
+adapter; the reader, RSVP, TTS, position system, search, and bookmarks are
+untouched. See [`docs/ADDING-A-FORMAT.md`](ADDING-A-FORMAT.md).
 
-> **`BookSession`** — `BookSession.fromBuffer(buffer, fileName, urlId)` runs
-> `ePub()`, flattens the TOC, extracts sections, and resolves image blob URLs
-> (baking the resolved `src` onto the template block frags), then destroys the
-> epub.js book object. The resulting session — `{ sections, toc, bookId, title,
-> blobUrls }` — is cached by `mode-switcher.js`. On a **mode switch** the *same*
-> session object is handed to the next mode's `loadFromSession(session, pos)`,
-> which renders without re-parsing. Switching Reader → RSVP → TTS now parses the
-> EPUB once, not three times. The session owns the image blob URLs and disposes
-> them only when a genuinely new book loads (so `renderBook` clones the shared
-> frags rather than consuming them).
-
-The pipeline inside a session:
+**`BookSession.fromBuffer`** is now a **dispatcher**:
 
 ```
-File / URL
+File bytes + fileName
     │
     ▼
-epub.js (CDN)              Parses EPUB metadata, spine order, navigation
+formats/detect.js          Magic-byte + extension detection helpers
     │
     ▼
-epub/extractor.js          For each spine item:
-                           - Loads the XHTML document
-                           - Walks the DOM with BLOCK_SEL / SKIP_SEL rules
-                           - Extracts either rich HTML (Reader/TTS) or plain text (RSVP)
-                           - Returns an array of section objects: [{html, href, title}]
+formats/registry.js        selectAdapter() → the matching FormatAdapter
     │
-    ├──▶ epub/images.js    Resolves relative image src attributes to blob: URLs
-    │                      Detects and loads the book cover image
-    │
-    └──▶ epub/toc.js       Reads epub.js navigation to get TOC entries
-                           Flattens nested TOC into a flat list with depth info
-                           Builds the TOC drawer HTML
-                           Resolves TOC href → spine section index
+    ▼
+FormatAdapter.parse()      Format-specific pipeline → ParsedBook (the IR)
+    │                        sections[], toc[], title, blobUrls, capabilities
+    ▼
+core/book-session.js       Wraps IR into BookSession { …, format, capabilities }
+                           Cached by mode-switcher; handed to every mode on switch.
 ```
+
+**EPUB pipeline** (the only registered adapter in Phase 0, `formats/epub/`):
+
+```
+ePub(buffer) [epub.js CDN]        Parse ZIP archive, OPF/NCX/NAV metadata
+    │
+    ▼
+formats/epub/extractor.js         For each spine item:
+                                  - Loads the XHTML document
+                                  - Walks DOM with BLOCK_SEL / SKIP_SEL rules
+                                  - Builds Block[] with rich frags + plain text
+    │
+    ├──▶ formats/epub/images.js   Resolves image src → blob: URLs (baked onto frags)
+    │
+    └──▶ formats/epub/toc.js      Flattens epub.js navigation → TocEntry[]
+                                  Synthesises TOC from heading blocks if absent
+```
+
+The `BookSession` also carries two new fields (Phase 0):
+- `format: string` — the formatId ('epub', 'sample', …)
+- `capabilities: Capabilities` — `{ reflow, richText, textStream, images, toc,
+  search, pageFidelity }` — what this format supports; future UI/modes degrade
+  gracefully based on these flags.
 
 ---
 
@@ -302,7 +321,7 @@ After extraction, the content is rendered into the reading surface with this hie
 
 ```html
 <div class="content">
-  <div class="chap" data-href="chapter1.xhtml">   ← one per EPUB spine item
+  <div class="chap" data-href="chapter1.xhtml">   ← one per Section (spine item, PDF page group, …)
     <p class="blk">...</p>                         ← one per extracted block
     <h2 class="blk">...</h2>
     <p class="blk">...</p>

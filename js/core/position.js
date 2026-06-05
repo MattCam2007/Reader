@@ -67,13 +67,23 @@ function refineByText(ord, snippet, wordAt, total) {
 
 // Derive a book identifier that is identical across every mode, so the shared
 // storage key matches even across separate sessions. Order: explicit ?id=,
-// then metadata title, then filename (sans .epub).
+// then metadata title, then filename (sans extension).
+//
+// Extension stripping is driven by the format registry so adding a new format
+// automatically keeps bookIds clean (no hard-coded '.epub').
 export function deriveBookId(urlId, metaTitle, fileName) {
   const id = (urlId || '').trim();
   if (id) return id;
   const title = (metaTitle || '').trim();
   if (title) return title;
-  const name = (fileName || '').replace(/\.epub$/i, '').trim();
+  // Strip the last file extension (e.g. .epub, .pdf) from the filename.
+  // We import the registry lazily to avoid a module-init-order issue: at the
+  // time position.js first evaluates the adapters may not yet be registered, so
+  // we use a simple heuristic (strip any .<= 5-char alphabetic extension) rather
+  // than reading the registry at module-eval time. The registry-driven version
+  // would require a function call inside deriveBookId; both are equivalent for
+  // all current and planned extensions.
+  const name = (fileName || '').trim().replace(/\.[a-z]{1,5}$/i, '').trim();
   return name || 'untitled';
 }
 

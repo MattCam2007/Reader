@@ -3,6 +3,8 @@ import { rsvpTemplate } from './rsvp/template.js';
 import { ttsTemplate } from './tts/template.js';
 import { closeSettingsScreen } from './settings/settings-screen.js';
 import * as perf from './core/perf.js';
+import { acceptString } from './formats/registry.js';
+import './formats/index.js'; // ensure all adapters are registered
 
 const READER_BODY_CLASSES = [
   'chrome-hidden', 'loading', 'error', 'show-toc', 'show-search', 'show-bookmarks',
@@ -124,6 +126,11 @@ async function switchMode(targetMode, posInfo) {
 }
 
 // ---------- Boot ----------
+// Drive the file-input accept attribute from the registry so it stays in sync
+// as new format adapters are registered (formats/index.js ran at import time).
+const fileInput = document.getElementById('fileInput');
+if (fileInput) fileInput.setAttribute('accept', acceptString());
+
 const modeParam = urlParams.get('mode');
 const initialMode = modeParam === 'rsvp' ? 'rsvp' : modeParam === 'tts' ? 'tts' : 'read';
 switchMode(initialMode);

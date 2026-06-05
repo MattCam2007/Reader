@@ -325,12 +325,14 @@ The shared, mode-independent position layer. See [STATE.md → Canonical Positio
 The mode-agnostic book pipeline, built **once** and shared by all modes.
 
 - **`BookSession.fromBuffer(buffer, fileName, urlId, onProgress)`** — `async`.
-  Runs `ePub()`, flattens the TOC, extracts sections, resolves image blob URLs
-  (baking `src` onto the template frags), derives the `bookId`/`title`, then
-  destroys the epub.js book. Returns a `BookSession` `{ sections, allImgUrls,
-  toc, bookId, fileName, title, buffer }`.
+  Detects the file format via `formats/registry.selectAdapter()`, calls
+  `adapter.parse()` to produce the canonical IR (`ParsedBook`), derives
+  `bookId`/`title`, and wraps the result. Returns a `BookSession`
+  `{ sections, toc, bookId, fileName, title, buffer, format, capabilities }`.
+  Throws a friendly "can't open .X files yet" error for unregistered formats.
 - **`BookSession.fromSample(sections, bookId, title)`** — wraps an in-memory
-  sections array (the built-in sample) as a session.
+  sections array (the built-in sample) as a session (`format:'sample'`,
+  `FULL_CAPABILITIES`).
 - **`session.dispose()`** — revokes the owned image blob URLs. The mode-switcher
   calls this only when a genuinely new book replaces the cached session; a mode
   switch reuses the same object, so blobs survive.
@@ -387,73 +389,132 @@ getAll(): Bookmark[]              // Return all bookmarks
 
 ---
 
-## `js/epub/` — EPUB Processing
+## `js/formats/` — Format Abstraction Layer
 
-### `js/epub/extractor.js`
+### `js/formats/types.js`
 
-Extracts readable content from EPUB spine items. Handles two extraction modes: **rich** (preserves HTML structure for reader/TTS) and **plain** (raw text for RSVP tokenization).
-
-**`extractSections(epub, signal)`** → `Promise<Section[]>`  
-Main entry point. Iterates the EPUB spine. For each item:
-1. Loads the XHTML document
-2. Calls `extractSection(doc, href)` for rich content
-3. Returns array of section objects
-
-**`extractSection(doc, href)`** → `{ html: string, href: string, title: string }`  
-Walks the document with `BLOCK_SEL` / `SKIP_SEL` selectors. For each block element:
-- Checks if it has meaningful text content (non-whitespace)
-- If `RICH_INLINE` is true, serializes inner HTML with `SAFE_ATTRS` attribute filtering
-- Otherwise, extracts `textContent`
-
-**`extractPlainText(epub, signal)`** → `Promise<PlainSection[]>`  
-Used by RSVP mode. Extracts raw text without HTML structure:
-- Returns `[{ text: string, title: string, href: string }]`
-- Paragraph breaks are represented as `\n\n`
-
-**Block selection logic:**
-- `BLOCK_SEL` matches structural elements: headings, paragraphs, divs, lists, tables, figures
-- `SKIP_SEL` excludes navigation, scripts, headers/footers
-- Blocks with only whitespace or purely navigational content are dropped
+JSDoc `@typedef` declarations for the canonical IR: `Block`, `Section`, `TocEntry`,
+`Capabilities`, `ParsedBook`, `FormatAdapter`. No runtime code — import for editor
+and DevTools type information only. See also [`docs/ADDING-A-FORMAT.md`](ADDING-A-FORMAT.md).
 
 ---
 
-### `js/epub/images.js`
+### `js/formats/capabilities.js`
+
+```js
+CAPABILITY_KEYS          // ['reflow','richText','textStream','images','toc','search','pageFidelity']
+makeCapabilities(overrides) → Capabilities  // all unspecified keys default false
+FULL_CAPABILITIES        // all true
+NO_CAPABILITIES          // all false
+```
+
+---
+
+### `js/formats/detect.js`
+
+Low-level byte-detection helpers (no adapter knowledge).
+
+```js
+magicBytes(buffer, n=64) → Uint8Array   // first n bytes of an ArrayBuffer
+startsWith(bytes, sig)   → boolean       // bytes starts with sig array
+ZIP_MAGIC                                // [0x50,0x4b,0x03,0x04] ('PK\x03\x04')
+```
+
+---
+
+### `js/formats/registry.js`
+
+The adapter registry. A leaf module — imports only `detect.js`.
+
+```js
+registerAdapter(adapter)                  // add to registry; sorted by priority
+listAdapters() → FormatAdapter[]          // all registered adapters
+getAdapterById(id) → FormatAdapter|null
+selectAdapter(buffer, fileName, mime?) → FormatAdapter|null  // detect → first match
+acceptString() → string                   // for <input accept="…">
+supportedLabels() → string[]              // human names for error messages
+```
+
+---
+
+### `js/formats/index.js`
+
+Adapter barrel. Importing this module registers all format adapters (side-effect
+imports). `book-session.js` and `mode-switcher.js` both import this. Add future
+adapters here with `import './pdf/pdf-adapter.js'`.
+
+---
+
+## `js/formats/epub/` — EPUB Format Adapter
+
+### `js/formats/epub/epub-adapter.js`
+
+The `FormatAdapter` for EPUB. Self-registers on import.
+
+- **`epubAdapter.detect(bytes, fileName, mime)`** — ZIP magic + `.epub` extension/MIME.
+- **`epubAdapter.loadLibs()`** — verifies `ePub` global (epub.js loaded via CDN).
+- **`epubAdapter.parse(buffer, fileName, opts)`** → `ParsedBook` — runs the full
+  EPUB pipeline: `ePub(buffer)` → `extractSections` → `resolveImageUrls` →
+  `flattenToc`/`buildSyntheticToc` → returns `{ sections, toc, title, metaTitle,
+  blobUrls, cover }`. All EPUB-specific logic is here; book-session knows none of it.
+- **`epubAdapter.capabilities`** — `{ reflow:true, richText:true, textStream:true,
+  images:true, toc:true, search:true, pageFidelity:false }`.
+
+---
+
+### `js/formats/epub/extractor.js`
+
+Extracts readable content from EPUB spine items.
+
+**`extractSections(epub, onProgress)`** → `Promise<{ sections, allImgUrls }>`  
+Iterates the EPUB spine. For each item: loads the XHTML document, calls
+`blocksFromDoc()` to produce `Block[]`, collects image URLs for later resolution.
+
+**`blocksFromDoc(docOrEl, imgUrls, opts)`** → `Block[]`  
+Walks the document with `BLOCK_SEL` / `SKIP_SEL` selectors. Produces `Block` objects
+with `type`, `text`, `id`, `frag` (when `RICH_INLINE=true`), and `isTocHeading`.
+
+**`sanitizeInline(srcNode)`** → `DocumentFragment`  
+Recursively sanitises inline HTML, keeping only `INLINE_TAGS` with `SAFE_ATTRS`.
+
+**`extractPlainText(epub, onProgress)`** → `Promise<{ text, chapters }>`  
+Plain-text extraction path (legacy; RSVP now derives text from `session.sections`).
+
+---
+
+### `js/formats/epub/images.js`
 
 Resolves image resources and detects book covers.
 
-**`resolveImages(sections, epub)`** → `void` (mutates sections)  
-For each section's HTML, replaces relative `src` attributes on `<img>` elements with `blob:` URLs. The blob URLs are created from the EPUB's resource archive and persist for the session.
+**`resolveImageUrls(imgEntries, book)`** → `Promise<string[]>` (created blob URLs)  
+For each image entry, loads the image from the EPUB ZIP archive and creates a
+`blob:` URL baked onto the block's `<img>` frag node.
 
-**`detectCover(epub)`** → `Promise<string | null>`  
-Attempts to find the book's cover image:
-1. Checks the EPUB OPF manifest for `properties="cover-image"`
-2. Falls back to items named `cover.*`
-3. Returns a blob URL, or `null` if no cover found
+**`findCoverImage(book)`** → `Promise<string | null>`  
+4-strategy fallback: EPUB3 manifest `cover-image` property → EPUB2 `<meta name="cover">` → manifest key `cover` → filename fallback.
 
 ---
 
-### `js/epub/toc.js`
+### `js/formats/epub/toc.js`
 
 Builds and renders the Table of Contents.
 
-**`extractToc(epub)`** → `Promise<TocEntry[]>`  
-Reads `epub.navigation.toc` entries. Returns a flat array:
-```js
-[{
-  label: string,   // Display text
-  href: string,    // Target href
-  depth: number    // Nesting depth (0 = top level)
-}]
-```
+**`flattenToc(nodes, depth, acc)`** → `TocEntry[]`  
+Recursively flattens epub.js navigation items.
 
-**`renderToc(entries, onNavigate)`** → `HTMLElement`  
-Builds the TOC list DOM. Each entry gets a depth class for indentation. Clicking an entry calls `onNavigate(href)`.
+**`buildSyntheticToc(sections)`** → `TocEntry[]`  
+Synthesises a TOC from `isTocHeading` blocks when the EPUB has no navigation doc.
 
-**`resolveHref(href, sections)`** → `number`  
-Maps a TOC entry href to a section index in the extracted sections array. Handles both exact matches and matches ignoring fragment identifiers (`#anchor`).
+**`buildTOC(epubToc, headingToc, tocListEl, sectionEls, goToPageFn, closePanelsFn, resolveHrefFn)`**  
+Renders the TOC drawer DOM. Consumed directly by `reader-app.js` and `tts-app.js`.
 
-**`flattenToc(navItems, depth)`** → `TocEntry[]`  
-Recursively flattens nested navigation items into the flat array format.
+**`resolveHref(href, content, sectionEls)`** → `Element | null`  
+Maps a TOC href to a DOM element in the rendered content (attached or detached).
+
+> **Note:** `buildTOC` and `resolveHref` operate on the rendered DOM and the neutral
+> `toc[]` array — they are not inherently EPUB-specific. They live here for now
+> (proximity to the adapter that produces the TOC entries). A future cleanup can
+> promote them to `js/shared/`.
 
 ---
 
