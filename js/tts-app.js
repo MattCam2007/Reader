@@ -779,6 +779,29 @@ export function init(options = {}) {
     }, { signal });
   }
 
+  // Mode submenu
+  const ttsModeMenuBtn = document.getElementById("ttsModeMenuBtn");
+  const ttsModeMenu = document.getElementById("ttsModeMenu");
+  if (ttsModeMenuBtn && ttsModeMenu) {
+    function closeModeMenu() {
+      ttsModeMenu.hidden = true;
+      ttsModeMenuBtn.setAttribute("aria-expanded", "false");
+    }
+    ttsModeMenuBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = !ttsModeMenu.hidden;
+      if (isOpen) { closeModeMenu(); return; }
+      ttsModeMenu.hidden = false;
+      ttsModeMenuBtn.setAttribute("aria-expanded", "true");
+    }, { signal });
+    ttsModeMenu.addEventListener("click", closeModeMenu, { signal });
+    document.addEventListener("click", (e) => {
+      if (!ttsModeMenu.hidden && !ttsModeMenuBtn.contains(e.target) && !ttsModeMenu.contains(e.target)) {
+        closeModeMenu();
+      }
+    }, { signal });
+  }
+
   // Mode switch
   if (els.ttsReadBtn && onModeSwitch) {
     els.ttsReadBtn.addEventListener('click', () => {

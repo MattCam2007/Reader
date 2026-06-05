@@ -910,6 +910,29 @@ export function init(options = {}) {
     resizeTimer = setTimeout(() => relayout(), RESIZE_DEBOUNCE_MS);
   }, { signal });
 
+  // Mode submenu
+  const modeMenuBtn = document.getElementById("modeMenuBtn");
+  const modeMenu = document.getElementById("modeMenu");
+  if (modeMenuBtn && modeMenu) {
+    function closeModeMenu() {
+      modeMenu.hidden = true;
+      modeMenuBtn.setAttribute("aria-expanded", "false");
+    }
+    modeMenuBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = !modeMenu.hidden;
+      if (isOpen) { closeModeMenu(); return; }
+      modeMenu.hidden = false;
+      modeMenuBtn.setAttribute("aria-expanded", "true");
+    }, { signal });
+    modeMenu.addEventListener("click", closeModeMenu, { signal });
+    document.addEventListener("click", (e) => {
+      if (!modeMenu.hidden && !modeMenuBtn.contains(e.target) && !modeMenu.contains(e.target)) {
+        closeModeMenu();
+      }
+    }, { signal });
+  }
+
   // Mode switch buttons
   const modeBtn = document.getElementById("modeBtn");
   if (modeBtn && onModeSwitch) {

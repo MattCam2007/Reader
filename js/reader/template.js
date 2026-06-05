@@ -41,13 +41,9 @@ export function readerTemplate() {
         <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="10" cy="8" r="2.6"/><circle cx="15" cy="16" r="2.6"/></svg>
         <span>Settings</span>
       </button>
-      <button class="reader-tool" id="modeBtn" type="button" aria-label="Speed read mode">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/></svg>
-        <span>Speed</span>
-      </button>
-      <button class="reader-tool" id="ttsModeBtn" type="button" aria-label="Listen with TTS">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-        <span>Listen</span>
+      <button class="reader-tool" id="modeMenuBtn" type="button" aria-label="Switch mode" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="16,3 21,8 16,13"/><line x1="3" y1="8" x2="21" y2="8"/><polyline points="8,11 3,16 8,21"/><line x1="21" y1="16" x2="3" y2="16"/></svg>
+        <span>Mode</span>
       </button>
       <button class="reader-tool" id="bookBtn" type="button" aria-label="Book" aria-expanded="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6c-1.8-1.3-4.6-1.6-7-0.8v12c2.4-0.8 5.2-0.5 7 0.8 1.8-1.3 4.6-1.6 7-0.8V5.2c-2.4-0.8-5.2-0.5-7 0.8z"/><line x1="12" y1="6" x2="12" y2="18.8"/></svg>
@@ -55,6 +51,17 @@ export function readerTemplate() {
       </button>
     </div>
   </footer>
+
+  <div class="book-submenu" id="modeMenu" hidden>
+    <button class="book-submenu-item" id="modeBtn" type="button" aria-label="Speed read mode">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/></svg>
+      Speed
+    </button>
+    <button class="book-submenu-item" id="ttsModeBtn" type="button" aria-label="Listen with TTS">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      Listen
+    </button>
+  </div>
 
   <div class="book-submenu" id="bookMenu" hidden>
     <button class="book-submenu-item" id="openBtn" type="button" aria-label="Open EPUB">
