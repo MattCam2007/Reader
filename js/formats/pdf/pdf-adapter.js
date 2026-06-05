@@ -195,6 +195,16 @@ export const pdfAdapter = {
     }
     flushPara();
 
+    // Read metadata BEFORE destroying the document. getMetadata() round-trips to
+    // the worker; once the document is destroyed the worker never answers and the
+    // promise hangs forever — that was the parse "hang" at the last page. (Node's
+    // fake worker resolved it regardless, which hid the bug in tests.)
+    let metaTitle = '';
+    try {
+      const meta = await pdf.getMetadata();
+      metaTitle = ((meta && meta.info && meta.info.Title) || '').trim();
+    } catch (_) {}
+
     try { if (typeof pdf.destroy === 'function') pdf.destroy(); } catch (_) {}
 
     const chars = sections.reduce((n, s) =>
@@ -211,11 +221,6 @@ export const pdfAdapter = {
       });
     });
 
-    let metaTitle = '';
-    try {
-      const meta = await pdf.getMetadata();
-      metaTitle = (meta && meta.info && meta.info.Title || '').trim();
-    } catch (_) {}
     const title = (metaTitle || fileName).trim();
 
     return { sections, toc, title, metaTitle, blobUrls: [], cover: null };
