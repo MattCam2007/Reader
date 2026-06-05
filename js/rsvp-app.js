@@ -112,7 +112,7 @@ export function init(options = {}) {
   // ---------- Bookmarks ----------
   const bookmarkManager = new BookmarkManager();
   const bmPanel = initBookmarksPanel(
-    { panelEl: document.getElementById('bookmarksPanel'), listEl: document.getElementById('bmList'), addBtnEl: document.getElementById('bmAddBtn') },
+    { panelEl: document.getElementById('bookmarksPanel'), listEl: document.getElementById('bmList'), addBtnEl: document.getElementById('bmAddBtn'), closeBtnEl: document.getElementById('bmCloseBtn') },
     signal
   );
   bmPanel.setBook(bookmarkManager);

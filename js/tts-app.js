@@ -110,7 +110,7 @@ export function init(options = {}) {
   // ---------- Bookmarks ----------
   const bookmarkManager = new BookmarkManager();
   const bmPanel = initBookmarksPanel(
-    { panelEl: document.getElementById('ttsBookmarksPanel'), listEl: document.getElementById('ttsBmList'), addBtnEl: document.getElementById('ttsBmAddBtn') },
+    { panelEl: document.getElementById('ttsBookmarksPanel'), listEl: document.getElementById('ttsBmList'), addBtnEl: document.getElementById('ttsBmAddBtn'), closeBtnEl: document.getElementById('ttsBmCloseBtn') },
     signal
   );
   bmPanel.setBook(bookmarkManager);

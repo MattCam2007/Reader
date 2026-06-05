@@ -47,9 +47,20 @@
   --pause-dim: 0.55;
   --word-size: clamp(2.5rem, 8vw, 4.5rem);
   --word-font: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  /* Bookmark color palette */
+  --bm-c1: #e74c3c;
+  --bm-c2: #3d9cf0;
+  --bm-c3: #2ecc71;
+  --bm-c4: #f1c40f;
+  --bm-c5: #a855f7;
 }
 
 body.theme-sepia {
+  --bm-c1: #b5651d;
+  --bm-c2: #2980b9;
+  --bm-c3: #27ae60;
+  --bm-c4: #e67e22;
+  --bm-c5: #8e44ad;
   --bg: #f4ecd8;
   --fg: #5b4636;
   --content-fg: #5b4636;
@@ -81,6 +92,11 @@ body.theme-sepia {
 }
 
 body.theme-light {
+  --bm-c1: #c0392b;
+  --bm-c2: #2471a3;
+  --bm-c3: #1e8449;
+  --bm-c4: #d68910;
+  --bm-c5: #7d3c98;
   --bg: #ffffff;
   --fg: #1f1f1f;
   --content-fg: #262626;
@@ -112,6 +128,11 @@ body.theme-light {
 }
 
 body.theme-oled {
+  --bm-c1: #ff4136;
+  --bm-c2: #00cfff;
+  --bm-c3: #00e676;
+  --bm-c4: #ffd600;
+  --bm-c5: #e040fb;
   --bg: #000000;
   --fg: #cfcfcf;
   --content-fg: #bfbfbf;
@@ -142,6 +163,11 @@ body.theme-oled {
 
 /* ── Terminal ─────────────────────────────────────────────────────────────── */
 body.theme-terminal {
+  --bm-c1: #ff5555;
+  --bm-c2: #57ffd8;
+  --bm-c3: #4fff00;
+  --bm-c4: #ffe066;
+  --bm-c5: #ff80ff;
   --bg: #0a0d0a;
   --fg: #39d353;
   --content-fg: #33c444;
@@ -200,6 +226,11 @@ body.theme-terminal .tts-content .inline-punct-speech { color: #ffae5c; }
 
 /* ── Nebula ───────────────────────────────────────────────────────────────── */
 body.theme-nebula {
+  --bm-c1: #ff6eb4;
+  --bm-c2: #6ec6ff;
+  --bm-c3: #c455f5;
+  --bm-c4: #ffd870;
+  --bm-c5: #7dcfba;
   --bg: #0d0818;
   --fg: #e2cefc;
   --content-fg: #d8c4f8;
@@ -250,6 +281,11 @@ body.theme-nebula .tts-content .blk-h3 { color: #f0aaff; }
 
 /* ── Forest ───────────────────────────────────────────────────────────────── */
 body.theme-forest {
+  --bm-c1: #ff7043;
+  --bm-c2: #7ecdc5;
+  --bm-c3: #5bba6f;
+  --bm-c4: #ffd54f;
+  --bm-c5: #ce93d8;
   --bg: #0b1a0e;
   --fg: #c4dac7;
   --content-fg: #b8d0bb;
@@ -300,6 +336,11 @@ body.theme-forest .tts-content .blk-h3 { color: #d8f0dc; }
 
 /* ── Ember ────────────────────────────────────────────────────────────────── */
 body.theme-ember {
+  --bm-c1: #ff6620;
+  --bm-c2: #7dc4e0;
+  --bm-c3: #a8c44c;
+  --bm-c4: #ffe09e;
+  --bm-c5: #e06060;
   --bg: #120c07;
   --fg: #f0b95a;
   --content-fg: #e8ad4e;
@@ -350,6 +391,11 @@ body.theme-ember .tts-content .blk-h3 { color: #ffd080; }
 
 /* ── Nord ─────────────────────────────────────────────────────────────────── */
 body.theme-nord {
+  --bm-c1: #bf616a;
+  --bm-c2: #4d94f5;
+  --bm-c3: #a3be8c;
+  --bm-c4: #ebcb8b;
+  --bm-c5: #b48ead;
   --bg: #0f1520;
   --fg: #d4e0f0;
   --content-fg: #c8d6ea;

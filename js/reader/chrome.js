@@ -34,11 +34,11 @@ export class ChromeManager {
   }
 
   updateBookmarkMarkers(items, navigateFn) {
-    const { bmMarkersEl, bmPageIndicatorEl } = this.els;
+    const { bmMarkersEl, bmPageIndicatorEl, quickBmBtnEl } = this.els;
 
-    // Re-render markers only when the bookmark set changes
+    // Re-render markers only when the bookmark set changes (ids + colors)
     if (bmMarkersEl) {
-      const ids = items.map(i => i.id).join(',');
+      const ids = items.map(i => i.id + (i.color || '')).join(',');
       if (ids !== this._lastBmIds) {
         this._lastBmIds = ids;
         bmMarkersEl.innerHTML = '';
@@ -52,6 +52,7 @@ export class ChromeManager {
             btn.setAttribute('aria-label', `Go to bookmark: ${item.chapterLabel ? item.chapterLabel + ' · ' : ''}${pct}%`);
             btn.title = `${item.chapterLabel ? item.chapterLabel + ' · ' : ''}${pct}%`;
             btn.style.setProperty('--bm-f', String(item.fraction));
+            if (item.color) btn.style.setProperty('--bm-color', `var(--bm-${item.color})`);
             btn.addEventListener('click', (e) => { e.stopPropagation(); navigateFn(item); });
             frag.appendChild(btn);
           }
@@ -60,11 +61,10 @@ export class ChromeManager {
       }
     }
 
-    // Update page indicator
-    if (bmPageIndicatorEl) {
-      const onPage = items.length > 0 && this._bookmarksOnCurrentPage(items);
-      bmPageIndicatorEl.classList.toggle('visible', onPage);
-    }
+    // Update page indicator and quick-bm button
+    const onPage = items.length > 0 && this._bookmarksOnCurrentPage(items);
+    if (bmPageIndicatorEl) bmPageIndicatorEl.classList.toggle('visible', onPage);
+    if (quickBmBtnEl) quickBmBtnEl.classList.toggle('bookmarked', onPage);
   }
 
   _bookmarksOnCurrentPage(items) {

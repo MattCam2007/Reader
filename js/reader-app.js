@@ -59,9 +59,11 @@ export function init(options = {}) {
     bookmarksBtn:  document.getElementById("bookmarksBtn"),
     bookmarksPanel: document.getElementById("bookmarksPanel"),
     bmAddBtn:      document.getElementById("bmAddBtn"),
+    bmCloseBtn:    document.getElementById("bmCloseBtn"),
     bmList:        document.getElementById("bmList"),
     bmMarkersEl:   document.getElementById("bmMarkers"),
     bmPageIndicatorEl: document.getElementById("bmPageIndicator"),
+    quickBmBtnEl:  document.getElementById("quickBmBtn"),
   };
 
   // ---------- State & Prefs ----------
@@ -74,7 +76,7 @@ export function init(options = {}) {
   // ---------- Bookmarks ----------
   const bookmarkManager = new BookmarkManager();
   const bmPanel = initBookmarksPanel(
-    { panelEl: els.bookmarksPanel, listEl: els.bmList, addBtnEl: els.bmAddBtn },
+    { panelEl: els.bookmarksPanel, listEl: els.bmList, addBtnEl: els.bmAddBtn, closeBtnEl: els.bmCloseBtn },
     signal
   );
   bmPanel.setBook(bookmarkManager);
@@ -723,6 +725,27 @@ export function init(options = {}) {
         document.body.classList.remove("chrome-hidden");
         bmPanel.render();
         updateAriaExpanded();
+      }
+    }, { signal });
+  }
+  if (els.quickBmBtnEl) {
+    els.quickBmBtnEl.addEventListener("click", () => {
+      if (els.quickBmBtnEl.classList.contains("bookmarked")) {
+        _lastPanelTrigger = els.bookmarksBtn;
+        closePanels();
+        closeSettingsScreen();
+        document.body.classList.add("show-bookmarks");
+        document.body.classList.remove("chrome-hidden");
+        bmPanel.render();
+        updateAriaExpanded();
+      } else {
+        const ctx = getBookmarkContext();
+        if (!ctx) return;
+        bookmarkManager.add(ctx);
+        bmPanel.render();
+        chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
+        els.quickBmBtnEl.classList.add("bm-flash");
+        setTimeout(() => els.quickBmBtnEl.classList.remove("bm-flash"), 600);
       }
     }, { signal });
   }
