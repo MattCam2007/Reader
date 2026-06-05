@@ -5,7 +5,7 @@ import { initBookmarksPanel } from './bookmarks/panel.js';
 import { PrefsManager } from './core/prefs.js';
 import { EventBus } from './core/events.js';
 import { BookSession, countWords } from './core/book-session.js';
-import { renderSearchResults } from './shared/search.js';
+import { renderSearchResults, indexForOffset } from './shared/search.js';
 import { applyTheme, applyOsThemeFallback, savePosition as shellSavePosition, loadPosition } from './base-reader-app.js';
 import { RSVP_DEFAULTS } from './rsvp/constants.js';
 import { RsvpState } from './rsvp/state.js';
@@ -455,6 +455,23 @@ export function init(options = {}) {
     });
   }
 
+  // Search the RSVP text cache for `label` starting at word ordinal `startOrd`,
+  // stopping before `limitOrd` (or a 5 000-char window if omitted). Returns the
+  // token index of the first match, or null if nothing is found in range.
+  function findLabelTokenIdx(label, startOrd, limitOrd) {
+    if (!label || !state.wordTokenIndices.length) return null;
+    const needle = label.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!needle) return null;
+    const { text, wordCharStart } = buildRsvpSearchCache();
+    const startChar = wordCharStart[Math.min(startOrd, wordCharStart.length - 1)] || 0;
+    const limitChar = (limitOrd != null && limitOrd < wordCharStart.length)
+      ? wordCharStart[limitOrd]
+      : startChar + 5000;
+    const idx = text.toLowerCase().indexOf(needle, startChar);
+    if (idx < 0 || idx >= limitChar) return null;
+    return state.ordinalToIdx(indexForOffset(wordCharStart, idx));
+  }
+
   // Build the TOC panel from the EPUB navigation TOC (session.toc), mapping each
   // entry's href to the nearest chapter word-offset in state.chapters for seeking.
   // Falls back silently if epubToc has no labelled entries (populateTocList already
@@ -485,7 +502,14 @@ export function init(options = {}) {
         else if (state.playState === 'countdown') playback.cancelCountdown();
         const file = (it.href || '').split('#')[0].split('/').pop();
         const ch = chapByFile.get(file) || state.chapters[0];
-        if (ch) playback.seekTo(ch.tokenIdx);
+        if (!ch) return;
+        // Search for the exact label text near the chapter start so we land on
+        // the heading word rather than the first word of the spine item.
+        const chIdx = state.chapters.indexOf(ch);
+        const nextCh = chIdx >= 0 && chIdx + 1 < state.chapters.length
+          ? state.chapters[chIdx + 1] : null;
+        const exactTi = findLabelTokenIdx(label, ch.wordOffset, nextCh ? nextCh.wordOffset : null);
+        playback.seekTo(exactTi !== null ? exactTi : ch.tokenIdx);
         document.body.classList.remove('show-toc');
         if (tocBtn) tocBtn.setAttribute('aria-expanded', 'false');
       }, { signal });
