@@ -5,7 +5,7 @@ import { initBookmarksPanel } from './bookmarks/panel.js';
 import { PrefsManager } from './core/prefs.js';
 import { EventBus } from './core/events.js';
 import { BookSession, countWords } from './core/book-session.js';
-import { renderSearchResults, indexForOffset } from './shared/search.js';
+import { renderSearchResults } from './shared/search.js';
 import { applyTheme, applyOsThemeFallback, savePosition as shellSavePosition, loadPosition } from './base-reader-app.js';
 import { RSVP_DEFAULTS } from './rsvp/constants.js';
 import { RsvpState } from './rsvp/state.js';
@@ -21,20 +21,39 @@ import * as perf from './core/perf.js';
 
 // Convert extractSections() output to the plain-text format the tokenizer expects.
 // Using the same extractor as Reader guarantees identical word lists and exact position transfer.
+//
+// Also records blockOffsets: block id -> global word ordinal of that block's
+// first word. EPUB nav-TOC entries (and the synthetic TOC) address chapters by a
+// fragment href (chapter4.xhtml#headingId) that matches a block's id, exactly the
+// anchor the Reader resolves against the DOM. Tracking each block's word offset
+// lets the RSVP TOC seek to the precise heading word even when it isn't the first
+// block in its spine file (a quote/epigraph/section-break before it would
+// otherwise leave the seek a page early — section start != heading).
 function sectionsToText(sections) {
   const parts = [];
   const chapters = [];
+  const blockOffsets = new Map();
   let wordOffset = 0;
   for (const sec of sections) {
-    const blockTexts = sec.blocks.map(b => b.text).filter(t => t && t.trim());
-    if (!blockTexts.length) continue;
-    const heading = sec.blocks.find(b => /^h[1-6]$/.test(b.type));
-    chapters.push({ title: heading ? heading.text : '', wordOffset, href: sec.href || '' });
-    const secText = blockTexts.join('\n\n');
-    wordOffset += countWords(secText);
-    parts.push(secText);
+    const usable = sec.blocks.filter(b => b.text && b.text.trim());
+    if (!usable.length) continue;
+    const secStart = wordOffset;
+    // Count words block-by-block so each block id maps to its first word's
+    // ordinal. Summing per block equals countWords(join('\n\n', texts)) because
+    // splitWords splits on \s+ and the joiner is whitespace. Also capture the
+    // first heading block's offset so a fragmentless TOC entry can still land on
+    // the heading when it isn't the first block in the file.
+    let title = '';
+    let headingOffset = secStart;
+    usable.forEach(b => {
+      if (b.id) blockOffsets.set(b.id, wordOffset);
+      if (!title && /^h[1-6]$/.test(b.type)) { title = b.text; headingOffset = wordOffset; }
+      wordOffset += countWords(b.text);
+    });
+    chapters.push({ title, wordOffset: secStart, headingOffset, href: sec.href || '' });
+    parts.push(usable.map(b => b.text).join('\n\n'));
   }
-  return { text: parts.join('\n\n'), chapters };
+  return { text: parts.join('\n\n'), chapters, blockOffsets };
 }
 
 export function init(options = {}) {
@@ -455,34 +474,42 @@ export function init(options = {}) {
     });
   }
 
-  // Search the RSVP text cache for `label` starting at word ordinal `startOrd`,
-  // stopping before `limitOrd` (or a 5 000-char window if omitted). Returns the
-  // token index of the first match, or null if nothing is found in range.
-  function findLabelTokenIdx(label, startOrd, limitOrd) {
-    if (!label || !state.wordTokenIndices.length) return null;
-    const needle = label.toLowerCase().replace(/\s+/g, ' ').trim();
-    if (!needle) return null;
-    const { text, wordCharStart } = buildRsvpSearchCache();
-    const startChar = wordCharStart[Math.min(startOrd, wordCharStart.length - 1)] || 0;
-    const limitChar = (limitOrd != null && limitOrd < wordCharStart.length)
-      ? wordCharStart[limitOrd]
-      : startChar + 5000;
-    const idx = text.toLowerCase().indexOf(needle, startChar);
-    if (idx < 0 || idx >= limitChar) return null;
-    return state.ordinalToIdx(indexForOffset(wordCharStart, idx));
+  // Resolve a TOC entry to the token index it should seek to. A fragment href
+  // (chapter4.xhtml#headingId) is matched against the block-offset map for an
+  // exact landing on the heading word; the offset is range-checked against the
+  // resolved chapter so a stray duplicate id in another file can't pull us away.
+  // Falls back to the chapter's first word for fragmentless / unknown entries.
+  function tocEntryTokenIdx(href, chapByFile, blockOffsets) {
+    const file = (href || '').split('#')[0].split('/').pop();
+    const frag = (href || '').split('#')[1] || '';
+    const ch = chapByFile.get(file) || state.chapters[0];
+    if (!ch) return null;
+    const chIdx = state.chapters.indexOf(ch);
+    const nextStart = chIdx >= 0 && chIdx + 1 < state.chapters.length
+      ? state.chapters[chIdx + 1].wordOffset : state.totalWords;
+    if (frag && blockOffsets && blockOffsets.has(frag)) {
+      const ord = blockOffsets.get(frag);
+      if (ord >= ch.wordOffset && ord < nextStart) return state.ordinalToIdx(ord);
+    }
+    // No usable fragment: land on the chapter's heading block if it sits past the
+    // file start, otherwise the chapter's first word.
+    if (ch.headingOffset != null && ch.headingOffset > ch.wordOffset && ch.headingOffset < nextStart) {
+      return state.ordinalToIdx(ch.headingOffset);
+    }
+    return ch.tokenIdx;
   }
 
-  // Build the TOC panel from the EPUB navigation TOC (session.toc), mapping each
-  // entry's href to the nearest chapter word-offset in state.chapters for seeking.
-  // Falls back silently if epubToc has no labelled entries (populateTocList already
-  // ran from loadText and its result is kept).
-  function buildRsvpToc(epubToc) {
+  // Build the TOC panel from the EPUB navigation TOC (session.toc), resolving each
+  // entry's fragment href to an exact word offset via blockOffsets (built in
+  // sectionsToText). Falls back silently if epubToc has no labelled entries
+  // (populateTocList already ran from loadText and its result is kept).
+  function buildRsvpToc(epubToc, blockOffsets) {
     if (!tocList) return;
     const hasLabels = epubToc && epubToc.some(it => (it.label || '').trim());
     if (!hasLabels) return;
 
     // Map base filename → first matching chapter so we can convert a TOC href
-    // (which may include a fragment: "chapter1.xhtml#sec-2") to a tokenIdx.
+    // (which may include a fragment: "chapter1.xhtml#sec-2") to a chapter.
     const chapByFile = new Map();
     state.chapters.forEach(ch => {
       const file = (ch.href || '').split('/').pop();
@@ -500,16 +527,8 @@ export function init(options = {}) {
         e.stopPropagation();
         if (state.playState === 'playing') playback.pause();
         else if (state.playState === 'countdown') playback.cancelCountdown();
-        const file = (it.href || '').split('#')[0].split('/').pop();
-        const ch = chapByFile.get(file) || state.chapters[0];
-        if (!ch) return;
-        // Search for the exact label text near the chapter start so we land on
-        // the heading word rather than the first word of the spine item.
-        const chIdx = state.chapters.indexOf(ch);
-        const nextCh = chIdx >= 0 && chIdx + 1 < state.chapters.length
-          ? state.chapters[chIdx + 1] : null;
-        const exactTi = findLabelTokenIdx(label, ch.wordOffset, nextCh ? nextCh.wordOffset : null);
-        playback.seekTo(exactTi !== null ? exactTi : ch.tokenIdx);
+        const ti = tocEntryTokenIdx(it.href, chapByFile, blockOffsets);
+        if (ti !== null) playback.seekTo(ti);
         document.body.classList.remove('show-toc');
         if (tocBtn) tocBtn.setAttribute('aria-expanded', 'false');
       }, { signal });
@@ -537,6 +556,7 @@ export function init(options = {}) {
       title: ch.title,
       href: ch.href || '',
       wordOffset: ch.wordOffset,
+      headingOffset: ch.headingOffset != null ? ch.headingOffset : ch.wordOffset,
       tokenIdx: ch.wordOffset < state.wordTokenIndices.length
         ? state.wordTokenIndices[ch.wordOffset]
         : state.tokens.length - 1,
@@ -588,7 +608,7 @@ export function init(options = {}) {
 
   async function loadFromSession(session, pos) {
     try {
-      const { text, chapters: chapterMeta } = perf.time("rsvp:sectionsToText", () => sectionsToText(session.sections));
+      const { text, chapters: chapterMeta, blockOffsets } = perf.time("rsvp:sectionsToText", () => sectionsToText(session.sections));
       if (!text || text.length < 32) {
         throw new Error("No readable text found in this EPUB (it may be image-only or DRM-protected).");
       }
@@ -597,8 +617,9 @@ export function init(options = {}) {
       loadText(text, chapterMeta);
       // Prefer EPUB navigation TOC labels over the heading-extracted titles that
       // loadText/populateTocList produce. session.toc covers intra-file chapters
-      // and has proper labels even for spine items with no heading element.
-      buildRsvpToc(session.toc);
+      // and has proper labels even for spine items with no heading element, and
+      // its fragment hrefs resolve to exact word offsets via blockOffsets.
+      buildRsvpToc(session.toc, blockOffsets);
       // A handed-off position is the single source of truth; otherwise fall back
       // to the persisted position. Never both (that was a race).
       if (pos) applyCanonicalPosition(pos);
