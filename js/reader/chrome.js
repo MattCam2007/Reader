@@ -61,9 +61,17 @@ export class ChromeManager {
       }
     }
 
-    // Update quick-bm button
-    const onPage = items.length > 0 && this._bookmarksOnCurrentPage(items);
-    if (quickBmBtnEl) quickBmBtnEl.classList.toggle('bookmarked', onPage);
+    // Update quick-bm button color to match the bookmark on this page
+    const pageItems = items.length > 0 ? this.getPageBookmarks(items) : [];
+    const onPage = pageItems.length > 0;
+    if (quickBmBtnEl) {
+      quickBmBtnEl.classList.toggle('bookmarked', onPage);
+      if (onPage && pageItems[0].color) {
+        quickBmBtnEl.style.setProperty('--bm-active-color', `var(--bm-${pageItems[0].color})`);
+      } else {
+        quickBmBtnEl.style.removeProperty('--bm-active-color');
+      }
+    }
   }
 
   getPageBookmarks(items) {

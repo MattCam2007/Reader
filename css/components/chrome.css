@@ -31,19 +31,19 @@
   transition: color 200ms ease;
 }
 .reader-quick-bm.bookmarked {
-  color: var(--accent);
+  color: var(--bm-active-color, var(--accent));
 }
 .reader-quick-bm.bookmarked svg {
-  fill: var(--accent);
-  stroke: var(--accent);
+  fill: var(--bm-active-color, var(--accent));
+  stroke: var(--bm-active-color, var(--accent));
 }
 .reader-quick-bm.bm-flash {
   animation: bm-flash-anim 600ms ease forwards;
 }
 @keyframes bm-flash-anim {
-  0%   { color: var(--accent); transform: scale(1.3); }
-  60%  { color: var(--accent); transform: scale(1); }
-  100% { color: var(--accent); }
+  0%   { color: var(--bm-active-color, var(--accent)); transform: scale(1.3); }
+  60%  { color: var(--bm-active-color, var(--accent)); transform: scale(1); }
+  100% { color: var(--bm-active-color, var(--accent)); }
 }
 .reader-book-title {
   font-size: 0.95rem;
