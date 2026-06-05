@@ -271,7 +271,7 @@ migrated to lazy loading later without an interface change.
 | Phase | Deliverable | State after |
 |-------|-------------|-------------|
 | **0 — Groundwork** *(this effort)* | Extract the format-adapter interface, registry, detection; move EPUB behind it; capabilities + format-aware bookId; authoring guide. **No new format yet.** | EPUB is one adapter among a (size-1) registry. Adding a format is a documented, isolated task. |
-| **1 — PDF (text)** | `formats/pdf/` adapter using pdf.js text layer → IR. Reader/RSVP/TTS work on text-based PDFs. | Two formats. Capability gating becomes load-bearing. |
+| **1 — PDF (text)** ✅ *landed* | `formats/pdf/` adapter using pdf.js text layer → IR (line grouping, indent/gap paragraph detection, "Chapter N" heading → sections + TOC). Reader/RSVP/TTS work on text-based PDFs. Validated on the Babylon 5 PDFs in `books/`. | Two formats. Capability gating becomes load-bearing. |
 | **2 — PDF (page fidelity)** | Optional fixed-page render view for PDFs (`pageFidelity`), Reader gains a page-image presentation. | PDFs that don't reflow still usable. |
 | **3 — MOBI / AZW3** | `formats/mobi/` adapter (PalmDOC/KF8 parsing) → IR. | Kindle formats. |
 | **4 — iBook / LIT / others** | Additional adapters as demand dictates. | Long tail. |
