@@ -564,6 +564,11 @@ export function init(options = {}) {
     captureSectionLabels();
     if (shouldWindow()) {
       state.windowed = true;
+      // Clear stale counts from any previously-loaded book before paginateWindow
+      // fires updateProgressFn. Without this the old book's pageCounts are live
+      // during that first updateWindowedProgress call and the wrong total shows.
+      state.pageCounts = [];
+      state.pageCountsComplete = false;
       pagination.setupWindow(0);
       perf.time("reader:paginate", () => pagination.paginateWindow(false));
       pageCounter.begin(updateProgressFn);
