@@ -1,8 +1,8 @@
 # Reader
 
-A browser-based EPUB reader with three reading modes. Open `reader.html` in any modern browser — no build step, no server, no install required.
+A browser-based book reader with three reading modes. Open `reader.html` in any modern browser — no build step, no server, no install required.
 
-Ships with the opening of *Pride and Prejudice* as sample text. Load any `.epub` file to start reading your own books.
+Ships with the opening of *Pride and Prejudice* as sample text. Load a supported book file to start reading your own books (EPUB today; more formats coming).
 
 **Three ways to read:**
 - **Reader** — paginated book-style reading with full typography controls (default)

@@ -12,6 +12,10 @@ import { findHits, indexForOffset } from '../shared/search.js';
 import { renderSections, annotateInlineText } from '../shared/render.js';
 import { loadPageCache, savePageCache, PAGE_KEY_PREFIX } from '../core/page-cache.js';
 import { PageCounter } from '../reader/page-counter.js';
+import { makeCapabilities, FULL_CAPABILITIES, NO_CAPABILITIES, CAPABILITY_KEYS } from '../formats/capabilities.js';
+import { magicBytes, startsWith, ZIP_MAGIC } from '../formats/detect.js';
+import { listAdapters, getAdapterById, selectAdapter, acceptString } from '../formats/registry.js';
+import '../formats/index.js'; // ensure adapters are registered for format tests
 
 export function runSelftest(state) {
   const results = [];
@@ -455,6 +459,64 @@ export function runSelftest(state) {
     const measuredCounts = state.pageCounts.filter(c => c != null);
     assert('page-counter', 'all measured counts are positive integers',
       measuredCounts.every(c => Number.isInteger(c) && c >= 1));
+  }
+
+  // --- formats: capabilities ---
+  {
+    const caps = makeCapabilities({ reflow: true, search: true });
+    assert('formats', 'makeCapabilities: specified keys are true', caps.reflow === true && caps.search === true);
+    assert('formats', 'makeCapabilities: unspecified keys default false', caps.richText === false && caps.pageFidelity === false);
+    assert('formats', 'makeCapabilities: all CAPABILITY_KEYS present', CAPABILITY_KEYS.every(k => k in caps));
+    assert('formats', 'FULL_CAPABILITIES: all keys true', CAPABILITY_KEYS.every(k => FULL_CAPABILITIES[k] === true));
+    assert('formats', 'NO_CAPABILITIES: all keys false', CAPABILITY_KEYS.every(k => NO_CAPABILITIES[k] === false));
+  }
+
+  // --- formats: detect helpers ---
+  {
+    const epubBytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]);
+    const pdfBytes  = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x00, 0x00]);
+    assert('formats', 'startsWith: ZIP_MAGIC matches epub bytes', startsWith(epubBytes, ZIP_MAGIC));
+    assert('formats', 'startsWith: ZIP_MAGIC does not match pdf bytes', !startsWith(pdfBytes, ZIP_MAGIC));
+    assert('formats', 'startsWith: empty sig always matches', startsWith(epubBytes, []));
+    assert('formats', 'startsWith: too-long sig returns false', !startsWith(new Uint8Array([1, 2]), [1, 2, 3]));
+    const got = magicBytes(epubBytes.buffer, 4);
+    assert('formats', 'magicBytes: returns correct slice length', got.length === 4);
+    assert('formats', 'magicBytes: first byte matches', got[0] === 0x50);
+  }
+
+  // --- formats: registry ---
+  {
+    const adapters = listAdapters();
+    assert('formats', 'registry: at least one adapter registered', adapters.length >= 1);
+    const epub = getAdapterById('epub');
+    assert('formats', 'registry: EPUB adapter is registered', epub !== null);
+    assert('formats', 'registry: EPUB adapter has parse function', typeof epub.parse === 'function');
+    assert('formats', 'registry: EPUB adapter has detect function', typeof epub.detect === 'function');
+    assert('formats', 'registry: EPUB adapter has extensions array', Array.isArray(epub.extensions) && epub.extensions.includes('.epub'));
+    assert('formats', 'registry: EPUB adapter has capabilities', epub.capabilities && typeof epub.capabilities === 'object');
+
+    // selectAdapter: EPUB bytes + .epub name → EPUB adapter
+    const epubBuf = new Uint8Array([0x50, 0x4b, 0x03, 0x04]).buffer;
+    const selected = selectAdapter(epubBuf, 'book.epub');
+    assert('formats', 'registry: selectAdapter picks EPUB for .epub file', selected !== null && selected.id === 'epub');
+
+    // selectAdapter: unknown extension → null (no crash)
+    const pdfBuf = new Uint8Array([0x25, 0x50, 0x44, 0x46]).buffer;
+    assert('formats', 'registry: selectAdapter returns null for unsupported format', selectAdapter(pdfBuf, 'book.pdf') === null);
+
+    // acceptString: includes .epub
+    const accept = acceptString();
+    assert('formats', 'registry: acceptString includes .epub', accept.includes('.epub'));
+  }
+
+  // --- formats: EPUB adapter capabilities ---
+  {
+    const epub = getAdapterById('epub');
+    if (epub) {
+      assert('formats', 'EPUB: reflow capability true', epub.capabilities.reflow === true);
+      assert('formats', 'EPUB: textStream capability true', epub.capabilities.textStream === true);
+      assert('formats', 'EPUB: pageFidelity capability false', epub.capabilities.pageFidelity === false);
+    }
   }
 
   // --- Report ---
