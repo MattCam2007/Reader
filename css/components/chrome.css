@@ -47,6 +47,9 @@
   transition: color 200ms ease;
 }
 .reader-fullscreen-btn:hover { color: var(--fg); }
+.reader-fullscreen-btn .fs-shrink-icon { display: none; }
+body.fs-active .reader-fullscreen-btn .fs-expand-icon { display: none; }
+body.fs-active .reader-fullscreen-btn .fs-shrink-icon { display: block; }
 .reader-quick-bm.bookmarked {
   color: var(--bm-active-color, var(--accent));
 }

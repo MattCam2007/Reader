@@ -818,20 +818,16 @@ export function init(options = {}) {
     if (!document.fullscreenEnabled) {
       els.fullscreenBtnEl.hidden = true;
     } else {
-      function _updateFullscreenIcon() {
-        const isFs = !!document.fullscreenElement;
-        const expand = els.fullscreenBtnEl.querySelector('.fs-expand-icon');
-        const shrink = els.fullscreenBtnEl.querySelector('.fs-shrink-icon');
-        if (expand) expand.hidden = isFs;
-        if (shrink) shrink.hidden = !isFs;
-        els.fullscreenBtnEl.setAttribute('aria-label', isFs ? 'Exit fullscreen' : 'Toggle fullscreen');
-      }
       els.fullscreenBtnEl.addEventListener('click', (e) => {
         e.stopPropagation();
         if (document.fullscreenElement) document.exitFullscreen();
         else document.documentElement.requestFullscreen();
       }, { signal });
-      document.addEventListener('fullscreenchange', _updateFullscreenIcon, { signal });
+      document.addEventListener('fullscreenchange', () => {
+        const isFs = !!document.fullscreenElement;
+        document.body.classList.toggle('fs-active', isFs);
+        els.fullscreenBtnEl.setAttribute('aria-label', isFs ? 'Exit fullscreen' : 'Toggle fullscreen');
+      }, { signal });
     }
   }
   els.backdrop.addEventListener("click", () => { closePanels(); closeSettingsScreen(); }, { signal });
