@@ -34,7 +34,7 @@ export class ChromeManager {
   }
 
   updateBookmarkMarkers(items, navigateFn) {
-    const { bmMarkersEl, bmPageIndicatorEl, quickBmBtnEl } = this.els;
+    const { bmMarkersEl, quickBmBtnEl } = this.els;
 
     // Re-render markers only when the bookmark set changes (ids + colors)
     if (bmMarkersEl) {
@@ -61,10 +61,35 @@ export class ChromeManager {
       }
     }
 
-    // Update page indicator and quick-bm button
+    // Update quick-bm button
     const onPage = items.length > 0 && this._bookmarksOnCurrentPage(items);
-    if (bmPageIndicatorEl) bmPageIndicatorEl.classList.toggle('visible', onPage);
     if (quickBmBtnEl) quickBmBtnEl.classList.toggle('bookmarked', onPage);
+  }
+
+  getPageBookmarks(items) {
+    const { state, els } = this;
+    if (state.isScrollMode) {
+      const sh = els.viewport.scrollHeight - els.viewport.clientHeight;
+      if (sh <= 0) return [];
+      const scrollTop = els.viewport.scrollTop;
+      const threshold = els.viewport.clientHeight * 0.55;
+      return items.filter(item => Math.abs(item.fraction * sh - scrollTop) < threshold);
+    }
+    if (state.windowed) {
+      const wsToToken = state.doc.wsToToken;
+      const totalWs = wsToToken.length;
+      const sec = state.doc.sections[state.curChap];
+      if (!totalWs || !sec) return [];
+      return items.filter(item => {
+        const bmWs = Math.round((item.fraction || 0) * (totalWs - 1));
+        if (bmWs < sec.wsStart || bmWs >= sec.wsEnd) return false;
+        const tok = wsToToken[bmWs];
+        return tok != null && pageOfWord(state, els.content, tok) === state.page;
+      });
+    }
+    const total = state.total;
+    if (total <= 0) return [];
+    return items.filter(item => Math.round(item.fraction * (total - 1)) === state.page);
   }
 
   _bookmarksOnCurrentPage(items) {

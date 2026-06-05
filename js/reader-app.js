@@ -62,7 +62,7 @@ export function init(options = {}) {
     bmCloseBtn:    document.getElementById("bmCloseBtn"),
     bmList:        document.getElementById("bmList"),
     bmMarkersEl:   document.getElementById("bmMarkers"),
-    bmPageIndicatorEl: document.getElementById("bmPageIndicator"),
+    bmColorPopoverEl: document.getElementById("bmColorPopover"),
     quickBmBtnEl:  document.getElementById("quickBmBtn"),
   };
 
@@ -727,23 +727,46 @@ export function init(options = {}) {
       }
     }, { signal });
   }
-  if (els.bmPageIndicatorEl) {
-    els.bmPageIndicatorEl.addEventListener("click", () => {
-      _lastPanelTrigger = els.bookmarksBtn;
-      const isOpen = document.body.classList.contains("show-bookmarks");
-      closePanels();
-      closeSettingsScreen();
-      if (!isOpen) {
-        _lastPanelTrigger = els.bookmarksBtn;
-        document.body.classList.add("show-bookmarks");
-        document.body.classList.remove("chrome-hidden");
-        bmPanel.render();
-        updateAriaExpanded();
-      }
-    }, { signal });
-  }
   if (els.quickBmBtnEl) {
+    let _longPressTimer = null;
+    let _longPressFired = false;
+
+    function _openColorPopover() {
+      const popover = els.bmColorPopoverEl;
+      if (!popover) return;
+      const pageBookmarks = chrome.getPageBookmarks(bookmarkManager.getAll());
+      const currentColor = pageBookmarks.length > 0 ? (pageBookmarks[0].color || '') : '';
+      popover.querySelectorAll('.bm-cp-swatch').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.color === currentColor);
+      });
+      popover.removeAttribute('hidden');
+    }
+
+    function _closeColorPopover() {
+      if (els.bmColorPopoverEl) els.bmColorPopoverEl.setAttribute('hidden', '');
+    }
+
+    els.quickBmBtnEl.addEventListener('contextmenu', (e) => e.preventDefault(), { signal });
+
+    els.quickBmBtnEl.addEventListener('pointerdown', () => {
+      _longPressFired = false;
+      _longPressTimer = setTimeout(() => {
+        _longPressTimer = null;
+        _longPressFired = true;
+        _openColorPopover();
+      }, 500);
+    }, { signal });
+
+    els.quickBmBtnEl.addEventListener('pointerup', () => {
+      if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; }
+    }, { signal });
+
+    els.quickBmBtnEl.addEventListener('pointercancel', () => {
+      if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; }
+    }, { signal });
+
     els.quickBmBtnEl.addEventListener("click", () => {
+      if (_longPressFired) { _longPressFired = false; return; }
       if (els.quickBmBtnEl.classList.contains("bookmarked")) {
         _lastPanelTrigger = els.bookmarksBtn;
         closePanels();
@@ -762,6 +785,33 @@ export function init(options = {}) {
         setTimeout(() => els.quickBmBtnEl.classList.remove("bm-flash"), 600);
       }
     }, { signal });
+
+    if (els.bmColorPopoverEl) {
+      els.bmColorPopoverEl.addEventListener('click', (e) => {
+        const btn = e.target.closest('.bm-cp-swatch, .bm-cp-clear');
+        if (!btn) return;
+        const color = btn.dataset.color || '';
+        const allBm = bookmarkManager.getAll();
+        const pageBookmarks = chrome.getPageBookmarks(allBm);
+        if (pageBookmarks.length > 0) {
+          pageBookmarks.forEach(bm => bookmarkManager.updateColor(bm.id, color));
+        } else {
+          const ctx = getBookmarkContext();
+          if (ctx) bookmarkManager.add({ ...ctx, color });
+        }
+        bmPanel.render();
+        chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
+        _closeColorPopover();
+      }, { signal });
+
+      document.addEventListener('pointerdown', (e) => {
+        if (!els.bmColorPopoverEl.hasAttribute('hidden') &&
+            !els.bmColorPopoverEl.contains(e.target) &&
+            e.target !== els.quickBmBtnEl) {
+          _closeColorPopover();
+        }
+      }, { signal });
+    }
   }
   els.backdrop.addEventListener("click", () => { closePanels(); closeSettingsScreen(); }, { signal });
   els.openBtn.addEventListener("click", () => els.fileInput.click(), { signal });

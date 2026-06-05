@@ -60,9 +60,14 @@ export function readerTemplate() {
     </div>
   </footer>
 
-  <button class="bm-page-indicator" id="bmPageIndicator" type="button" aria-label="Bookmarked page — view bookmarks">
-    <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="currentColor" stroke="none"><path d="M17 3H7a2 2 0 0 0-2 2v16l7-4 7 4V5a2 2 0 0 0-2-2z"/></svg>
-  </button>
+  <div class="bm-color-popover" id="bmColorPopover" hidden>
+    <button class="bm-cp-clear" data-color="" type="button" aria-label="Remove color">✕</button>
+    <button class="bm-cp-swatch" data-color="c1" style="--swatch:var(--bm-c1)" type="button" aria-label="Color 1"></button>
+    <button class="bm-cp-swatch" data-color="c2" style="--swatch:var(--bm-c2)" type="button" aria-label="Color 2"></button>
+    <button class="bm-cp-swatch" data-color="c3" style="--swatch:var(--bm-c3)" type="button" aria-label="Color 3"></button>
+    <button class="bm-cp-swatch" data-color="c4" style="--swatch:var(--bm-c4)" type="button" aria-label="Color 4"></button>
+    <button class="bm-cp-swatch" data-color="c5" style="--swatch:var(--bm-c5)" type="button" aria-label="Color 5"></button>
+  </div>
 
   <div class="ui-backdrop" id="backdrop"></div>
 
