@@ -455,6 +455,44 @@ export function init(options = {}) {
     });
   }
 
+  // Build the TOC panel from the EPUB navigation TOC (session.toc), mapping each
+  // entry's href to the nearest chapter word-offset in state.chapters for seeking.
+  // Falls back silently if epubToc has no labelled entries (populateTocList already
+  // ran from loadText and its result is kept).
+  function buildRsvpToc(epubToc) {
+    if (!tocList) return;
+    const hasLabels = epubToc && epubToc.some(it => (it.label || '').trim());
+    if (!hasLabels) return;
+
+    // Map base filename → first matching chapter so we can convert a TOC href
+    // (which may include a fragment: "chapter1.xhtml#sec-2") to a tokenIdx.
+    const chapByFile = new Map();
+    state.chapters.forEach(ch => {
+      const file = (ch.href || '').split('/').pop();
+      if (file && !chapByFile.has(file)) chapByFile.set(file, ch);
+    });
+
+    tocList.innerHTML = '';
+    epubToc.forEach(it => {
+      const label = (it.label || '').trim();
+      if (!label) return;
+      const btn = document.createElement('button');
+      btn.className = 'reader-toc-item depth-' + Math.min(2, it.depth || 0);
+      btn.textContent = label;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (state.playState === 'playing') playback.pause();
+        else if (state.playState === 'countdown') playback.cancelCountdown();
+        const file = (it.href || '').split('#')[0].split('/').pop();
+        const ch = chapByFile.get(file) || state.chapters[0];
+        if (ch) playback.seekTo(ch.tokenIdx);
+        document.body.classList.remove('show-toc');
+        if (tocBtn) tocBtn.setAttribute('aria-expanded', 'false');
+      }, { signal });
+      tocList.appendChild(btn);
+    });
+  }
+
   // ---------- Pickers ----------
   let wpmPicker;
 
@@ -533,6 +571,10 @@ export function init(options = {}) {
       state.bookId = session.bookId;
       bookmarkManager.setBook(state.bookId);
       loadText(text, chapterMeta);
+      // Prefer EPUB navigation TOC labels over the heading-extracted titles that
+      // loadText/populateTocList produce. session.toc covers intra-file chapters
+      // and has proper labels even for spine items with no heading element.
+      buildRsvpToc(session.toc);
       // A handed-off position is the single source of truth; otherwise fall back
       // to the persisted position. Never both (that was a race).
       if (pos) applyCanonicalPosition(pos);
