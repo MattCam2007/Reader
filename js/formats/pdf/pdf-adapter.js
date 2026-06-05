@@ -24,7 +24,6 @@ const PDF_VERSION = '4.0.379';
 const PDF_BASE = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDF_VERSION}`;
 const PDF_LIB_URL = `${PDF_BASE}/build/pdf.min.mjs`;
 const PDF_WORKER_URL = `${PDF_BASE}/build/pdf.worker.min.mjs`;
-const PDF_STD_FONTS = `${PDF_BASE}/standard_fonts/`;
 
 // '%PDF' magic bytes.
 const PDF_MAGIC = [0x25, 0x50, 0x44, 0x46];
@@ -66,8 +65,14 @@ export const pdfAdapter = {
       || mimeType === 'application/pdf';
   },
 
-  // Lazy-load pdf.js (ESM) from the CDN and point it at its worker. Cached on
+  // Lazy-load pdf.js (ESM) from the CDN and start its Web Worker. Cached on
   // globalThis so repeat opens (and mode switches that re-open) don't re-import.
+  //
+  // IMPORTANT: pdf.js must run in a real worker. A cross-origin *module* worker
+  // (the raw CDN URL) frequently fails to construct, and pdf.js then silently
+  // falls back to a MAIN-THREAD "fake worker" — which freezes the UI and makes a
+  // large PDF look like it has hung at "Parsing…". We avoid that by fetching the
+  // (self-contained) worker module and running it from a same-origin blob URL.
   async loadLibs() {
     if (globalThis.pdfjsLib) return;
     let mod;
@@ -77,8 +82,16 @@ export const pdfAdapter = {
       throw new Error('PDF library failed to load. Check your connection.');
     }
     try {
-      mod.GlobalWorkerOptions.workerSrc = PDF_WORKER_URL;
-    } catch (_) {}
+      const resp = await fetch(PDF_WORKER_URL);
+      if (!resp.ok) throw new Error('worker fetch ' + resp.status);
+      const code = await resp.text();
+      const blobUrl = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+      mod.GlobalWorkerOptions.workerSrc = blobUrl;
+    } catch (e) {
+      // Best effort: the direct URL still works in some browsers; if it also
+      // fails, pdf.js uses the slower main-thread fallback rather than crashing.
+      try { mod.GlobalWorkerOptions.workerSrc = PDF_WORKER_URL; } catch (_) {}
+    }
     globalThis.pdfjsLib = mod;
   },
 
@@ -90,10 +103,12 @@ export const pdfAdapter = {
     // Clone the bytes — pdf.js may transfer/neuter the buffer to its worker, and
     // the BookSession keeps the original ArrayBuffer.
     const data = new Uint8Array(buffer.slice(0));
+    // Text extraction only — do NOT load font glyph data. Fetching standard-font
+    // files per page over the network/Service Worker is slow on mobile and is
+    // unnecessary for positioning text.
     const pdf = await pdfjsLib.getDocument({
       data,
-      useSystemFonts: true,
-      standardFontDataUrl: PDF_STD_FONTS,
+      disableFontFace: true,
       isEvalSupported: false,
     }).promise;
 
