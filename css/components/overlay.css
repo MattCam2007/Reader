@@ -35,10 +35,12 @@
   transition: opacity 160ms ease;
 }
 body.loading .reader-overlay,
-body.error .reader-overlay {
+body.error .reader-overlay,
+body.welcome .reader-overlay {
   opacity: 1;
   pointer-events: auto;
 }
+body.welcome .reader-spinner { display: none; }
 .reader-overlay-msg {
   font-size: 1.02rem;
   color: var(--fg);

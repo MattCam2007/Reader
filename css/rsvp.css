@@ -231,7 +231,8 @@ body.paused.context-page .rsvp-context--above {
   z-index: 2;
 }
 body.loading .rsvp-status,
-body.error   .rsvp-status {
+body.error   .rsvp-status,
+body.welcome .rsvp-status {
   opacity: 1;
   pointer-events: auto;
 }
