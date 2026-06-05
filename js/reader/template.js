@@ -15,6 +15,9 @@ export function readerTemplate() {
   <header class="reader-topbar" id="topbar">
     <div class="reader-book-title" id="bookTitle">Reader</div>
     <div class="reader-book-sub" id="bookSub">&nbsp;</div>
+    <button class="reader-quick-bm" id="quickBmBtn" type="button" aria-label="Bookmark this page">
+      <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+    </button>
   </header>
 
   <footer class="reader-bottombar" id="bottombar">
@@ -70,6 +73,9 @@ export function readerTemplate() {
 
   <div class="bm-panel" id="bookmarksPanel" role="dialog" aria-modal="true" aria-label="Bookmarks">
     <div class="bm-panel-head">
+      <button class="bm-close-btn" id="bmCloseBtn" type="button" aria-label="Close bookmarks">
+        <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
       <div class="bm-panel-title">Bookmarks</div>
       <button class="bm-add-btn" id="bmAddBtn" type="button">+ Add</button>
     </div>

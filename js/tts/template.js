@@ -75,6 +75,9 @@ export function ttsTemplate() {
 
   <div class="bm-panel" id="ttsBookmarksPanel" role="dialog" aria-modal="true" aria-label="Bookmarks">
     <div class="bm-panel-head">
+      <button class="bm-close-btn" id="ttsBmCloseBtn" type="button" aria-label="Close bookmarks">
+        <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
       <div class="bm-panel-title">Bookmarks</div>
       <button class="bm-add-btn" id="ttsBmAddBtn" type="button">+ Add</button>
     </div>

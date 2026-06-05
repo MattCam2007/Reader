@@ -32,7 +32,7 @@ export class BookmarkManager {
     }
   }
 
-  add({ position, fraction, chapterLabel, text, note = '' }) {
+  add({ position, fraction, chapterLabel, text, note = '', color = '' }) {
     const id = 'bm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
     const item = {
       id,
@@ -42,6 +42,7 @@ export class BookmarkManager {
       chapterLabel: chapterLabel || '',
       text: (text || '').slice(0, 120),
       note: note || '',
+      color: color || '',
     };
     this._items.push(item);
     this._save();
@@ -51,6 +52,11 @@ export class BookmarkManager {
   updateNote(id, note) {
     const item = this._items.find(i => i.id === id);
     if (item) { item.note = note; this._save(); }
+  }
+
+  updateColor(id, color) {
+    const item = this._items.find(i => i.id === id);
+    if (item) { item.color = color || ''; this._save(); }
   }
 
   remove(id) {

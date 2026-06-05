@@ -1,11 +1,17 @@
 // Bookmarks panel UI — shared across all three reading modes.
 // Call initBookmarksPanel() once per mode init; use returned handle to open/render.
 
+const BM_COLORS = ['c1', 'c2', 'c3', 'c4', 'c5'];
+
 function esc(str) {
   return String(str)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+function buildColorSwatches(item) {
+  return BM_COLORS.map(c => `<button class="bm-color-swatch${item.color === c ? ' active' : ''}" data-id="${item.id}" data-color="${c}" style="--swatch:var(--bm-${c})" aria-label="Bookmark color ${c}" type="button"></button>`).join('');
 }
 
 function buildItemHTML(item) {
@@ -31,11 +37,12 @@ function buildItemHTML(item) {
     </div>
     <div class="bm-item-foot">
       <button class="bm-go-btn" data-id="${item.id}" type="button">Go to</button>
+      <div class="bm-colors">${buildColorSwatches(item)}</div>
       <button class="bm-del-btn" data-id="${item.id}" type="button" aria-label="Delete bookmark">✕</button>
     </div>`;
 }
 
-export function initBookmarksPanel({ panelEl, listEl, addBtnEl }, signal) {
+export function initBookmarksPanel({ panelEl, listEl, addBtnEl, closeBtnEl }, signal) {
   let _bm = null;
   let _getContext = null;
   let _onNavigate = null;
@@ -55,7 +62,7 @@ export function initBookmarksPanel({ panelEl, listEl, addBtnEl }, signal) {
     if (!listEl || !_bm) return;
     const items = _bm.getAll();
     if (!items.length) {
-      listEl.innerHTML = '<div class="bm-empty">No bookmarks yet. Tap <b>+ Add</b> above to save your place.</div>';
+      listEl.innerHTML = '<div class="bm-empty">No bookmarks yet. Tap <b>+ Add</b> above to save your place.</div>';
       return;
     }
     const frag = document.createDocumentFragment();
@@ -63,6 +70,7 @@ export function initBookmarksPanel({ panelEl, listEl, addBtnEl }, signal) {
       const div = document.createElement('div');
       div.className = 'bm-item';
       div.dataset.id = item.id;
+      if (item.color) div.style.setProperty('--bm-item-color', `var(--bm-${item.color})`);
       div.innerHTML = buildItemHTML(item);
       frag.appendChild(div);
     });
@@ -87,6 +95,7 @@ export function initBookmarksPanel({ panelEl, listEl, addBtnEl }, signal) {
     const showNote = e.target.closest('.bm-note-show');
     const saveBtn = e.target.closest('.bm-save-btn');
     const cancelBtn = e.target.closest('.bm-cancel-btn');
+    const colorSwatch = e.target.closest('.bm-color-swatch');
 
     if (goBtn) {
       const id = goBtn.dataset.id;
@@ -95,6 +104,10 @@ export function initBookmarksPanel({ panelEl, listEl, addBtnEl }, signal) {
       if (_closePanel) _closePanel();
     } else if (delBtn) {
       _bm.remove(delBtn.dataset.id);
+      render();
+      if (_onBookmarksChange) _onBookmarksChange();
+    } else if (colorSwatch) {
+      _bm.updateColor(colorSwatch.dataset.id, colorSwatch.dataset.color);
       render();
       if (_onBookmarksChange) _onBookmarksChange();
     } else if (showNote) {
@@ -120,6 +133,7 @@ export function initBookmarksPanel({ panelEl, listEl, addBtnEl }, signal) {
 
   if (addBtnEl) addBtnEl.addEventListener('click', handleAdd, { signal });
   if (listEl) listEl.addEventListener('click', handleListClick, { signal });
+  if (closeBtnEl) closeBtnEl.addEventListener('click', () => { if (_closePanel) _closePanel(); }, { signal });
 
   return { setBook, setCallbacks, render };
 }
