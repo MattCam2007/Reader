@@ -135,6 +135,10 @@ export const pdfAdapter = {
       }
       for (let i = 1; i < lines.length; i++) gaps.push(Math.round(lines[i - 1].y - lines[i].y));
       if (typeof page.cleanup === 'function') page.cleanup();
+      // Yield to the event loop periodically so the loading overlay repaints and
+      // the page stays responsive — important if pdf.js ever falls back to its
+      // main-thread worker (then getTextContent does heavy work on this thread).
+      if (pn % 8 === 0) await new Promise((r) => setTimeout(r, 0));
     }
     const bodyLeft = modeKey(xHist);
     const paraGap = (median(gaps) || 12) * 1.6;
