@@ -16,6 +16,11 @@ do **not** touch the reader, RSVP, TTS, the document model, position math, searc
 bookmarks, or the mode switcher. Those all consume a neutral intermediate
 representation (the **IR**) that your adapter produces.
 
+> **Worked reference:** the PDF adapter (`js/formats/pdf/pdf-adapter.js`) is a
+> complete, shipping example of everything below — lazy CDN library loading,
+> magic-byte detection, reconstructing the IR from an unstructured source, and
+> synthesising a TOC. Read it alongside this guide.
+
 ```
 your bytes ──▶ YourAdapter.parse() ──▶ ParsedBook (the IR) ──▶ everything else, unchanged
 ```

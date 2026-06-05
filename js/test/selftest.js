@@ -500,13 +500,36 @@ export function runSelftest(state) {
     const selected = selectAdapter(epubBuf, 'book.epub');
     assert('formats', 'registry: selectAdapter picks EPUB for .epub file', selected !== null && selected.id === 'epub');
 
-    // selectAdapter: unknown extension → null (no crash)
-    const pdfBuf = new Uint8Array([0x25, 0x50, 0x44, 0x46]).buffer;
-    assert('formats', 'registry: selectAdapter returns null for unsupported format', selectAdapter(pdfBuf, 'book.pdf') === null);
+    // selectAdapter: a genuinely unsupported format → null (no crash)
+    const junkBuf = new Uint8Array([0x00, 0x01, 0x02, 0x03]).buffer;
+    assert('formats', 'registry: selectAdapter returns null for unsupported format', selectAdapter(junkBuf, 'book.xyz') === null);
 
-    // acceptString: includes .epub
+    // acceptString: includes both registered formats
     const accept = acceptString();
     assert('formats', 'registry: acceptString includes .epub', accept.includes('.epub'));
+    assert('formats', 'registry: acceptString includes .pdf', accept.includes('.pdf'));
+  }
+
+  // --- formats: PDF adapter (Phase 1) ---
+  {
+    const pdf = getAdapterById('pdf');
+    assert('formats', 'PDF: adapter is registered', pdf !== null);
+    if (pdf) {
+      assert('formats', 'PDF: has parse + detect functions', typeof pdf.parse === 'function' && typeof pdf.detect === 'function');
+      assert('formats', 'PDF: extensions include .pdf', pdf.extensions.includes('.pdf'));
+      // %PDF magic bytes + .pdf name → detected.
+      const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]); // '%PDF-'
+      assert('formats', 'PDF: detect matches %PDF magic', pdf.detect(pdfBytes, 'book.pdf', ''));
+      assert('formats', 'PDF: detect matches .pdf extension', pdf.detect(new Uint8Array([0,0,0,0]), 'book.pdf', ''));
+      assert('formats', 'PDF: detect rejects an epub', !pdf.detect(new Uint8Array([0x50,0x4b,0x03,0x04]), 'book.epub', ''));
+      // Capabilities: reflowable text, no fixed-page fidelity, no inline images (Phase 1).
+      assert('formats', 'PDF: textStream + reflow true', pdf.capabilities.textStream === true && pdf.capabilities.reflow === true);
+      assert('formats', 'PDF: pageFidelity + images false', pdf.capabilities.pageFidelity === false && pdf.capabilities.images === false);
+      // selectAdapter routes a %PDF buffer to the PDF adapter, not EPUB.
+      const pdfBuf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]).buffer;
+      const sel = selectAdapter(pdfBuf, 'book.pdf');
+      assert('formats', 'registry: selectAdapter picks PDF for .pdf file', sel !== null && sel.id === 'pdf');
+    }
   }
 
   // --- formats: EPUB adapter capabilities ---

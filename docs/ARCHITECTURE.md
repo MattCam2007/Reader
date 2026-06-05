@@ -69,11 +69,13 @@ Reader/
 │   │   ├── detect.js            magicBytes(), startsWith(), ZIP_MAGIC
 │   │   ├── registry.js          registerAdapter(), selectAdapter(), acceptString()
 │   │   ├── index.js             Adapter barrel — imports each adapter so it self-registers
-│   │   └── epub/                EPUB format adapter
-│   │       ├── epub-adapter.js  FormatAdapter for EPUB — detect, loadLibs, parse
-│   │       ├── extractor.js     Extract rich/plain text blocks from EPUB spine
-│   │       ├── images.js        Resolve image blob URLs; detect cover image
-│   │       └── toc.js           Flatten EPUB navigation; render TOC; resolve hrefs
+│   │   ├── epub/                EPUB format adapter
+│   │   │   ├── epub-adapter.js  FormatAdapter for EPUB — detect, loadLibs, parse
+│   │   │   ├── extractor.js     Extract rich/plain text blocks from EPUB spine
+│   │   │   ├── images.js        Resolve image blob URLs; detect cover image
+│   │   │   └── toc.js           Flatten EPUB navigation; render TOC; resolve hrefs
+│   │   └── pdf/                 PDF format adapter (Phase 1)
+│   │       └── pdf-adapter.js   FormatAdapter for PDF — pdf.js text-layer → IR
 │   │
 │   ├── model/                   Document model and geometry
 │   │   ├── doc-model.js         Build word/block/section index from rendered DOM
@@ -290,7 +292,15 @@ core/book-session.js       Wraps IR into BookSession { …, format, capabilities
                            Cached by mode-switcher; handed to every mode on switch.
 ```
 
-**EPUB pipeline** (the only registered adapter in Phase 0, `formats/epub/`):
+**Registered adapters:** EPUB (`formats/epub/`) and PDF (`formats/pdf/`). The PDF
+adapter lazy-loads pdf.js from a CDN on first use, reconstructs paragraphs from the
+fixed-page text layer (line grouping by Y, paragraph breaks from first-line indent
+or enlarged vertical gaps, chapter detection from "Chapter N"-style heading lines),
+and emits the same `Section`/`Block`/`TocEntry` IR — so Reader, RSVP and TTS all
+work on a PDF with no mode-specific code. Its capabilities advertise
+`reflow:true, textStream:true, pageFidelity:false, images:false`.
+
+**EPUB pipeline** (`formats/epub/`):
 
 ```
 ePub(buffer) [epub.js CDN]        Parse ZIP archive, OPF/NCX/NAV metadata

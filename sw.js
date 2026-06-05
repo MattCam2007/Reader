@@ -17,6 +17,16 @@ const CDN_LIBS = [
   'https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js',
 ];
 
+// Per-format parsing libraries that are lazy-loaded only when that format is
+// opened (see js/formats/<fmt>/<fmt>-adapter.js loadLibs). NOT precached — a
+// reader who only opens EPUBs never downloads them — but cache-first once
+// fetched, so a book stays readable offline after its first open. Keep the
+// version in sync with the adapter's *_URL constants.
+const CDN_FORMAT_LIBS = [
+  'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.mjs',
+  'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.worker.min.mjs',
+];
+
 // The app shell: enough to boot offline. The long tail of ES modules, component
 // CSS and fonts is cached at runtime on first visit (cache-first below).
 const PRECACHE = [
@@ -62,7 +72,7 @@ self.addEventListener('message', (event) => {
   if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
-const isCdnLib = (url) => CDN_LIBS.includes(url);
+const isCdnLib = (url) => CDN_LIBS.includes(url) || CDN_FORMAT_LIBS.includes(url);
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
