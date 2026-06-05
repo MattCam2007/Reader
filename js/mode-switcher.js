@@ -93,7 +93,6 @@ async function switchMode(targetMode, posInfo) {
       onBookLoaded,
     });
   } else {
-    document.body.classList.add('chrome-hidden');
     appEl.innerHTML = readerTemplate();
     const mod = await import('./reader-app.js');
     currentHandle = mod.init({
