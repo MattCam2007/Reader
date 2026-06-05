@@ -277,6 +277,29 @@ export function init(options = {}) {
     }
   }
 
+  // Book submenu
+  const bookBtn = document.getElementById("bookBtn");
+  const bookMenu = document.getElementById("bookMenu");
+  if (bookBtn && bookMenu) {
+    function closeBookMenu() {
+      bookMenu.hidden = true;
+      bookBtn.setAttribute("aria-expanded", "false");
+    }
+    bookBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = !bookMenu.hidden;
+      if (isOpen) { closeBookMenu(); return; }
+      bookMenu.hidden = false;
+      bookBtn.setAttribute("aria-expanded", "true");
+    }, { signal });
+    bookMenu.addEventListener("click", closeBookMenu, { signal });
+    document.addEventListener("click", (e) => {
+      if (!bookMenu.hidden && !bookBtn.contains(e.target) && !bookMenu.contains(e.target)) {
+        closeBookMenu();
+      }
+    }, { signal });
+  }
+
   // Open EPUB button
   const openBtn = document.getElementById("openEpubBtn");
   if (openBtn) {

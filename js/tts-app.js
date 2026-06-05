@@ -745,6 +745,29 @@ export function init(options = {}) {
     }, { signal });
   }
 
+  // Book submenu
+  const ttsBookBtn = document.getElementById("ttsBookBtn");
+  const ttsBookMenu = document.getElementById("ttsBookMenu");
+  if (ttsBookBtn && ttsBookMenu) {
+    function closeBookMenu() {
+      ttsBookMenu.hidden = true;
+      ttsBookBtn.setAttribute("aria-expanded", "false");
+    }
+    ttsBookBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = !ttsBookMenu.hidden;
+      if (isOpen) { closeBookMenu(); return; }
+      ttsBookMenu.hidden = false;
+      ttsBookBtn.setAttribute("aria-expanded", "true");
+    }, { signal });
+    ttsBookMenu.addEventListener("click", closeBookMenu, { signal });
+    document.addEventListener("click", (e) => {
+      if (!ttsBookMenu.hidden && !ttsBookBtn.contains(e.target) && !ttsBookMenu.contains(e.target)) {
+        closeBookMenu();
+      }
+    }, { signal });
+  }
+
   // File open
   if (els.ttsOpenBtn) els.ttsOpenBtn.addEventListener('click', () => els.fileInput.click(), { signal });
   if (els.overlayBtn) els.overlayBtn.addEventListener('click', () => els.fileInput.click(), { signal });
