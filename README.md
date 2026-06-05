@@ -2,7 +2,13 @@
 
 A browser-based book reader with three reading modes. Open `reader.html` in any modern browser — no build step, no server, no install required.
 
-Ships with the opening of *Pride and Prejudice* as sample text. Load a supported book file to start reading your own books (EPUB today; more formats coming).
+Ships with the opening of *Pride and Prejudice* as sample text. Load a supported book file to start reading your own books — **EPUB and PDF** are supported (more formats coming).
+
+PDFs are read via a text-layer reconstruction pipeline (`js/formats/pdf/`): it
+rebuilds paragraphs and chapters from the page text so the paginated Reader, RSVP
+speed-reader and TTS all work. Text-based PDFs work well; scanned/image-only PDFs
+without a text layer are not supported. See `docs/ADDING-A-FORMAT.md` for how the
+format layer works.
 
 **Three ways to read:**
 - **Reader** — paginated book-style reading with full typography controls (default)
@@ -237,7 +243,7 @@ The app reads the book aloud using your device's built-in speech synthesis, high
 | Parameter | Description | Example |
 |-----------|-------------|---------|
 | `mode` | Starting mode: `read` (default), `rsvp`, or `tts` | `?mode=rsvp` |
-| `src` | Path or URL to an EPUB file | `?src=books/book.epub` |
+| `src` | Path or URL to a book file (EPUB or PDF) | `?src=books/book.pdf` |
 | `id` | Book identifier for position storage | `?id=my-book` |
 | `title` | Display title override | `?title=My+Book` |
 | `selftest` | Run the self-test suite | `?selftest=1` |

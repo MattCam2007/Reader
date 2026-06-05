@@ -47,5 +47,23 @@ export const SAMPLE = {
       title: "The Art of War", author: "Sun Tzu", cover: null,
       description: "The ancient Chinese treatise on strategy, conflict and the wisdom of winning without fighting.",
       series: null, tags: ["strategy","classic"], rating: 5, addedAt: "2026-05-05" },
+
+    // PDF example titles (see js/formats/pdf/pdf-adapter.js). These demonstrate
+    // the format-abstraction layer reading a non-EPUB format end to end.
+    { id: "b5-1", folders: ["Science Fiction","Babylon 5"],
+      path: "books/Babylon 5/01 - Babylon 5 - The Passing of the Techno-Mages - Casting Shadows (2001).pdf",
+      title: "Casting Shadows", author: "Jeanne Cavelos", cover: null,
+      description: "The Passing of the Techno-Mages, Book 1. Galen, a young techno-mage, comes of age as a shadow falls across his order.",
+      series: "The Passing of the Techno-Mages", tags: ["sci-fi","pdf"], rating: 4, addedAt: "2026-06-01" },
+    { id: "b5-2", folders: ["Science Fiction","Babylon 5"],
+      path: "books/Babylon 5/02 - Babylon 5 - The Passing of the Techno-Mages - Summoning Light (2001).pdf",
+      title: "Summoning Light", author: "Jeanne Cavelos", cover: null,
+      description: "The Passing of the Techno-Mages, Book 2. The techno-mages flee into hiding as the Shadow War engulfs the galaxy.",
+      series: "The Passing of the Techno-Mages", tags: ["sci-fi","pdf"], rating: 4, addedAt: "2026-06-02" },
+    { id: "b5-3", folders: ["Science Fiction","Babylon 5"],
+      path: "books/Babylon 5/03 - Babylon 5 - The Passing of the Techno-Mages - Invoking Darkness (2001).pdf",
+      title: "Invoking Darkness", author: "Jeanne Cavelos", cover: null,
+      description: "The Passing of the Techno-Mages, Book 3. Galen confronts the darkness within his order — and within himself.",
+      series: "The Passing of the Techno-Mages", tags: ["sci-fi","pdf"], rating: 4, addedAt: "2026-06-03" },
   ],
 };

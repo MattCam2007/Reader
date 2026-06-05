@@ -440,8 +440,8 @@ supportedLabels() → string[]              // human names for error messages
 ### `js/formats/index.js`
 
 Adapter barrel. Importing this module registers all format adapters (side-effect
-imports). `book-session.js` and `mode-switcher.js` both import this. Add future
-adapters here with `import './pdf/pdf-adapter.js'`.
+imports). `book-session.js` and `mode-switcher.js` both import this. Currently
+registers the EPUB and PDF adapters.
 
 ---
 
@@ -515,6 +515,41 @@ Maps a TOC href to a DOM element in the rendered content (attached or detached).
 > `toc[]` array — they are not inherently EPUB-specific. They live here for now
 > (proximity to the adapter that produces the TOC entries). A future cleanup can
 > promote them to `js/shared/`.
+
+---
+
+## `js/formats/pdf/` — PDF Format Adapter (Phase 1)
+
+### `js/formats/pdf/pdf-adapter.js`
+
+The `FormatAdapter` for PDF. Self-registers on import. PDFs have no semantic block
+structure — only positioned text runs on fixed pages — so the adapter reconstructs
+readable prose:
+
+- **`pdfAdapter.detect(bytes, fileName, mime)`** — `%PDF` magic bytes / `.pdf`
+  extension / `application/pdf` MIME.
+- **`pdfAdapter.loadLibs()`** — lazy `import()`s pdf.js (ESM) from a CDN on first
+  use and points `GlobalWorkerOptions.workerSrc` at the matching worker. A reader
+  who only opens EPUBs never downloads it.
+- **`pdfAdapter.parse(buffer, fileName, opts)`** → `ParsedBook`:
+  1. **Pass 1** — for each page, group text items into lines by Y, join runs with
+     gap-aware spacing; learn the body left-margin (most common line start) and the
+     median line gap.
+  2. **Pass 2** — merge lines into paragraphs. A new paragraph starts on a first-line
+     indent (margin + threshold) **or** an enlarged vertical gap (~1.6× median) —
+     covering PDFs that indent and PDFs that only add spacing. Trailing-hyphen words
+     are de-hyphenated; pure-digit page-number lines are dropped.
+  3. **Headings** — lines like `Chapter 12` / `— prologue —` (decoration-stripped,
+     short, no prose punctuation) start a new `Section` and become an `h2`
+     `isTocHeading` block; the TOC is synthesised from them. This makes windowing,
+     the chapter chrome and the TOC drawer work exactly as for EPUB.
+- **`pdfAdapter.capabilities`** — `{ reflow:true, richText:false, textStream:true,
+  images:false, toc:true, search:true, pageFidelity:false }`.
+
+Validated against the Babylon 5 *Passing of the Techno-Mages* PDFs in `books/`
+(232–251 pages each): ~18–22 sections, ~3000–4300 paragraphs, 111k–119k words, full
+chapter TOC. See [`docs/ADDING-A-FORMAT.md`](ADDING-A-FORMAT.md) for the adapter
+contract this implements.
 
 ---
 

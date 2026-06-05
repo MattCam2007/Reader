@@ -646,8 +646,18 @@ export function init(options = {}) {
       state.bookId = session.bookId;
       els.bookTitleEl.textContent = session.title || session.bookId;
       bookmarkManager.setBook(state.bookId);
+
+      // Stage the heavy steps with a real paint between them. Each step below
+      // runs synchronously and can take a while on a large book (a 100k-word PDF
+      // builds thousands of blocks); updating the overlay then yielding a frame
+      // means the user sees which step is running instead of a single frozen
+      // "Parsing\u2026" message, and the browser stays responsive between steps.
+      const yieldFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+
+      els.overlayMsg.textContent = "Rendering\u2026";
+      await yieldFrame();
       renderBook(session.sections);
-      clearOverlay();
+
       if (onBookLoaded) onBookLoaded({ session });
       // Web fonts (e.g. OpenDyslexic, declared font-display:swap) reflow the
       // text when they finish loading. If we paginate against the fallback font's
@@ -657,22 +667,21 @@ export function init(options = {}) {
       if (typeof document !== "undefined" && document.fonts && document.fonts.ready) {
         try { await document.fonts.ready; } catch (_) {}
       }
-      // Paginate and restore inside a rAF so layout (stride/total) is final
-      // before we map a word ordinal to a page. Await it so loadFromSession only
-      // resolves once the position is applied \u2014 see mode-switcher handoff.
-      await new Promise((resolve) => {
-        requestAnimationFrame(() => {
-          try {
-            finalizeLayout(session.toc, pos);
-            if (urlParams.get("selftest") === "1") {
-              requestAnimationFrame(() => runSelftest(state));
-            }
-          } catch (e) { console.warn("reader:layout", e); }
-          finally { resolve(); }
-        });
-      });
+
+      // Paginate and restore after a paint so layout (stride/total) is final
+      // before we map a word ordinal to a page. The overlay stays up through this
+      // step (no black screen) and is cleared once the position is applied.
+      els.overlayMsg.textContent = "Formatting\u2026";
+      await yieldFrame();
+      try {
+        finalizeLayout(session.toc, pos);
+      } catch (e) { console.warn("reader:layout", e); }
+      clearOverlay();
+      if (urlParams.get("selftest") === "1") {
+        requestAnimationFrame(() => runSelftest(state));
+      }
     } catch (err) {
-      console.error("EPUB render failed:", err);
+      console.error("book render failed:", err);
       showError(err && err.message ? err.message : "Couldn't read that file.");
     }
   }

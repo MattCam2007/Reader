@@ -5,7 +5,7 @@
 // at module-evaluation time, before any parse() call can happen.
 
 import './epub/epub-adapter.js';
+import './pdf/pdf-adapter.js';
 
 // Future adapters:
-// import './pdf/pdf-adapter.js';
 // import './mobi/mobi-adapter.js';
