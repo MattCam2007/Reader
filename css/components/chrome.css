@@ -17,6 +17,22 @@
 .reader-quick-bm {
   position: absolute;
   top: calc(env(safe-area-inset-top, 0px) + 0.45rem);
+  left: 0.7rem;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0.3rem;
+  border-radius: 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 200ms ease;
+}
+.reader-fullscreen-btn {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 0.45rem);
   right: 0.7rem;
   background: transparent;
   border: 0;
@@ -30,6 +46,7 @@
   -webkit-tap-highlight-color: transparent;
   transition: color 200ms ease;
 }
+.reader-fullscreen-btn:hover { color: var(--fg); }
 .reader-quick-bm.bookmarked {
   color: var(--bm-active-color, var(--accent));
 }
@@ -221,7 +238,7 @@ input[type="range"].reader-progress::-moz-range-thumb {
 .bm-color-popover {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 3.4rem);
-  right: 0.45rem;
+  left: 0.45rem;
   z-index: 60;
   background: var(--panel-bg);
   border: 1px solid var(--border);
