@@ -789,6 +789,14 @@ export function init(options = {}) {
 
     if (els.bmColorPopoverEl) {
       els.bmColorPopoverEl.addEventListener('click', (e) => {
+        const deleteBtn = e.target.closest('.bm-cp-delete');
+        if (deleteBtn) {
+          chrome.getPageBookmarks(bookmarkManager.getAll()).forEach(bm => bookmarkManager.remove(bm.id));
+          bmPanel.render();
+          chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
+          _closeColorPopover();
+          return;
+        }
         const btn = e.target.closest('.bm-cp-swatch, .bm-cp-clear');
         if (!btn) return;
         const color = btn.dataset.color || '';

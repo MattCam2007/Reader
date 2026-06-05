@@ -288,3 +288,24 @@ input[type="range"].reader-progress::-moz-range-thumb {
   transition: transform 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 .bm-cp-clear:hover { transform: scale(1.2); border-color: var(--fg); color: var(--fg); }
+.bm-cp-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.bm-cp-delete {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 120ms ease, color 120ms ease;
+}
+.bm-cp-delete:hover { transform: scale(1.2); color: #e74c3c; }

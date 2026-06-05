@@ -71,6 +71,10 @@ export function readerTemplate() {
     <button class="bm-cp-swatch" data-color="c3" style="--swatch:var(--bm-c3)" type="button" aria-label="Color 3"></button>
     <button class="bm-cp-swatch" data-color="c4" style="--swatch:var(--bm-c4)" type="button" aria-label="Color 4"></button>
     <button class="bm-cp-swatch" data-color="c5" style="--swatch:var(--bm-c5)" type="button" aria-label="Color 5"></button>
+    <div class="bm-cp-sep"></div>
+    <button class="bm-cp-delete" type="button" aria-label="Remove bookmark">
+      <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><polyline points="3,6 5,6 21,6"/><path d="M19,6l-1,14H6L5,6"/><path d="M10,11v6"/><path d="M14,11v6"/><path d="M9,6V4h6v2"/></svg>
+    </button>
   </div>
 
   <div class="ui-backdrop" id="backdrop"></div>
