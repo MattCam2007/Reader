@@ -483,7 +483,7 @@ export function init(options = {}) {
 
   // ---------- Input ----------
   const input = new InputHandler(state, els, pagination, {
-    toggleChrome: () => chrome.toggle(),
+    toggleChrome: () => { chrome.toggle(); if (!state.isScrollMode && state.docModelBuilt) relayout(); },
     dismissCoach,
     closePanels,
     dismissSelBar: () => selection.dismiss(),
@@ -903,9 +903,20 @@ export function init(options = {}) {
     savePosMain();
   }, { passive: true, signal });
 
+  // Bottombar height tracking — sets --bottombar-h so CSS can reserve the right
+  // amount of padding-bottom in the viewport when the chrome is visible.
+  const _bottombarEl = document.getElementById("bottombar");
+  function updateBottombarHeight() {
+    if (!_bottombarEl) return;
+    const h = _bottombarEl.getBoundingClientRect().height;
+    if (h > 0) document.documentElement.style.setProperty("--bottombar-h", h + "px");
+  }
+  updateBottombarHeight();
+
   // Resize
   let resizeTimer = null;
   window.addEventListener("resize", () => {
+    updateBottombarHeight();
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => relayout(), RESIZE_DEBOUNCE_MS);
   }, { signal });
