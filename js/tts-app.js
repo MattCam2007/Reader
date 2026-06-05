@@ -6,7 +6,7 @@ import { BookSession, splitWords } from './core/book-session.js';
 import { renderSections, annotateInlineText } from './shared/render.js';
 import { renderSearchResults } from './shared/search.js';
 import { applyTheme, applyOsThemeFallback, savePosition as shellSavePosition, loadPosition } from './base-reader-app.js';
-import { buildTOC, resolveHref } from './epub/toc.js';
+import { buildTOC, resolveHref } from './formats/epub/toc.js';
 import { buildSample } from '../fixtures/sample.js';
 import { TtsEngine } from './tts/engine.js';
 import { TtsHighlighter } from './tts/highlighter.js';

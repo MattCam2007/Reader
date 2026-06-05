@@ -8,7 +8,7 @@ import { ReaderState } from './core/state.js';
 import { StorageManager } from './core/storage.js';
 import { BookSession } from './core/book-session.js';
 import { renderSections, annotateInlineText } from './shared/render.js';
-import { buildTOC, resolveHref } from './epub/toc.js';
+import { buildTOC, resolveHref } from './formats/epub/toc.js';
 import { toLocator, resolveLocator } from './model/locator.js';
 import { currentLocator, pageOfElement, pageOfWord, wordAtPageStart, wordAtPageStartRange } from './model/geometry.js';
 import { buildPosition, resolvePosition } from './core/position.js';

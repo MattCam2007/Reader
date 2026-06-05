@@ -1,7 +1,7 @@
 import { wordRange, pageOfWord, wordAtPageStart } from '../model/geometry.js';
 import { toLocator, resolveLocator, exportTokens } from '../model/locator.js';
 import { deriveBookId, buildPosition, resolvePosition } from '../core/position.js';
-import { blocksFromDoc, sanitizeInline } from '../epub/extractor.js';
+import { blocksFromDoc, sanitizeInline } from '../formats/epub/extractor.js';
 import { EventBus } from '../core/events.js';
 import { FONT_MAP, SETTINGS, DEFAULT_PREFS } from '../core/constants.js';
 import { PrefsManager } from '../core/prefs.js';
