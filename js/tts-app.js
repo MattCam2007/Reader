@@ -7,7 +7,6 @@ import { renderSections, annotateInlineText } from './shared/render.js';
 import { renderSearchResults } from './shared/search.js';
 import { applyTheme, applyOsThemeFallback, savePosition as shellSavePosition, loadPosition } from './base-reader-app.js';
 import { buildTOC, resolveHref } from './formats/epub/toc.js';
-import { buildSample } from '../fixtures/sample.js';
 import { TtsEngine } from './tts/engine.js';
 import { TtsHighlighter } from './tts/highlighter.js';
 import { TTS_DEFAULTS } from './tts/constants.js';
@@ -202,19 +201,26 @@ export function init(options = {}) {
 
   // ---------- Overlay ----------
   function showLoading(msg) {
-    document.body.classList.remove('error');
+    document.body.classList.remove('error', 'welcome');
     document.body.classList.add('loading');
     els.overlayBtn.hidden = true;
     els.overlayMsg.textContent = msg;
   }
   function showError(msg) {
-    document.body.classList.remove('loading');
+    document.body.classList.remove('loading', 'welcome');
     document.body.classList.add('error');
     els.overlayMsg.textContent = msg;
     els.overlayBtn.hidden = false;
   }
-  function clearOverlay() {
+  function showWelcome() {
     document.body.classList.remove('loading', 'error');
+    document.body.classList.add('welcome');
+    els.overlayMsg.textContent = 'Open an EPUB or PDF to start reading.';
+    els.overlayBtn.textContent = 'Open a book';
+    els.overlayBtn.hidden = false;
+  }
+  function clearOverlay() {
+    document.body.classList.remove('loading', 'error', 'welcome');
   }
 
   // ---------- Playing state ----------
@@ -829,35 +835,7 @@ export function init(options = {}) {
       })
       .catch(err => showError(err && err.message ? err.message : "Couldn't fetch that book."));
   } else {
-    bookId = 'Pride and Prejudice (sample)';
-    bookmarkManager.setBook(bookId);
-    els.bookTitleEl.textContent = 'Pride and Prejudice';
-    renderBook(buildSample());
-    requestAnimationFrame(() => {
-      if (_suppressSampleLayout) return;
-      sentences = segmentContent();
-      _ttsSearchCache = null;
-      highlighter.setSentences(sentences);
-      currentSentenceIdx = restorePosition();
-      buildTOC([], headingToc, els.tocListEl, sectionEls,
-        (el) => { seekToElementBlock(el); closePanels(); },
-        closePanels,
-        (href) => resolveHref(href, els.content, sectionEls));
-
-      // Show coach hint on first visit
-      if (els.coach) {
-        try {
-          if (!localStorage.getItem('tts:hinted')) {
-            els.coach.classList.remove('hide');
-            els.coach.setAttribute('aria-hidden', 'false');
-            setTimeout(() => {
-              els.coach.classList.add('hide');
-              try { localStorage.setItem('tts:hinted', '1'); } catch (_) {}
-            }, 5000);
-          }
-        } catch (_) {}
-      }
-    });
+    showWelcome();
   }
 
   // ---------- Handle ----------

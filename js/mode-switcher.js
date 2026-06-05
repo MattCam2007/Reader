@@ -7,7 +7,7 @@ import { acceptString } from './formats/registry.js';
 import './formats/index.js'; // ensure all adapters are registered
 
 const READER_BODY_CLASSES = [
-  'chrome-hidden', 'loading', 'error', 'show-toc', 'show-search', 'show-bookmarks',
+  'chrome-hidden', 'loading', 'error', 'welcome', 'show-toc', 'show-search', 'show-bookmarks',
   'images-off', 'selection-on', 'layout-scroll',
 ];
 const RSVP_BODY_CLASSES = [

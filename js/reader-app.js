@@ -491,19 +491,26 @@ export function init(options = {}) {
 
   // ---------- Overlay ----------
   function showLoading(msg) {
-    document.body.classList.remove("error");
+    document.body.classList.remove("error", "welcome");
     document.body.classList.add("loading");
     els.overlayBtn.hidden = true;
     els.overlayMsg.textContent = msg;
   }
   function showError(msg) {
-    document.body.classList.remove("loading");
+    document.body.classList.remove("loading", "welcome");
     document.body.classList.add("error");
     els.overlayMsg.textContent = msg;
     els.overlayBtn.hidden = false;
   }
-  function clearOverlay() {
+  function showWelcome() {
     document.body.classList.remove("loading", "error");
+    document.body.classList.add("welcome");
+    els.overlayMsg.textContent = "Open an EPUB or PDF to start reading.";
+    els.overlayBtn.textContent = "Open a book";
+    els.overlayBtn.hidden = false;
+  }
+  function clearOverlay() {
+    document.body.classList.remove("loading", "error", "welcome");
   }
 
   // ---------- Prefs application (Phase 4: each concern subscribes) ----------
@@ -928,7 +935,7 @@ export function init(options = {}) {
   const srcUrl = urlParams.get("src");
   if (srcUrl) {
     loadFromUrl(srcUrl);
-  } else {
+  } else if (urlParams.get("selftest") === "1") {
     state.bookId = "Pride and Prejudice (sample)";
     bookmarkManager.setBook(state.bookId);
     els.bookTitleEl.textContent = "Pride and Prejudice";
@@ -936,10 +943,10 @@ export function init(options = {}) {
     requestAnimationFrame(() => {
       if (_suppressSampleLayout) return;
       finalizeLayout([], null);
-      if (urlParams.get("selftest") === "1") {
-        requestAnimationFrame(() => runSelftest(state));
-      }
+      requestAnimationFrame(() => runSelftest(state));
     });
+  } else {
+    showWelcome();
   }
 
   // ---------- Handle object ----------
@@ -954,7 +961,7 @@ export function init(options = {}) {
     },
     getPosition: getCanonicalPosition,
     getBookId() { return state.bookId; },
-    isBookLoaded() { return state.bookId && state.bookId !== "Pride and Prejudice (sample)"; },
+    isBookLoaded() { return !!state.bookId; },
     applyPosition(pos) { applyCanonicalPosition(pos); },
     loadFromSession(session, pos) { return loadFromSession(session, pos); },
   };

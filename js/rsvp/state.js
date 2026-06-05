@@ -39,7 +39,7 @@ export class RsvpState {
 
   setPlayState(s) {
     this.playState = s;
-    document.body.classList.remove("paused", "loading", "error");
+    document.body.classList.remove("paused", "loading", "error", "welcome");
     if (s === "paused") document.body.classList.add("paused");
     else if (s === "loading") document.body.classList.add("loading");
     else if (s === "error") document.body.classList.add("error");
