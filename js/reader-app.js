@@ -65,6 +65,8 @@ export function init(options = {}) {
     bmColorPopoverEl: document.getElementById("bmColorPopover"),
     quickBmBtnEl:  document.getElementById("quickBmBtn"),
     fullscreenBtnEl: document.getElementById("fullscreenBtn"),
+    bookBtn:       document.getElementById("bookBtn"),
+    bookMenu:      document.getElementById("bookMenu"),
   };
 
   // ---------- State & Prefs ----------
@@ -846,6 +848,28 @@ export function init(options = {}) {
     }
   }
   els.backdrop.addEventListener("click", () => { closePanels(); closeSettingsScreen(); }, { signal });
+
+  // Book submenu
+  if (els.bookBtn && els.bookMenu) {
+    function closeBookMenu() {
+      els.bookMenu.hidden = true;
+      els.bookBtn.setAttribute("aria-expanded", "false");
+    }
+    els.bookBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = !els.bookMenu.hidden;
+      if (isOpen) { closeBookMenu(); return; }
+      els.bookMenu.hidden = false;
+      els.bookBtn.setAttribute("aria-expanded", "true");
+    }, { signal });
+    els.bookMenu.addEventListener("click", closeBookMenu, { signal });
+    document.addEventListener("click", (e) => {
+      if (!els.bookMenu.hidden && !els.bookBtn.contains(e.target) && !els.bookMenu.contains(e.target)) {
+        closeBookMenu();
+      }
+    }, { signal });
+  }
+
   els.openBtn.addEventListener("click", () => els.fileInput.click(), { signal });
   els.overlayBtn.addEventListener("click", () => els.fileInput.click(), { signal });
   els.fileInput.addEventListener("change", (e) => {
@@ -885,6 +909,29 @@ export function init(options = {}) {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => relayout(), RESIZE_DEBOUNCE_MS);
   }, { signal });
+
+  // Mode submenu
+  const modeMenuBtn = document.getElementById("modeMenuBtn");
+  const modeMenu = document.getElementById("modeMenu");
+  if (modeMenuBtn && modeMenu) {
+    function closeModeMenu() {
+      modeMenu.hidden = true;
+      modeMenuBtn.setAttribute("aria-expanded", "false");
+    }
+    modeMenuBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = !modeMenu.hidden;
+      if (isOpen) { closeModeMenu(); return; }
+      modeMenu.hidden = false;
+      modeMenuBtn.setAttribute("aria-expanded", "true");
+    }, { signal });
+    modeMenu.addEventListener("click", closeModeMenu, { signal });
+    document.addEventListener("click", (e) => {
+      if (!modeMenu.hidden && !modeMenuBtn.contains(e.target) && !modeMenu.contains(e.target)) {
+        closeModeMenu();
+      }
+    }, { signal });
+  }
 
   // Mode switch buttons
   const modeBtn = document.getElementById("modeBtn");

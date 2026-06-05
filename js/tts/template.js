@@ -48,28 +48,42 @@ export function ttsTemplate() {
         <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="10" cy="8" r="2.6"/><circle cx="15" cy="16" r="2.6"/></svg>
         <span>Settings</span>
       </button>
-      <button class="reader-tool" id="ttsSearchBtn" type="button" aria-label="Search" aria-expanded="false">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
-        <span>Search</span>
+      <button class="reader-tool" id="ttsModeMenuBtn" type="button" aria-label="Switch mode" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="16,3 21,8 16,13"/><line x1="3" y1="8" x2="21" y2="8"/><polyline points="8,11 3,16 8,21"/><line x1="21" y1="16" x2="3" y2="16"/></svg>
+        <span>Mode</span>
       </button>
-      <button class="reader-tool" id="ttsReadBtn" type="button" aria-label="Book mode">
+      <button class="reader-tool" id="ttsBookBtn" type="button" aria-label="Book" aria-expanded="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6c-1.8-1.3-4.6-1.6-7-0.8v12c2.4-0.8 5.2-0.5 7 0.8 1.8-1.3 4.6-1.6 7-0.8V5.2c-2.4-0.8-5.2-0.5-7 0.8z"/><line x1="12" y1="6" x2="12" y2="18.8"/></svg>
-        <span>Read</span>
-      </button>
-      <button class="reader-tool" id="ttsSpeedBtn" type="button" aria-label="Speed read mode">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/></svg>
-        <span>Speed</span>
-      </button>
-      <button class="reader-tool" id="ttsBookmarksBtn" type="button" aria-label="Bookmarks" aria-expanded="false">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-        <span>Marks</span>
-      </button>
-      <button class="reader-tool" id="ttsOpenBtn" type="button" aria-label="Open EPUB">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        <span>Open</span>
+        <span>Book</span>
       </button>
     </div>
   </footer>
+
+  <div class="book-submenu" id="ttsModeMenu" hidden>
+    <button class="book-submenu-item" id="ttsReadBtn" type="button" aria-label="Book mode">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6c-1.8-1.3-4.6-1.6-7-0.8v12c2.4-0.8 5.2-0.5 7 0.8 1.8-1.3 4.6-1.6 7-0.8V5.2c-2.4-0.8-5.2-0.5-7 0.8z"/><line x1="12" y1="6" x2="12" y2="18.8"/></svg>
+      Read
+    </button>
+    <button class="book-submenu-item" id="ttsSpeedBtn" type="button" aria-label="Speed read mode">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/></svg>
+      Speed
+    </button>
+  </div>
+
+  <div class="book-submenu" id="ttsBookMenu" hidden>
+    <button class="book-submenu-item" id="ttsOpenBtn" type="button" aria-label="Open EPUB">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Open
+    </button>
+    <button class="book-submenu-item" id="ttsSearchBtn" type="button" aria-label="Search" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+      Search
+    </button>
+    <button class="book-submenu-item" id="ttsBookmarksBtn" type="button" aria-label="Bookmarks" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      Bookmarks
+    </button>
+  </div>
 
   <div class="ui-backdrop" id="backdrop"></div>
 

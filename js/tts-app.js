@@ -745,6 +745,29 @@ export function init(options = {}) {
     }, { signal });
   }
 
+  // Book submenu
+  const ttsBookBtn = document.getElementById("ttsBookBtn");
+  const ttsBookMenu = document.getElementById("ttsBookMenu");
+  if (ttsBookBtn && ttsBookMenu) {
+    function closeBookMenu() {
+      ttsBookMenu.hidden = true;
+      ttsBookBtn.setAttribute("aria-expanded", "false");
+    }
+    ttsBookBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = !ttsBookMenu.hidden;
+      if (isOpen) { closeBookMenu(); return; }
+      ttsBookMenu.hidden = false;
+      ttsBookBtn.setAttribute("aria-expanded", "true");
+    }, { signal });
+    ttsBookMenu.addEventListener("click", closeBookMenu, { signal });
+    document.addEventListener("click", (e) => {
+      if (!ttsBookMenu.hidden && !ttsBookBtn.contains(e.target) && !ttsBookMenu.contains(e.target)) {
+        closeBookMenu();
+      }
+    }, { signal });
+  }
+
   // File open
   if (els.ttsOpenBtn) els.ttsOpenBtn.addEventListener('click', () => els.fileInput.click(), { signal });
   if (els.overlayBtn) els.overlayBtn.addEventListener('click', () => els.fileInput.click(), { signal });
@@ -753,6 +776,29 @@ export function init(options = {}) {
       const file = e.target.files && e.target.files[0];
       e.target.value = '';
       if (file) loadEpub(file);
+    }, { signal });
+  }
+
+  // Mode submenu
+  const ttsModeMenuBtn = document.getElementById("ttsModeMenuBtn");
+  const ttsModeMenu = document.getElementById("ttsModeMenu");
+  if (ttsModeMenuBtn && ttsModeMenu) {
+    function closeModeMenu() {
+      ttsModeMenu.hidden = true;
+      ttsModeMenuBtn.setAttribute("aria-expanded", "false");
+    }
+    ttsModeMenuBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = !ttsModeMenu.hidden;
+      if (isOpen) { closeModeMenu(); return; }
+      ttsModeMenu.hidden = false;
+      ttsModeMenuBtn.setAttribute("aria-expanded", "true");
+    }, { signal });
+    ttsModeMenu.addEventListener("click", closeModeMenu, { signal });
+    document.addEventListener("click", (e) => {
+      if (!ttsModeMenu.hidden && !ttsModeMenuBtn.contains(e.target) && !ttsModeMenu.contains(e.target)) {
+        closeModeMenu();
+      }
     }, { signal });
   }
 
