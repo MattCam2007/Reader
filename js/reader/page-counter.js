@@ -40,6 +40,13 @@ export class PageCounter {
   // Call once windowed mode is set up and the first paginateWindow has run.
   // Adopts cache if the layout signature matches; otherwise schedules the idle pass.
   begin(onUpdate) {
+    // Cancel any in-flight idle pass and tear down the offscreen host before
+    // resetting state. Without this, a second begin() call (e.g. from a
+    // double-rAF after mode switch) leaves the old step closure running
+    // concurrently, fighting over this._idle and writing stale counts.
+    cancelIdle(this._idle);
+    this._idle = null;
+    this._removeHost();
     this._onUpdate = onUpdate;
     const sig = this.computeSignature();
     this.state.pageCountSig = sig;
@@ -169,7 +176,6 @@ export class PageCounter {
       host.style.columnCount = cols === 2 ? '2' : '';
       host.style.columnWidth = cols === 2 ? '' : vpW + 'px';
       host.style.columnGap = COLUMN_GAP + 'px';
-      void host.offsetWidth;
       await this._awaitImages(w.el);
       void host.offsetWidth;
       return Math.max(1, Math.round(host.scrollWidth / stride));
@@ -181,9 +187,19 @@ export class PageCounter {
   // ---- Idle measuring pass ----
 
   _schedulePass() {
+    const n = this.state.pageCounts.length;
+    // chapWindows must cover every section. If setupWindow() was called a second
+    // time while chapters were already detached (double-init race), it produces a
+    // 1-entry array and every chapter beyond the first returns undefined forever.
+    // Bail out here rather than silently leaving pageCounts full of undefined.
+    if (this.state.chapWindows.length < n) {
+      console.warn('page-counter: chapWindows has', this.state.chapWindows.length,
+        'entries but doc has', n, 'sections — skipping pass');
+      return;
+    }
+
     if (!this._host) this._buildHost();
 
-    const n = this.state.pageCounts.length;
     // Measure chapters before curChap first (makes current page exact sooner),
     // then chapters after curChap.
     const order = [];

@@ -631,7 +631,14 @@ export function init(options = {}) {
 
   // Render an already-extracted session (a fresh load, or a hand-off from
   // another mode). Skips ePub()/extractSections entirely \u2014 that work is done.
+  let _suppressSampleLayout = false;
   async function loadFromSession(session, pos) {
+    // Prevent the sample-book rAF (scheduled unconditionally in init) from
+    // calling finalizeLayout after we've already replaced the DOM with the real
+    // book. Without this guard the second setupWindow() call sees only the one
+    // attached chapter and overwrites chapWindows with a 1-entry array, breaking
+    // page counting for every chapter beyond the first.
+    _suppressSampleLayout = true;
     closePanels();
     try {
       state.bookId = session.bookId;
@@ -815,6 +822,7 @@ export function init(options = {}) {
     els.bookTitleEl.textContent = "Pride and Prejudice";
     renderBook(buildSample());
     requestAnimationFrame(() => {
+      if (_suppressSampleLayout) return;
       finalizeLayout([], null);
       if (urlParams.get("selftest") === "1") {
         requestAnimationFrame(() => runSelftest(state));

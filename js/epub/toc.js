@@ -81,5 +81,20 @@ export function resolveHref(href, content, sectionEls) {
     } catch (e) { console.warn("toc:resolveHref", e); }
   }
   const base = parts[0].split("/").pop();
-  return sectionEls.get(base) || null;
+  const sectionEl = sectionEls.get(base) || null;
+  // Fragment absent or unresolved: fall back to the section's first heading
+  // rather than the file root. Many EPUBs anchor a chapter with an empty
+  // <a id="…"/> that carries no text and is dropped during extraction (so the
+  // fragment can't resolve), or omit the fragment entirely — and the heading
+  // is often not the first thing in the file (an epigraph, part label, or
+  // scene break precedes it). Landing on the heading puts us where the chapter
+  // visually starts instead of a page or so earlier at the file top.
+  if (sectionEl) {
+    try {
+      const heading = sectionEl.querySelector(
+        ".blk-h1, .blk-h2, .blk-h3, .blk-h4, .blk-h5, .blk-h6");
+      if (heading) return heading;
+    } catch (e) { console.warn("toc:resolveHref:heading", e); }
+  }
+  return sectionEl;
 }
