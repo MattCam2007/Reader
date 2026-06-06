@@ -151,7 +151,7 @@ body.rsvp {
 }
 
 body.paused .rsvp-word-area { opacity: var(--pause-dim); }
-body.paused.context-page .rsvp-word-area { opacity: 1; }
+body.paused.context-page:not(.welcome):not(.loading):not(.error) .rsvp-word-area { opacity: 1; }
 
 /* ===== Scroll picker (paused + context) =====
    The word box stays pinned at the centre of the viewport, exactly where it
@@ -161,7 +161,7 @@ body.paused.context-page .rsvp-word-area { opacity: 1; }
   display: none;
 }
 
-body.paused.context-page .rsvp-wrap {
+body.paused.context-page:not(.welcome):not(.loading):not(.error) .rsvp-wrap {
   overflow-y: auto;
   overflow-x: hidden;
   justify-content: flex-start; /* flex-start required — center blocks upward scroll */
@@ -170,18 +170,18 @@ body.paused.context-page .rsvp-wrap {
   overscroll-behavior: contain;
   overflow-anchor: none; /* prevent browser adjusting scrollTop when cwAbove grows */
 }
-body.paused.context-page .rsvp-wrap::-webkit-scrollbar {
+body.paused.context-page:not(.welcome):not(.loading):not(.error) .rsvp-wrap::-webkit-scrollbar {
   display: none;
 }
 
-body.paused.context-page .rsvp-display {
+body.paused.context-page:not(.welcome):not(.loading):not(.error) .rsvp-display {
   max-width: none;
   width: 100%;
 }
 
 /* Word box pinned at viewport centre; opaque background clears just the word
    slot — no shadow bleed so every line of context above/below stays readable. */
-body.paused.context-page .rsvp-word-area {
+body.paused.context-page:not(.welcome):not(.loading):not(.error) .rsvp-word-area {
   position: fixed;
   left: 50%;
   top: 50%;
@@ -194,7 +194,7 @@ body.paused.context-page .rsvp-word-area {
 
 /* Context reel: above block / slot / below block.
    Half-viewport padding lets the first/last word reach centre. */
-body.paused.context-page .rsvp-context-flow {
+body.paused.context-page:not(.welcome):not(.loading):not(.error) .rsvp-context-flow {
   display: block;
   padding: 50vh 1.25rem;
 }
