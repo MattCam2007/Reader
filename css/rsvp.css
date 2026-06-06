@@ -164,6 +164,7 @@ body.paused.context-page .rsvp-word-area { opacity: 1; }
 body.paused.context-page .rsvp-wrap {
   overflow-y: auto;
   overflow-x: hidden;
+  justify-content: flex-start; /* flex-start required — center blocks upward scroll */
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
@@ -177,9 +178,8 @@ body.paused.context-page .rsvp-display {
   width: 100%;
 }
 
-/* Word box pinned at viewport centre; let scroll/taps pass through to the reel.
-   A backdrop in the box colour clears the centre line and feathers into the
-   flowing context above/below so the focused word stays crisp and legible. */
+/* Word box pinned at viewport centre; opaque background clears just the word
+   slot — no shadow bleed so every line of context above/below stays readable. */
 body.paused.context-page .rsvp-word-area {
   position: fixed;
   left: 50%;
@@ -189,7 +189,6 @@ body.paused.context-page .rsvp-word-area {
   z-index: 3;
   pointer-events: none;
   background: var(--bg);
-  box-shadow: 0 0 26px 26px var(--bg);
 }
 
 /* The reel of words: a readable, centred paragraph that scrolls behind the box */
