@@ -151,47 +151,69 @@ body.rsvp {
 }
 
 body.paused .rsvp-word-area { opacity: var(--pause-dim); }
+body.paused.context-page:not(.welcome):not(.loading):not(.error) .rsvp-word-area { opacity: 1; }
 
-/* ===== Context page ===== */
-.rsvp-context {
-  font-size: 0.75rem;
-  line-height: 1.5;
-  color: var(--fg-muted);
-  text-align: center;
-  max-width: 32rem;
-  width: 100%;
-  margin: 0 auto;
+/* ===== Scroll picker (paused + context) =====
+   The word box stays pinned at the centre of the viewport, exactly where it
+   sits while playing. The surrounding words flow above and below it in a
+   scrollable reel; whichever word reels into the centre becomes active. */
+.rsvp-context-flow {
   display: none;
 }
-.rsvp-context--above {
-  margin-bottom: 0.75rem;
+
+body.paused.context-page:not(.welcome):not(.loading):not(.error) .rsvp-wrap {
+  overflow-y: auto;
+  overflow-x: hidden;
+  justify-content: flex-start; /* flex-start required — center blocks upward scroll */
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  overflow-anchor: none; /* prevent browser adjusting scrollTop when cwAbove grows */
 }
-.rsvp-context--below {
-  margin-top: 0.75rem;
-}
-body.paused.context-page .rsvp-context--above,
-body.paused.context-page .rsvp-context--below {
-  display: block;
+body.paused.context-page:not(.welcome):not(.loading):not(.error) .rsvp-wrap::-webkit-scrollbar {
+  display: none;
 }
 
-/* Fill available vertical space when context is shown */
-body.paused.context-page .rsvp-wrap {
-  justify-content: flex-start;
+body.paused.context-page:not(.welcome):not(.loading):not(.error) .rsvp-display {
+  max-width: none;
+  width: 100%;
 }
-body.paused.context-page .rsvp-display {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+
+/* Word box pinned at viewport centre; opaque background clears just the word
+   slot — no shadow bleed so every line of context above/below stays readable. */
+body.paused.context-page:not(.welcome):not(.loading):not(.error) .rsvp-word-area {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(36rem, 92vw);
+  z-index: 3;
+  pointer-events: none;
+  background: var(--bg);
 }
-body.paused.context-page .rsvp-context {
-  flex: 1;
-  overflow: hidden;
+
+/* Context reel: above block / slot / below block.
+   Half-viewport padding lets the first/last word reach centre. */
+body.paused.context-page:not(.welcome):not(.loading):not(.error) .rsvp-context-flow {
+  display: block;
+  padding: 50vh 1.25rem;
 }
-body.paused.context-page .rsvp-context--above {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+/* Both text blocks share the same readable paragraph style */
+.cw-above,
+.cw-below {
+  text-align: center;
+  line-height: 2;
+  font-size: 1.05rem;
+  color: var(--fg-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 34rem;
+  margin: 0 auto;
+}
+/* Slot: empty gap that the pinned word box overlays; height set by JS */
+.cw-slot {
+  max-width: 34rem;
+  margin: 0 auto;
 }
 
 /* ===== Toast ===== */

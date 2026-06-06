@@ -24,8 +24,8 @@ export function rsvpTemplate() {
   <div class="rsvp-main">
     <div class="rsvp-wrap" id="readerWrap">
       <main class="rsvp-display" aria-label="RSVP reader">
-        <div class="rsvp-context rsvp-context--above" id="contextAbove"></div>
-        <div class="rsvp-word-area">
+        <div class="rsvp-context-flow" id="contextFlow" aria-hidden="true"></div>
+        <div class="rsvp-word-area" id="wordArea">
           <div class="rsvp-guide top"></div>
           <div class="rsvp-guide-tick top"></div>
           <div class="rsvp-word" id="word">
@@ -34,7 +34,6 @@ export function rsvpTemplate() {
           <div class="rsvp-guide-tick bottom"></div>
           <div class="rsvp-guide bottom"></div>
         </div>
-        <div class="rsvp-context rsvp-context--below" id="contextBelow"></div>
       </main>
       <div class="rsvp-status" id="statusOverlay" aria-live="polite">
         <div class="rsvp-status-msg" id="statusMsg">Loading\u2026</div>
