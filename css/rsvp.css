@@ -191,27 +191,28 @@ body.paused.context-page .rsvp-word-area {
   background: var(--bg);
 }
 
-/* The reel of words: a readable, centred paragraph that scrolls behind the box */
+/* Context reel: above block / slot / below block.
+   Half-viewport padding lets the first/last word reach centre. */
 body.paused.context-page .rsvp-context-flow {
   display: block;
+  padding: 50vh 1.25rem;
+}
+/* Both text blocks share the same readable paragraph style */
+.cw-above,
+.cw-below {
   text-align: center;
   line-height: 2;
-  /* Half-viewport padding so the first/last word can reach centre */
-  padding: 50vh 1.25rem;
+  font-size: 1.05rem;
+  color: var(--fg-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
   max-width: 34rem;
   margin: 0 auto;
 }
-.rsvp-context-flow .cw {
-  font-size: 1.05rem;
-  color: var(--fg-muted);
-}
-.rsvp-context-flow .cw--active {
-  /* The active word lives in the box; hide it in the reel but keep its slot */
-  visibility: hidden;
-}
-.rsvp-context-flow .cw-break {
-  display: block;
-  height: 0.9rem;
+/* Slot: empty gap that the pinned word box overlays; height set by JS */
+.cw-slot {
+  max-width: 34rem;
+  margin: 0 auto;
 }
 
 /* ===== Toast ===== */
