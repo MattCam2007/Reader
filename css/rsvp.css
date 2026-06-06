@@ -168,6 +168,7 @@ body.paused.context-page .rsvp-wrap {
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  overflow-anchor: none; /* prevent browser adjusting scrollTop when cwAbove grows */
 }
 body.paused.context-page .rsvp-wrap::-webkit-scrollbar {
   display: none;

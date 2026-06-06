@@ -2,18 +2,15 @@ import { PARAGRAPH_BREAK } from './tokenizer.js';
 
 // Scroll-driven word picker shown while paused (when context is enabled).
 //
-// Layout: the context-flow div contains three stacked blocks:
-//   cw-above  — all words before the active word, as a flowing paragraph
-//   cw-slot   — an empty gap the same height as the pinned word box
-//   cw-below  — all words after the active word, as a flowing paragraph
+// Twitchiness fix: the hot-path scroll handler reads only scrollTop (cheap,
+// no layout) and accumulates it into a fractional-word counter. Words step
+// when the accumulator crosses a full pxPerWord threshold. This is pure
+// delta arithmetic — no BoundingClientRect in the scroll loop, no
+// position-feedback oscillation.
 //
-// The word box (rsvp-word-area) is position:fixed at viewport centre and
-// overlays the slot exactly. As the user scrolls, the slot drifts from
-// centre; the picker detects the drift, steps the active word index, and
-// rebuilds the above/below text so the slot returns to centre. This means:
-//   - the last word of cw-above is always the word immediately before active
-//   - the first word of cw-below is always the word immediately after active
-// giving clean line breaks right at the box boundary.
+// After scrolling settles (200 ms of silence) a one-shot sync reads the
+// slot position and silently corrects any accumulated drift so the word
+// box stays aligned.
 
 const WINDOW_WORDS = 400;
 const REBUILD_MARGIN = 100;
@@ -26,13 +23,16 @@ export class ScrollPicker {
     this.els     = els;
     this.active  = false;
 
-    this._activeIdx   = 0;
-    this._windowStart = 0;
-    this._windowEnd   = 0;
-    this._pxPerWord   = 20;   // estimated in _build
+    this._activeIdx      = 0;
+    this._windowStart    = 0;
+    this._windowEnd      = 0;
+    this._pxPerWord      = 20;   // updated in _build
+    this._scrollAccum    = 0;    // fractional-word accumulator
+    this._lastScrollTop  = null;
     this._suppressScroll = false;
-    this._rafPending  = false;
-    this._onScroll    = this._onScroll.bind(this);
+    this._rafPending     = false;
+    this._syncTimer      = null;
+    this._onScroll       = this._onScroll.bind(this);
 
     this._cwAbove = null;
     this._cwSlot  = null;
@@ -44,6 +44,8 @@ export class ScrollPicker {
     const { contextFlow, readerWrap } = this.els;
     if (!contextFlow || !readerWrap || !this.state.tokens.length) return;
     this.active = true;
+    this._scrollAccum   = 0;
+    this._lastScrollTop = null;
     this._build(this.state.currentIdx);
     readerWrap.addEventListener('scroll', this._onScroll, { passive: true });
   }
@@ -51,6 +53,8 @@ export class ScrollPicker {
   deactivate() {
     if (!this.active) return;
     this.active = false;
+    clearTimeout(this._syncTimer);
+    this._syncTimer = null;
     const { contextFlow, readerWrap } = this.els;
     if (readerWrap) readerWrap.removeEventListener('scroll', this._onScroll);
     if (contextFlow) contextFlow.textContent = '';
@@ -71,7 +75,6 @@ export class ScrollPicker {
       idx = this._nextWord(idx + 1) ?? this._prevWord(idx - 1) ?? idx;
     }
 
-    // Window around idx
     let start = idx, wc = 0;
     while (start > 0 && wc < WINDOW_WORDS) { start--; if (state.tokens[start] !== PARAGRAPH_BREAK) wc++; }
     let end = idx, wc2 = 0;
@@ -80,45 +83,43 @@ export class ScrollPicker {
     this._windowEnd   = end;
     this._activeIdx   = idx;
 
-    // Build three-block DOM structure
     flow.textContent = '';
     this._cwAbove = Object.assign(document.createElement('div'), { className: 'cw-above' });
     this._cwSlot  = Object.assign(document.createElement('div'), { className: 'cw-slot'  });
     this._cwBelow = Object.assign(document.createElement('div'), { className: 'cw-below' });
     flow.append(this._cwAbove, this._cwSlot, this._cwBelow);
 
-    // Match slot height to word box
     const wordArea = this.els.wordArea;
     if (wordArea) this._cwSlot.style.height = wordArea.getBoundingClientRect().height + 'px';
 
     this._renderText(idx);
 
-    // Estimate px per word for fast-scroll step count
-    const wrapRect  = wrap.getBoundingClientRect();
-    const fs        = parseFloat(getComputedStyle(this._cwAbove).fontSize) || 16;
-    const lineH     = fs * 2;
+    // Estimate px per word once per build (used by delta accumulator)
+    const wrapRect = wrap.getBoundingClientRect();
+    const fs       = parseFloat(getComputedStyle(this._cwAbove).fontSize) || 16;
+    const lineH    = fs * 2; // matches line-height: 2
     const wordsPerLine = Math.max(1, Math.round((wrapRect.width * 0.8) / (fs * 5)));
-    this._pxPerWord = lineH / wordsPerLine;
+    this._pxPerWord  = lineH / wordsPerLine;
+    this._scrollAccum = 0;
 
-    // Update box and state
     this.display.render(state.tokens[idx]);
     this.state.currentIdx    = idx;
     this.state.manuallySeeked = true;
     this.display.updateSeek();
 
-    // Scroll slot to viewport centre (two rAFs: first measures after layout, second clears suppress)
+    // Centre the slot in the viewport; suppress scroll events during this adjustment.
     this._suppressScroll = true;
     requestAnimationFrame(() => {
       if (!this._cwSlot) return;
       const wr = wrap.getBoundingClientRect();
       const sr = this._cwSlot.getBoundingClientRect();
       wrap.scrollTop += (sr.top + sr.height / 2) - (wr.top + wr.height / 2);
+      this._lastScrollTop = wrap.scrollTop;
       requestAnimationFrame(() => { this._suppressScroll = false; });
     });
   }
 
   _renderText(activeIdx) {
-    const { state } = this;
     this._cwAbove.textContent = this._buildText(this._windowStart, activeIdx - 1);
     this._cwBelow.textContent = this._buildText(activeIdx + 1, this._windowEnd);
   }
@@ -152,33 +153,56 @@ export class ScrollPicker {
     return null;
   }
 
+  // ── Hot path: pure arithmetic, zero layout reads ──────────────────────────
   _onScroll() {
     if (this._suppressScroll || this._rafPending) return;
     this._rafPending = true;
     requestAnimationFrame(() => {
       this._rafPending = false;
-      if (!this.active || !this._cwSlot) return;
+      if (!this.active) return;
 
-      const wrap     = this.els.readerWrap;
-      const wr       = wrap.getBoundingClientRect();
-      const sr       = this._cwSlot.getBoundingClientRect();
-      const viewCy   = wr.top + wr.height / 2;
-      const slotCy   = sr.top + sr.height / 2;
-      const drift    = slotCy - viewCy; // negative = slot above centre (user scrolled down)
+      const wrap = this.els.readerWrap;
+      const st   = wrap.scrollTop;
 
-      if (Math.abs(drift) < 2) return;
+      if (this._lastScrollTop === null) { this._lastScrollTop = st; return; }
 
-      const steps = Math.max(1, Math.round(Math.abs(drift) / this._pxPerWord));
-      // drift < 0: slot above centre → scrolled down → advance (next word)
-      // drift > 0: slot below centre → scrolled up  → retreat (prev word)
-      this._stepN(steps, drift < 0 ? 1 : -1);
+      const delta = st - this._lastScrollTop;
+      this._lastScrollTop = st;
+      if (Math.abs(delta) < 0.5) return;
 
-      const idx = this._activeIdx;
-      if ((this._windowStart > 0 && idx - this._windowStart < REBUILD_MARGIN) ||
-          (this._windowEnd < this.state.tokens.length - 1 && this._windowEnd - idx < REBUILD_MARGIN)) {
-        this._build(idx);
+      this._scrollAccum += delta;
+      const steps = Math.trunc(this._scrollAccum / this._pxPerWord);
+      if (steps !== 0) {
+        this._scrollAccum -= steps * this._pxPerWord;
+        this._stepN(Math.abs(steps), steps > 0 ? 1 : -1);
+
+        const idx = this._activeIdx;
+        if ((this._windowStart > 0 && idx - this._windowStart < REBUILD_MARGIN) ||
+            (this._windowEnd < this.state.tokens.length - 1 && this._windowEnd - idx < REBUILD_MARGIN)) {
+          this._build(idx);
+          return; // _build resets accum and recentres; no sync needed
+        }
       }
+
+      // Debounced sync: once scrolling goes quiet, nudge slot back to centre.
+      clearTimeout(this._syncTimer);
+      this._syncTimer = setTimeout(() => this._syncSlot(), 200);
     });
+  }
+
+  // ── Called once after scroll settles; corrects accumulated drift ──────────
+  _syncSlot() {
+    this._syncTimer = null;
+    if (!this.active || !this._cwSlot) return;
+    const wrap = this.els.readerWrap;
+    const wr   = wrap.getBoundingClientRect();
+    const sr   = this._cwSlot.getBoundingClientRect();
+    const drift = (sr.top + sr.height / 2) - (wr.top + wr.height / 2);
+    if (Math.abs(drift) < 2) return;
+    this._suppressScroll = true;
+    wrap.scrollTop += drift;
+    this._lastScrollTop = wrap.scrollTop;
+    requestAnimationFrame(() => { this._suppressScroll = false; });
   }
 
   _stepN(n, dir) {
@@ -190,7 +214,7 @@ export class ScrollPicker {
     }
     if (idx === this._activeIdx) return;
     this._activeIdx = idx;
-    this._renderText(idx);
+    this._renderText(idx); // single rebuild for all N steps
     this.state.currentIdx    = idx;
     this.state.manuallySeeked = true;
     this.display.render(this.state.tokens[idx]);
