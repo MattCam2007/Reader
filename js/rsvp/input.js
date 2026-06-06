@@ -69,9 +69,12 @@ export class RsvpInput {
         this.playback.toggle();
       }, { signal });
 
-      // Swipe gestures (exclude context areas so native scroll works there)
+      // Swipe gestures. While the scroll picker is up, the reel handles
+      // vertical drags natively, so don't treat them as swipes.
       readerWrap.addEventListener('pointerdown', (e) => {
-        if (e.target.closest('.rsvp-status, .rsvp-context')) return;
+        if (e.target.closest('.rsvp-status')) return;
+        if (document.body.classList.contains('context-page') &&
+            document.body.classList.contains('paused')) return;
         this._swipeStart = { x: e.clientX, y: e.clientY };
         this._swipeFired = false;
       }, { signal });
@@ -203,8 +206,6 @@ export class RsvpInput {
         const cycleBtn = document.getElementById('unitCycleBtn');
         if (cycleBtn) cycleBtn.textContent = UNIT_LABELS[unit] ?? unit;
         this.display.updateSeek();
-        this.display.resetContextCache();
-        this.display.updateContext(this.state.currentIdx);
       }, { signal });
     });
 

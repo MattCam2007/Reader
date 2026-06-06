@@ -6,7 +6,6 @@ export class RsvpDisplay {
     this.state = state;
     this.prefs = prefs;
     this.els = els;
-    this._lastContextKey = null;
     this._toastTimer = null;
   }
 
@@ -58,49 +57,6 @@ export class RsvpDisplay {
   renderWordAt(idx) {
     const token = this.state.tokens[idx];
     if (token !== undefined) this.render(token);
-    this.updateContext(idx);
-  }
-
-  updateContext(tokenIdx) {
-    const { state, prefs } = this;
-    const { contextAbove, contextBelow } = this.els;
-    if (!contextAbove || !contextBelow) return;
-
-    if (!prefs.data.contextEnabled || tokenIdx < 0 || tokenIdx >= state.tokens.length || state.tokens[tokenIdx] === PARAGRAPH_BREAK) {
-      contextAbove.textContent = "";
-      contextBelow.textContent = "";
-      this._lastContextKey = null;
-      return;
-    }
-
-    if (tokenIdx === this._lastContextKey) return;
-    this._lastContextKey = tokenIdx;
-
-    const HALF_PAGE = 200;
-
-    const aboveWords = [];
-    for (let i = tokenIdx - 1; i >= 0 && aboveWords.length < HALF_PAGE; i--) {
-      if (state.tokens[i] !== PARAGRAPH_BREAK) aboveWords.unshift(state.tokens[i]);
-    }
-
-    const belowWords = [];
-    for (let i = tokenIdx + 1; i < state.tokens.length && belowWords.length < HALF_PAGE; i++) {
-      if (state.tokens[i] !== PARAGRAPH_BREAK) belowWords.push(state.tokens[i]);
-    }
-
-    contextAbove.textContent = aboveWords.join(' ');
-    contextBelow.textContent = belowWords.join(' ');
-
-    // Scroll so word window sits at the same vertical position as during reading
-    const wrap = this.els.readerWrap;
-    const wordArea = this.els.wordArea;
-    if (wrap && wordArea) {
-      requestAnimationFrame(() => {
-        const wrapRect = wrap.getBoundingClientRect();
-        const wordRect = wordArea.getBoundingClientRect();
-        wrap.scrollTop += (wordRect.top + wordRect.height / 2) - (wrapRect.top + wrapRect.height / 2);
-      });
-    }
   }
 
   updateSeek() {
@@ -172,9 +128,5 @@ export class RsvpDisplay {
     const list = this._unitList(granularity);
     if (!list.length) return 0;
     return lastIndexAtMost(list, this.state.currentWordIdx(idx));
-  }
-
-  resetContextCache() {
-    this._lastContextKey = null;
   }
 }

@@ -151,59 +151,64 @@ body.rsvp {
 }
 
 body.paused .rsvp-word-area { opacity: var(--pause-dim); }
+body.paused.context-page .rsvp-word-area { opacity: 1; }
 
-/* ===== Context page ===== */
-.rsvp-context {
-  font-size: 0.75rem;
-  line-height: 1.5;
-  color: var(--fg-muted);
-  text-align: center;
-  max-width: 32rem;
-  width: 100%;
-  margin: 0 auto;
+/* ===== Scroll picker (paused + context) =====
+   The word box stays pinned at the centre of the viewport, exactly where it
+   sits while playing. The surrounding words flow above and below it in a
+   scrollable reel; whichever word reels into the centre becomes active. */
+.rsvp-context-flow {
   display: none;
 }
-.rsvp-context--above {
-  margin-bottom: 0.75rem;
-}
-.rsvp-context--below {
-  margin-top: 0.75rem;
-}
-body.paused.context-page .rsvp-context--above,
-body.paused.context-page .rsvp-context--below {
-  display: block;
-}
 
-/* Scrollable context: word window stays at its reading position (centered) */
 body.paused.context-page .rsvp-wrap {
-  overflow-x: hidden;
   overflow-y: auto;
-  justify-content: flex-start;
-}
-body.paused.context-page .rsvp-display {
-  flex: none;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-body.paused.context-page .rsvp-context {
-  flex: none;
-  overflow: visible;
-}
-body.paused.context-page .rsvp-context--above {
-  display: block;
-  padding-top: 40vh;
-}
-body.paused.context-page .rsvp-context--below {
-  display: block;
-  padding-bottom: 40vh;
-}
-body.paused.context-page .rsvp-wrap {
+  overflow-x: hidden;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 body.paused.context-page .rsvp-wrap::-webkit-scrollbar {
   display: none;
+}
+
+body.paused.context-page .rsvp-display {
+  max-width: none;
+  width: 100%;
+}
+
+/* Word box pinned at viewport centre; let scroll/taps pass through to the reel */
+body.paused.context-page .rsvp-word-area {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(36rem, 92vw);
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* The reel of words */
+body.paused.context-page .rsvp-context-flow {
+  display: block;
+  text-align: center;
+  /* Half-viewport padding so the first/last word can reach centre */
+  padding: 50vh 1rem;
+  max-width: 36rem;
+  margin: 0 auto;
+}
+.rsvp-context-flow .cw {
+  display: block;
+  line-height: 2.4;
+  font-size: 1.1rem;
+  color: var(--fg-muted);
+}
+.rsvp-context-flow .cw--active {
+  /* The active word lives in the box; hide it in the reel but keep its slot */
+  visibility: hidden;
+}
+.rsvp-context-flow .cw-break {
+  height: 1.2rem;
 }
 
 /* ===== Toast ===== */

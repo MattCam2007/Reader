@@ -12,6 +12,7 @@ import { RsvpState } from './rsvp/state.js';
 import { tokenize } from './rsvp/tokenizer.js';
 import { PlaybackEngine } from './rsvp/playback.js';
 import { RsvpDisplay } from './rsvp/display.js';
+import { ScrollPicker } from './rsvp/scroll-picker.js';
 import { RsvpInput } from './rsvp/input.js';
 import { StatsTracker } from './rsvp/stats.js';
 import { TrainingManager } from './rsvp/training.js';
@@ -69,9 +70,8 @@ export function init(options = {}) {
     beforeEl:    document.getElementById("before"),
     orpEl:       document.getElementById("orp"),
     afterEl:     document.getElementById("after"),
-    contextAbove: document.getElementById("contextAbove"),
-    contextBelow: document.getElementById("contextBelow"),
-    wordArea:     document.getElementById("wordArea"),
+    contextFlow: document.getElementById("contextFlow"),
+    wordArea:    document.getElementById("wordArea"),
     wpmToast:    document.getElementById("wpmToast"),
     readerWrap:  document.getElementById("readerWrap"),
     // Status
@@ -152,10 +152,19 @@ export function init(options = {}) {
 
   // ---------- Modules ----------
   const display = new RsvpDisplay(state, prefs, els);
+  const picker = new ScrollPicker(state, prefs, display, els);
   const playback = new PlaybackEngine(state, prefs, bus);
   const stats = new StatsTracker(els);
   const training = new TrainingManager(prefs);
   const input = new RsvpInput(state, prefs, playback, display, bus, els, signal);
+
+  // ---------- Scroll picker (paused + context) ----------
+  // Activate the scroll picker only while paused with context enabled;
+  // tear it down whenever playback (or countdown) resumes.
+  function syncPicker() {
+    if (state.playState === 'paused' && prefs.data.contextEnabled) picker.activate();
+    else picker.deactivate();
+  }
 
   // ---------- Bus wiring ----------
   bus.on('renderChunk', (chunk, pivotPos) => {
@@ -164,15 +173,18 @@ export function init(options = {}) {
     } else {
       display.render(chunk[0].token);
     }
-    const pivotIdx = chunk[Math.min(Math.floor(((prefs.data.chunkSize || 1) - 1) / 2), chunk.length - 1)].idx;
-    display.updateContext(pivotIdx);
   });
 
-  bus.on('renderWord', (idx) => display.renderWordAt(idx));
-  bus.on('renderCountdown', (num) => display.renderCountdown(num));
+  bus.on('renderWord', (idx) => {
+    display.renderWordAt(idx);
+    // A step/seek while paused moves the reading position: re-centre the reel.
+    if (picker.active) picker.recenter(idx);
+    else syncPicker();
+  });
+  bus.on('renderCountdown', (num) => { display.renderCountdown(num); syncPicker(); });
   bus.on('updateSeek', () => display.updateSeek());
-  bus.on('playStart', () => stats.onPlayStart());
-  bus.on('playStop', () => stats.onPlayStop());
+  bus.on('playStart', () => { stats.onPlayStart(); syncPicker(); });
+  bus.on('playStop', () => { stats.onPlayStop(); syncPicker(); });
   bus.on('wordsRead', (count) => {
     stats.addWords(count);
     training.onWordsRead(count, (inc) => {
@@ -242,8 +254,6 @@ export function init(options = {}) {
     document.querySelectorAll('[data-unit]').forEach(b =>
       b.classList.toggle('is-active', b.dataset.unit === unit));
     display.updateSeek();
-    display.resetContextCache();
-    display.updateContext(state.currentIdx);
   }
   applyGranularity(prefs.data.granularity || 'word');
   if (unitCycleBtn) {
@@ -270,8 +280,7 @@ export function init(options = {}) {
     }
     else if (key === 'contextEnabled') {
       document.body.classList.toggle('context-page', !!value);
-      display.resetContextCache();
-      display.updateContext(state.currentIdx);
+      syncPicker();
     }
     else if (key === 'trainingEnabled') {
       if (value) training.reset();
@@ -614,7 +623,6 @@ export function init(options = {}) {
     state.currentIdx = 0;
     state.rampRemaining = 0;
     state.manuallySeeked = false;
-    display.resetContextCache();
     playback.clearPending();
     stats.reset(false);
     training.reset();
@@ -622,8 +630,8 @@ export function init(options = {}) {
     if (prefs.data.startPaused) {
       state.setPlayState('paused');
       if (state.tokens.length) display.render(state.tokens[0]);
-      display.updateContext(0);
       display.updateSeek();
+      syncPicker();
     } else {
       state.setPlayState('playing');
       stats.onPlayStart();
