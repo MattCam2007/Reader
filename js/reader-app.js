@@ -1,4 +1,4 @@
-import { FONT_MAP, FONT_SERIF, RESIZE_DEBOUNCE_MS, GENERAL_DEFAULTS, WINDOW_MIN_WORDS } from './core/constants.js';
+import { FONT_MAP, FONT_SERIF, RESIZE_DEBOUNCE_MS, GENERAL_DEFAULTS, WINDOW_MIN_WORDS, MIN_SIZE, MAX_SIZE } from './core/constants.js';
 import { applyTheme, applyOsThemeFallback } from './base-reader-app.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 import { BookmarkManager } from './core/bookmarks.js';
@@ -69,6 +69,16 @@ export function init(options = {}) {
     bookMenu:      document.getElementById("bookMenu"),
     topbar:        document.getElementById("topbar"),
     bottombar:     document.getElementById("bottombar"),
+    readerDrawerHandle: document.getElementById("readerDrawerHandle"),
+    readerQuickPanel:   document.getElementById("readerQuickPanel"),
+    qdSizeDown:    document.getElementById("qdSizeDown"),
+    qdSizeUp:      document.getElementById("qdSizeUp"),
+    qdSizeVal:     document.getElementById("qdSizeVal"),
+    qdLhDown:      document.getElementById("qdLhDown"),
+    qdLhUp:        document.getElementById("qdLhUp"),
+    qdLhVal:       document.getElementById("qdLhVal"),
+    qdParaSeg:     document.getElementById("qdParaSeg"),
+    qdBrightness:  document.getElementById("qdBrightness"),
   };
 
   // ---------- State & Prefs ----------
@@ -536,6 +546,7 @@ export function init(options = {}) {
 
     // Paragraph spacing
     els.content.classList.toggle("para-spaced", p.paraSpacing === "spaced");
+    els.content.classList.toggle("para-both",   p.paraSpacing === "both");
 
     // Alignment
     els.content.style.textAlign = p.align === "left" ? "left" : "justify";
@@ -552,6 +563,16 @@ export function init(options = {}) {
     // Comfort overlay
     if (els.comfortDim) els.comfortDim.style.opacity = String(1 - (p.brightness || 1));
     if (els.comfortWarm) els.comfortWarm.style.opacity = String(p.warmth || 0);
+
+    // Sync quick drawer display values
+    if (els.qdSizeVal)    els.qdSizeVal.textContent = String(p.size);
+    if (els.qdLhVal)      els.qdLhVal.textContent = Number(p.lineHeight).toFixed(1);
+    if (els.qdBrightness) els.qdBrightness.value = String(Math.round((p.brightness || 1) * 100));
+    if (els.qdParaSeg) {
+      els.qdParaSeg.querySelectorAll('[data-para]').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.para === p.paraSpacing);
+      });
+    }
   }
 
   // ---------- Rendering ----------
@@ -850,6 +871,68 @@ export function init(options = {}) {
     }
   }
   els.backdrop.addEventListener("click", () => { closePanels(); closeSettingsScreen(); }, { signal });
+
+  // ---------- Reader quick drawer ----------
+  function applyQuickDrawerOpen(open) {
+    if (els.readerQuickPanel) {
+      els.readerQuickPanel.classList.toggle('is-collapsed', !open);
+    }
+    if (els.readerDrawerHandle) {
+      els.readerDrawerHandle.setAttribute('aria-label', open ? 'Close quick settings' : 'Show quick settings');
+    }
+    prefs.data.quickDrawerOpen = open;
+    prefs.save();
+  }
+  applyQuickDrawerOpen(prefs.data.quickDrawerOpen ?? false);
+
+  if (els.readerDrawerHandle) {
+    els.readerDrawerHandle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyQuickDrawerOpen(!(prefs.data.quickDrawerOpen ?? false));
+    }, { signal });
+  }
+  if (els.qdSizeDown) {
+    els.qdSizeDown.addEventListener('click', () => {
+      const next = Math.max(MIN_SIZE, (prefs.data.size || 19) - 1);
+      prefs.data.size = next; prefs.save();
+      applyPrefs(); relayout();
+    }, { signal });
+  }
+  if (els.qdSizeUp) {
+    els.qdSizeUp.addEventListener('click', () => {
+      const next = Math.min(MAX_SIZE, (prefs.data.size || 19) + 1);
+      prefs.data.size = next; prefs.save();
+      applyPrefs(); relayout();
+    }, { signal });
+  }
+  if (els.qdLhDown) {
+    els.qdLhDown.addEventListener('click', () => {
+      const next = Math.max(1.0, Math.round(((prefs.data.lineHeight || 1.62) - 0.1) * 10) / 10);
+      prefs.data.lineHeight = next; prefs.save();
+      applyPrefs(); relayout();
+    }, { signal });
+  }
+  if (els.qdLhUp) {
+    els.qdLhUp.addEventListener('click', () => {
+      const next = Math.min(2.4, Math.round(((prefs.data.lineHeight || 1.62) + 0.1) * 10) / 10);
+      prefs.data.lineHeight = next; prefs.save();
+      applyPrefs(); relayout();
+    }, { signal });
+  }
+  if (els.qdParaSeg) {
+    els.qdParaSeg.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-para]');
+      if (!btn) return;
+      prefs.data.paraSpacing = btn.dataset.para; prefs.save();
+      applyPrefs(); relayout();
+    }, { signal });
+  }
+  if (els.qdBrightness) {
+    els.qdBrightness.addEventListener('input', () => {
+      prefs.data.brightness = parseInt(els.qdBrightness.value, 10) / 100;
+      prefs.save(); applyPrefs();
+    }, { signal });
+  }
 
   // Book submenu
   if (els.bookBtn && els.bookMenu) {

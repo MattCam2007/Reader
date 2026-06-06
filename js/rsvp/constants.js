@@ -42,5 +42,5 @@ export const RSVP_DEFAULTS = {
   trainingIncrement: 10,
   trainingInterval: 500,
   trainingCeiling: 600,
-  controlsLevel: 2,
+  controlsLevel: 0,
 };

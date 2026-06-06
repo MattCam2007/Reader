@@ -220,7 +220,7 @@ function readTabHTML(p) {
     section('Layout'),
     row('Margins', seg('ss-margin', 'data-margin', [['narrow','Narrow'],['normal','Normal'],['wide','Wide']], p.margin)),
     row('Line spacing', counter('ss-lhDown', 'ss-lhDisplay', 'ss-lhUp', p.lineHeight.toFixed(1))),
-    row('Paragraphs', seg('ss-para', 'data-para', [['indent','Indented'],['spaced','Spaced']], p.paraSpacing)),
+    row('Paragraphs', seg('ss-para', 'data-para', [['indent','Indented'],['spaced','Spaced'],['both','Both']], p.paraSpacing)),
     row('Alignment', seg('ss-align', 'data-align', [['justify','Justify'],['left','Left']], p.align)),
     row('Layout', seg('ss-layout', 'data-layout', [['paginated','Paged'],['scroll','Scroll']], p.layout)),
     row('Columns', seg('ss-cols', 'data-cols', [['auto','Auto'],['1','1'],['2','2']], String(p.columns))),

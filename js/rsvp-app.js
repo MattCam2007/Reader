@@ -213,16 +213,16 @@ export function init(options = {}) {
   bus.on('fontChange', applyFont);
 
   // ---------- Controls drawer ----------
-  const LEVEL_LABELS = ['Expand controls', 'Show transport', 'Collapse controls'];
+  const LEVEL_LABELS = ['Show WPM', 'Show transport', 'Collapse controls'];
   function applyControlsLevel(level) {
     const { panelBlue, panelPurple, drawerHandle } = els;
-    if (panelBlue)   panelBlue.classList.toggle('is-collapsed',  level < 1);
-    if (panelPurple) panelPurple.classList.toggle('is-collapsed', level < 2);
+    if (panelPurple) panelPurple.classList.toggle('is-collapsed', level < 1);
+    if (panelBlue)   panelBlue.classList.toggle('is-collapsed',   level < 2);
     if (drawerHandle) drawerHandle.setAttribute('aria-label', LEVEL_LABELS[level] ?? LEVEL_LABELS[0]);
     prefs.data.controlsLevel = level;
     prefs.save();
   }
-  applyControlsLevel(prefs.data.controlsLevel ?? 2);
+  applyControlsLevel(prefs.data.controlsLevel ?? 0);
   if (els.drawerHandle) {
     els.drawerHandle.addEventListener('click', (e) => {
       e.stopPropagation();

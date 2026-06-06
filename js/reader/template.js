@@ -25,6 +25,49 @@ export function readerTemplate() {
   </header>
 
   <footer class="reader-bottombar" id="bottombar">
+    <div class="reader-quick-drawer" id="readerQuickDrawer">
+      <button class="reader-drawer-handle" id="readerDrawerHandle" type="button" aria-label="Show quick settings">
+        <span class="reader-drawer-pip"></span>
+      </button>
+      <div class="reader-quick-panel is-collapsed" id="readerQuickPanel">
+        <div class="reader-quick-panel-inner">
+          <div class="reader-quick-row">
+            <div class="reader-quick-item">
+              <span class="reader-quick-label">Size</span>
+              <div class="reader-quick-counter">
+                <button class="reader-quick-step" id="qdSizeDown" type="button" aria-label="Decrease font size">−</button>
+                <span class="reader-quick-val" id="qdSizeVal">19</span>
+                <button class="reader-quick-step" id="qdSizeUp" type="button" aria-label="Increase font size">+</button>
+              </div>
+            </div>
+            <div class="reader-quick-item">
+              <span class="reader-quick-label">Spacing</span>
+              <div class="reader-quick-counter">
+                <button class="reader-quick-step" id="qdLhDown" type="button" aria-label="Decrease line spacing">−</button>
+                <span class="reader-quick-val" id="qdLhVal">1.6</span>
+                <button class="reader-quick-step" id="qdLhUp" type="button" aria-label="Increase line spacing">+</button>
+              </div>
+            </div>
+          </div>
+          <div class="reader-quick-row">
+            <div class="reader-quick-item reader-quick-item--wide">
+              <span class="reader-quick-label">Paragraphs</span>
+              <div class="reader-seg" id="qdParaSeg">
+                <button class="reader-seg-btn" data-para="indent" type="button">Indented</button>
+                <button class="reader-seg-btn" data-para="spaced" type="button">Spaced</button>
+                <button class="reader-seg-btn" data-para="both" type="button">Both</button>
+              </div>
+            </div>
+          </div>
+          <div class="reader-quick-row">
+            <div class="reader-quick-item reader-quick-item--wide">
+              <span class="reader-quick-label">Brightness</span>
+              <input class="reader-slider" id="qdBrightness" type="range" min="30" max="100" step="1" aria-label="Brightness">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="reader-scrub">
       <div class="bm-track-wrap">
         <input type="range" class="reader-progress" id="progress" min="0" max="0" value="0" step="1" aria-label="Reading position">

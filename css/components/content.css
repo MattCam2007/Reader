@@ -53,6 +53,7 @@ body:not(.chrome-hidden) .reader-viewport {
   text-indent: 1.3em;
 }
 .reader-content.para-spaced .blk-p { text-indent: 0; margin-bottom: 0.8em; }
+.reader-content.para-both .blk-p { text-indent: 1.3em; margin-bottom: 0.8em; }
 .reader-content .chap > .blk-p:first-child,
 .reader-content .blk-h1 + .blk-p,
 .reader-content .blk-h2 + .blk-p,

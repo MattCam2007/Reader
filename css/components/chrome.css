@@ -96,6 +96,99 @@ body.fs-active .reader-fullscreen-btn .fs-shrink-icon { display: block; }
 body.chrome-hidden .reader-topbar { opacity: 0; transform: translateY(-100%); pointer-events: none; }
 body.chrome-hidden .reader-bottombar { opacity: 0; transform: translateY(100%); pointer-events: none; }
 
+/* ===== Reader quick-settings drawer ===== */
+.reader-quick-drawer {
+  display: flex;
+  flex-direction: column;
+}
+.reader-drawer-handle {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  padding: 8px 0 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.reader-drawer-pip {
+  display: block;
+  width: 36px;
+  height: 4px;
+  background: var(--border-mid, var(--border));
+  border-radius: 2px;
+  transition: background 150ms ease;
+}
+.reader-drawer-handle:active .reader-drawer-pip {
+  background: var(--fg-muted, var(--muted));
+}
+.reader-quick-panel {
+  overflow: hidden;
+  max-height: 300px;
+  transition: max-height 240ms ease;
+}
+.reader-quick-panel.is-collapsed {
+  max-height: 0;
+}
+.reader-quick-panel-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.1rem 1rem 0.7rem;
+}
+.reader-quick-row {
+  display: flex;
+  gap: 0.8rem;
+  align-items: flex-start;
+}
+.reader-quick-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1 1 0;
+}
+.reader-quick-item--wide {
+  flex: 1 1 100%;
+}
+.reader-quick-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.reader-quick-counter {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.reader-quick-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: var(--control-bg, var(--border));
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--fg);
+  font: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+.reader-quick-step:active { opacity: 0.7; }
+.reader-quick-val {
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 2.4rem;
+  text-align: center;
+  color: var(--fg);
+}
+
 .reader-scrub {
   padding: 0.7rem 1.25rem 0.15rem;
 }
