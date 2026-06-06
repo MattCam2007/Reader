@@ -182,9 +182,9 @@ export function init(options = {}) {
     else syncPicker();
   });
   bus.on('renderCountdown', (num) => { display.renderCountdown(num); syncPicker(); });
-  bus.on('updateSeek', () => display.updateSeek());
+  bus.on('updateSeek', () => { display.updateSeek(); syncPicker(); });
   bus.on('playStart', () => { stats.onPlayStart(); syncPicker(); });
-  bus.on('playStop', () => { stats.onPlayStop(); syncPicker(); });
+  bus.on('playStop', () => { stats.onPlayStop(); });
   bus.on('wordsRead', (count) => {
     stats.addWords(count);
     training.onWordsRead(count, (inc) => {
