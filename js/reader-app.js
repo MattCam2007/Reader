@@ -67,6 +67,8 @@ export function init(options = {}) {
     fullscreenBtnEl: document.getElementById("fullscreenBtn"),
     bookBtn:       document.getElementById("bookBtn"),
     bookMenu:      document.getElementById("bookMenu"),
+    topbar:        document.getElementById("topbar"),
+    bottombar:     document.getElementById("bottombar"),
   };
 
   // ---------- State & Prefs ----------
@@ -907,8 +909,10 @@ export function init(options = {}) {
   let resizeTimer = null;
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => relayout(), RESIZE_DEBOUNCE_MS);
+    resizeTimer = setTimeout(() => { relayout(); chrome.updateViewportScale(); }, RESIZE_DEBOUNCE_MS);
   }, { signal });
+
+  chrome.updateViewportScale();
 
   // Mode submenu
   const modeMenuBtn = document.getElementById("modeMenuBtn");
