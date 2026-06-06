@@ -3,8 +3,9 @@ import { PARAGRAPH_BREAK } from './tokenizer.js';
 // Scroll-driven word picker shown while paused (when context is enabled).
 //
 // The word box stays pinned at the centre of the viewport — exactly where it
-// lives while playing. The surrounding words flow above and below it in a
-// scrollable column; whichever word reels into the centre becomes the active
+// lives while playing. The surrounding text flows above and below it as a
+// readable paragraph (many words per line) so you keep your bearings. As you
+// scroll, whichever word reels into the centre of the box becomes the active
 // word: it is shown in the box and becomes the current reading position, so
 // resuming continues from there.
 //
@@ -12,8 +13,8 @@ import { PARAGRAPH_BREAK } from './tokenizer.js';
 // active word scrolls near a window edge the window is rebuilt around it and
 // the scroll position is restored, giving the illusion of an endless reel.
 
-const WINDOW_WORDS = 400;   // words rendered each side of the anchor
-const REBUILD_MARGIN = 90;  // rebuild once active is within this many words of an edge
+const WINDOW_WORDS = 500;   // words rendered each side of the anchor
+const REBUILD_MARGIN = 120; // rebuild once active is within this many words of an edge
 
 export class ScrollPicker {
   constructor(state, prefs, display, els) {
@@ -22,10 +23,12 @@ export class ScrollPicker {
     this.display = display;
     this.els = els; // needs readerWrap (scroll container) + contextFlow
     this.active = false;
-    this._spans = [];
-    this._activeSpan = null;
+    this._entries = [];      // { el, idx, cx, cy } in scroll-content coords
+    this._activeEntry = null;
     this._windowStart = 0;
     this._windowEnd = 0;
+    this._wrapH = 0;
+    this._wrapW = 0;
     this._rafPending = false;
     this._suppressScroll = false;
     this._onScroll = this._onScroll.bind(this);
@@ -46,8 +49,8 @@ export class ScrollPicker {
     const { contextFlow, readerWrap } = this.els;
     if (readerWrap) readerWrap.removeEventListener('scroll', this._onScroll);
     if (contextFlow) contextFlow.textContent = '';
-    this._spans = [];
-    this._activeSpan = null;
+    this._entries = [];
+    this._activeEntry = null;
   }
 
   // Rebuild the reel centred on a token index (e.g. after a step/seek).
@@ -58,6 +61,7 @@ export class ScrollPicker {
   _build(centerIdx) {
     const { state } = this;
     const flow = this.els.contextFlow;
+    const wrap = this.els.readerWrap;
     const clamped = Math.max(0, Math.min(centerIdx, state.tokens.length - 1));
 
     let start = clamped, wc = 0;
@@ -68,10 +72,10 @@ export class ScrollPicker {
     this._windowEnd = end;
 
     flow.textContent = '';
-    this._spans = [];
-    this._activeSpan = null;
+    this._entries = [];
+    this._activeEntry = null;
     const frag = document.createDocumentFragment();
-    let centerSpan = null;
+    let centerEl = null;
     for (let i = start; i <= end; i++) {
       const tok = state.tokens[i];
       if (tok === PARAGRAPH_BREAK) {
@@ -85,52 +89,62 @@ export class ScrollPicker {
       span.dataset.idx = i;
       span.textContent = tok;
       frag.appendChild(span);
-      this._spans.push(span);
-      if (i === clamped) centerSpan = span;
+      frag.appendChild(document.createTextNode(' '));
+      this._entries.push({ el: span, idx: i, cx: 0, cy: 0 });
+      if (i === clamped) centerEl = span;
     }
     flow.appendChild(frag);
 
-    this._setActive(centerSpan || this._nearestSpan(), false);
-    this._centerOn(this._activeSpan);
+    // Measure every word once (single layout pass) into scroll-content coords,
+    // so the per-scroll nearest-word search needs no further layout reads.
+    const wrapRect = wrap.getBoundingClientRect();
+    this._wrapH = wrapRect.height;
+    this._wrapW = wrapRect.width;
+    const st = wrap.scrollTop;
+    let centerEntry = null;
+    for (const e of this._entries) {
+      const r = e.el.getBoundingClientRect();
+      e.cx = (r.left - wrapRect.left) + r.width / 2;
+      e.cy = (r.top - wrapRect.top) + st + r.height / 2;
+      if (e.el === centerEl) centerEntry = e;
+    }
+
+    this._setActive(centerEntry || this._nearest(), false);
+    this._centerOn(this._activeEntry);
   }
 
-  _centerOn(span) {
-    if (!span) return;
+  _centerOn(entry) {
+    if (!entry) return;
     const wrap = this.els.readerWrap;
-    const wrapRect = wrap.getBoundingClientRect();
-    const r = span.getBoundingClientRect();
-    const delta = (r.top + r.height / 2) - (wrapRect.top + wrapRect.height / 2);
     // Programmatic scroll: don't let it register as a user pick.
     this._suppressScroll = true;
-    wrap.scrollTop += delta;
+    wrap.scrollTop = entry.cy - this._wrapH / 2;
     requestAnimationFrame(() => { this._suppressScroll = false; });
   }
 
-  _nearestSpan() {
-    const wrap = this.els.readerWrap;
-    const wrapRect = wrap.getBoundingClientRect();
-    const cy = wrapRect.top + wrapRect.height / 2;
-    let best = null, bestD = Infinity, falling = false;
-    // Spans are stacked top-to-bottom, so distance to centre falls then rises:
-    // stop as soon as it starts rising again.
-    for (const span of this._spans) {
-      const r = span.getBoundingClientRect();
-      const d = Math.abs((r.top + r.height / 2) - cy);
-      if (d < bestD) { bestD = d; best = span; falling = true; }
-      else if (falling) break;
+  // Word nearest the centre point of the viewport (2D, so it works with the
+  // multi-word centred lines of the flowing paragraph).
+  _nearest() {
+    const targetY = this.els.readerWrap.scrollTop + this._wrapH / 2;
+    const targetX = this._wrapW / 2;
+    let best = null, bestD = Infinity;
+    for (const e of this._entries) {
+      const dx = e.cx - targetX;
+      const dy = e.cy - targetY;
+      const d = dx * dx + dy * dy;
+      if (d < bestD) { bestD = d; best = e; }
     }
     return best;
   }
 
-  _setActive(span, fromScroll) {
-    if (!span || span === this._activeSpan) return;
-    if (this._activeSpan) this._activeSpan.classList.remove('cw--active');
-    this._activeSpan = span;
-    span.classList.add('cw--active');
-    const idx = parseInt(span.dataset.idx, 10);
-    this.state.currentIdx = idx;
+  _setActive(entry, fromScroll) {
+    if (!entry || entry === this._activeEntry) return;
+    if (this._activeEntry) this._activeEntry.el.classList.remove('cw--active');
+    this._activeEntry = entry;
+    entry.el.classList.add('cw--active');
+    this.state.currentIdx = entry.idx;
     if (fromScroll) this.state.manuallySeeked = true;
-    this.display.render(this.state.tokens[idx]);
+    this.display.render(this.state.tokens[entry.idx]);
     this.display.updateSeek();
   }
 
@@ -140,7 +154,7 @@ export class ScrollPicker {
     requestAnimationFrame(() => {
       this._rafPending = false;
       if (!this.active) return;
-      this._setActive(this._nearestSpan(), true);
+      this._setActive(this._nearest(), true);
       const idx = this.state.currentIdx;
       const nearStart = this._windowStart > 0 &&
         this._wordsBetween(this._windowStart, idx) < REBUILD_MARGIN;

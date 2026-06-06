@@ -177,7 +177,9 @@ body.paused.context-page .rsvp-display {
   width: 100%;
 }
 
-/* Word box pinned at viewport centre; let scroll/taps pass through to the reel */
+/* Word box pinned at viewport centre; let scroll/taps pass through to the reel.
+   A backdrop in the box colour clears the centre line and feathers into the
+   flowing context above/below so the focused word stays crisp and legible. */
 body.paused.context-page .rsvp-word-area {
   position: fixed;
   left: 50%;
@@ -186,21 +188,22 @@ body.paused.context-page .rsvp-word-area {
   width: min(36rem, 92vw);
   z-index: 3;
   pointer-events: none;
+  background: var(--bg);
+  box-shadow: 0 0 26px 26px var(--bg);
 }
 
-/* The reel of words */
+/* The reel of words: a readable, centred paragraph that scrolls behind the box */
 body.paused.context-page .rsvp-context-flow {
   display: block;
   text-align: center;
+  line-height: 2;
   /* Half-viewport padding so the first/last word can reach centre */
-  padding: 50vh 1rem;
-  max-width: 36rem;
+  padding: 50vh 1.25rem;
+  max-width: 34rem;
   margin: 0 auto;
 }
 .rsvp-context-flow .cw {
-  display: block;
-  line-height: 2.4;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   color: var(--fg-muted);
 }
 .rsvp-context-flow .cw--active {
@@ -208,7 +211,8 @@ body.paused.context-page .rsvp-context-flow {
   visibility: hidden;
 }
 .rsvp-context-flow .cw-break {
-  height: 1.2rem;
+  display: block;
+  height: 0.9rem;
 }
 
 /* ===== Toast ===== */
