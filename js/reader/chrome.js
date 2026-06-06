@@ -9,6 +9,20 @@ export class ChromeManager {
 
   toggle() {
     document.body.classList.toggle("chrome-hidden");
+    this.updateViewportScale();
+  }
+
+  updateViewportScale() {
+    const { els } = this;
+    if (!els.viewport || !els.topbar || !els.bottombar) return;
+    const vpH = window.innerHeight;
+    const topH = els.topbar.offsetHeight;
+    const botH = els.bottombar.offsetHeight;
+    const avail = vpH - topH - botH;
+    const scale = avail / vpH;
+    const ty = (topH - botH) / 2;
+    els.viewport.style.setProperty('--vp-scale', scale);
+    els.viewport.style.setProperty('--vp-ty', ty + 'px');
   }
 
   updateProgress() {

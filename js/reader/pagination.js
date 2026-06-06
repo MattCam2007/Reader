@@ -27,7 +27,7 @@ export class PaginationEngine {
     const { content } = els;
     content.style.transition = "none";
     content.style.setProperty("--page-offset", "0px");
-    const vpW = content.getBoundingClientRect().width;
+    const vpW = this.els.contentClip.clientWidth;
     const { cols, stride } = columnLayout(vpW, state._prefs.data);
     if (cols === 2) {
       content.style.columnCount = "2";
