@@ -71,6 +71,7 @@ export function init(options = {}) {
     afterEl:     document.getElementById("after"),
     contextAbove: document.getElementById("contextAbove"),
     contextBelow: document.getElementById("contextBelow"),
+    wordArea:     document.getElementById("wordArea"),
     wpmToast:    document.getElementById("wpmToast"),
     readerWrap:  document.getElementById("readerWrap"),
     // Status

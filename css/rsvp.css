@@ -174,24 +174,36 @@ body.paused.context-page .rsvp-context--below {
   display: block;
 }
 
-/* Fill available vertical space when context is shown */
+/* Scrollable context: word window stays at its reading position (centered) */
 body.paused.context-page .rsvp-wrap {
+  overflow-x: hidden;
+  overflow-y: auto;
   justify-content: flex-start;
 }
 body.paused.context-page .rsvp-display {
-  flex: 1;
+  flex: none;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 body.paused.context-page .rsvp-context {
-  flex: 1;
-  overflow: hidden;
+  flex: none;
+  overflow: visible;
 }
 body.paused.context-page .rsvp-context--above {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+  display: block;
+  padding-top: 40vh;
+}
+body.paused.context-page .rsvp-context--below {
+  display: block;
+  padding-bottom: 40vh;
+}
+body.paused.context-page .rsvp-wrap {
+  scrollbar-width: none;
+}
+body.paused.context-page .rsvp-wrap::-webkit-scrollbar {
+  display: none;
 }
 
 /* ===== Toast ===== */

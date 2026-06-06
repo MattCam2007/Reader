@@ -90,6 +90,17 @@ export class RsvpDisplay {
 
     contextAbove.textContent = aboveWords.join(' ');
     contextBelow.textContent = belowWords.join(' ');
+
+    // Scroll so word window sits at the same vertical position as during reading
+    const wrap = this.els.readerWrap;
+    const wordArea = this.els.wordArea;
+    if (wrap && wordArea) {
+      requestAnimationFrame(() => {
+        const wrapRect = wrap.getBoundingClientRect();
+        const wordRect = wordArea.getBoundingClientRect();
+        wrap.scrollTop += (wordRect.top + wordRect.height / 2) - (wrapRect.top + wrapRect.height / 2);
+      });
+    }
   }
 
   updateSeek() {

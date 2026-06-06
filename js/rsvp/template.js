@@ -25,7 +25,7 @@ export function rsvpTemplate() {
     <div class="rsvp-wrap" id="readerWrap">
       <main class="rsvp-display" aria-label="RSVP reader">
         <div class="rsvp-context rsvp-context--above" id="contextAbove"></div>
-        <div class="rsvp-word-area">
+        <div class="rsvp-word-area" id="wordArea">
           <div class="rsvp-guide top"></div>
           <div class="rsvp-guide-tick top"></div>
           <div class="rsvp-word" id="word">

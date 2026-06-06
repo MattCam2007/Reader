@@ -69,11 +69,15 @@ export class RsvpInput {
         this.playback.toggle();
       }, { signal });
 
-      // Swipe gestures
+      // Swipe gestures (exclude context areas so native scroll works there)
       readerWrap.addEventListener('pointerdown', (e) => {
-        if (e.target.closest('.rsvp-status')) return;
+        if (e.target.closest('.rsvp-status, .rsvp-context')) return;
         this._swipeStart = { x: e.clientX, y: e.clientY };
         this._swipeFired = false;
+      }, { signal });
+
+      readerWrap.addEventListener('pointercancel', () => {
+        this._swipeStart = null;
       }, { signal });
 
       readerWrap.addEventListener('pointerup', (e) => {
