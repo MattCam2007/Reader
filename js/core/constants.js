@@ -84,6 +84,7 @@ export const DEFAULT_PREFS = {
   lineHeight: 1.62,
   margin: "normal",
   paraSpacing: "indent",
+  quickDrawerOpen: false,
   align: "justify",
   hyphens: true,
   selection: true,
