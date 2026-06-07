@@ -477,9 +477,16 @@ export function init(options = {}) {
         applyPrefs();
       },
       onReaderChange(key, value, needsRepaginate) {
+        // Capture the reading position from the CURRENT (pre-change) layout before
+        // we touch anything. Mutating `prefs.data.layout` instantly flips
+        // state.isScrollMode, and applyPrefs() toggles the layout-scroll body
+        // class which reflows the DOM — either makes a position read taken
+        // afterwards garbage (it lands back at the start). See relayout().
+        const pos = (needsRepaginate && state.docModelBuilt && state.doc.words.length)
+          ? getCanonicalPosition() : null;
         prefs.data[key] = value;
         applyPrefs();
-        if (needsRepaginate) relayout();
+        if (needsRepaginate) relayout(pos);
       },
     });
     updateAriaExpanded();
@@ -630,9 +637,17 @@ export function init(options = {}) {
   // Re-lay-out in place (resize, font/margin change, or a layout-mode toggle),
   // preserving the reading position via the canonical position. Handles entering
   // windowed mode (paginated) and exiting it (scroll) at runtime.
-  function relayout() {
+  // `savedPos` (optional): a canonical position captured by the caller *before*
+  // it changed prefs/DOM. Pass it whenever the relayout is triggered by a
+  // settings change — capturing here would read the already-half-changed layout
+  // and lose the place. Omit it (resize) to capture from the current, intact
+  // layout. `undefined` means "capture yourself"; an explicit value/null is used
+  // as-is.
+  function relayout(savedPos) {
     if (!state.docModelBuilt) return;
-    const pos = state.doc.words.length ? getCanonicalPosition() : null;
+    const pos = savedPos !== undefined
+      ? savedPos
+      : (state.doc.words.length ? getCanonicalPosition() : null);
     if (shouldWindow()) {
       if (!state.windowed) { pagination.setupWindow(state.curChap || 0); state.windowed = true; }
       pagination.paginateWindow(false);
@@ -647,6 +662,15 @@ export function init(options = {}) {
       pagination.paginate(false);
     }
     if (pos) applyCanonicalPosition(pos);
+  }
+
+  // Live-apply a re-paginating pref change (quick drawer) while preserving the
+  // reading position. Capture must happen before applyPrefs() reflows the DOM,
+  // so we snapshot the position here and hand it to relayout(). See relayout().
+  function applyPrefAndRelayout() {
+    const pos = (state.docModelBuilt && state.doc.words.length) ? getCanonicalPosition() : null;
+    applyPrefs();
+    relayout(pos);
   }
 
 
@@ -895,28 +919,28 @@ export function init(options = {}) {
     els.qdSizeDown.addEventListener('click', () => {
       const next = Math.max(MIN_SIZE, (prefs.data.size || 19) - 1);
       prefs.data.size = next; prefs.save();
-      applyPrefs(); relayout();
+      applyPrefAndRelayout();
     }, { signal });
   }
   if (els.qdSizeUp) {
     els.qdSizeUp.addEventListener('click', () => {
       const next = Math.min(MAX_SIZE, (prefs.data.size || 19) + 1);
       prefs.data.size = next; prefs.save();
-      applyPrefs(); relayout();
+      applyPrefAndRelayout();
     }, { signal });
   }
   if (els.qdLhDown) {
     els.qdLhDown.addEventListener('click', () => {
       const next = Math.max(1.0, Math.round(((prefs.data.lineHeight || 1.62) - 0.1) * 10) / 10);
       prefs.data.lineHeight = next; prefs.save();
-      applyPrefs(); relayout();
+      applyPrefAndRelayout();
     }, { signal });
   }
   if (els.qdLhUp) {
     els.qdLhUp.addEventListener('click', () => {
       const next = Math.min(2.4, Math.round(((prefs.data.lineHeight || 1.62) + 0.1) * 10) / 10);
       prefs.data.lineHeight = next; prefs.save();
-      applyPrefs(); relayout();
+      applyPrefAndRelayout();
     }, { signal });
   }
   if (els.qdParaSeg) {
@@ -924,7 +948,7 @@ export function init(options = {}) {
       const btn = e.target.closest('[data-para]');
       if (!btn) return;
       prefs.data.paraSpacing = btn.dataset.para; prefs.save();
-      applyPrefs(); relayout();
+      applyPrefAndRelayout();
     }, { signal });
   }
   if (els.qdBrightness) {
