@@ -83,6 +83,13 @@ body:not(.chrome-hidden) .reader-viewport {
 .reader-content .blk-h3 { font-size: 1.2em; }
 .reader-content .chap { break-before: column; -webkit-column-break-before: always; }
 .reader-content .chap:first-child { break-before: auto; -webkit-column-break-before: auto; }
+/* Within a spine item that contains multiple real chapters (e.g. Calibre split
+   files), force each detected chapter heading onto a new page. Skip the very
+   first block so we don't double-break when the heading IS the section start. */
+.reader-content .chap > .blk-chapter-start:not(:first-child) {
+  break-before: column;
+  -webkit-column-break-before: always;
+}
 
 .reader-content .blk-blockquote {
   margin: 0.8em 1.4em;

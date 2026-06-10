@@ -280,11 +280,13 @@ export function init(options = {}) {
       }
     }
     pagination.goTo(pageOfElement(state, els.content, el), false);
-    if (attached) {
-      // Same image-decode hazard as seekToToken: pageOfElement may be wrong before
-      // images settle. Find the first word inside el to build a layout-independent
-      // reseek position; fall back to the section start if el contains no words.
-      const sec = state.doc.sections[attachedSecIdx];
+    if (state.windowed) {
+      // Same image-decode hazard as seekToToken — applies to both the
+      // newly-attached chapter AND the same-chapter case (e.g. within-file
+      // chapter headings in a multi-chapter spine item where images at the
+      // top of the file haven't decoded yet when pageOfElement runs).
+      const secIdx = attached ? attachedSecIdx : state.curChap;
+      const sec = state.doc.sections[secIdx];
       let wsOrd = sec ? sec.wsStart : 0;
       if (sec) {
         const { words, tokenToWs } = state.doc;
