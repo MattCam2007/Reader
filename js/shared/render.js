@@ -29,6 +29,7 @@ export function renderSections(content, sections, opts = {}) {
       else el.textContent = b.text;
       if (b.id) el.id = b.id;
       el.className = "blk blk-" + b.type;
+      if (b.isTocHeading) el.classList.add("blk-chapter-start");
       if (b.type === "figure") {
         el.querySelectorAll("figcaption").forEach(fc => fc.className = "blk-figcaption");
       }
