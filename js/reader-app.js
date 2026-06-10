@@ -277,14 +277,19 @@ export function init(options = {}) {
         pagination.paginateWindow(false);
         attached = true;
         attachedSecIdx = secIdx;
+      } else if (secIdx === state.curChap) {
+        // Re-measure the currently-attached chapter so state.total is accurate before
+        // pageOfElement below. Without this, a stale state.total (set before blob-URL
+        // images decoded — when content appeared to fit in a single column) caps
+        // within-section chapter jumps to page 0, making them appear to do nothing.
+        pagination.paginateWindow(false);
       }
     }
     pagination.goTo(pageOfElement(state, els.content, el), false);
     if (state.windowed) {
-      // Same image-decode hazard as seekToToken — applies to both the
-      // newly-attached chapter AND the same-chapter case (e.g. within-file
-      // chapter headings in a multi-chapter spine item where images at the
-      // top of the file haven't decoded yet when pageOfElement runs).
+      // Image-decode hazard: applies to both the newly-attached chapter AND the
+      // same-chapter case — if images settle after paginateWindow, re-land on
+      // the correct word once layout reflects full image dimensions.
       const secIdx = attached ? attachedSecIdx : state.curChap;
       const sec = state.doc.sections[secIdx];
       let wsOrd = sec ? sec.wsStart : 0;
