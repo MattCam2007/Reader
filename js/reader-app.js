@@ -344,27 +344,34 @@ export function init(options = {}) {
     else clearResumeHighlight();
   }
 
-  // Images in the freshly-rendered book decode asynchronously; until they do
-  // they occupy no space, so the column flow — and thus every word's page — is
-  // wrong. Once any pending images settle, re-land on the same position. Guarded
-  // so we never yank a reader who has already turned the page in the meantime.
-  // Re-land after images in the currently-attached content decode. Works for the
-  // initial load (full or windowed chapter 0) AND for a newly-entered windowed
-  // chapter: images in a just-attached .chap occupy no space until decode, so its
-  // column flow — and the landed page — is wrong until then. Captures page +
-  // chapter so we never yank a reader who has turned away in the meantime.
+  // Images in the freshly-rendered book decode asynchronously; until they are
+  // both downloaded AND decoded they reserve no layout box, so the multi-column
+  // flow — and thus every word's and chapter's page — is short by however many
+  // columns the images will eventually occupy. This is the cause of "the TOC
+  // lands a few pages before the chapter": tall images above the target collapse
+  // to zero width at measure time and push the chapter left.
+  //
+  // We resync off img.decode() rather than the `load` event or `img.complete`.
+  // `complete` flips true a frame BEFORE the column flow has reflowed to reserve
+  // the box, so a measurement taken right after it is still stale and the old
+  // `load`-based, complete-gated resync would skip the correction entirely.
+  // decode() resolves only once the bitmap is ready, guaranteeing the next forced
+  // layout reflects the real box. It resolves ~immediately for already-decoded
+  // images, so re-landing is cheap and idempotent when the page was already right.
+  // Captures page + chapter so we never yank a reader who has turned away.
   function resyncAfterImages(pos) {
     if (state.isScrollMode) return;
-    const imgs = Array.from(els.content.querySelectorAll("img")).filter(im => !im.complete);
+    const imgs = Array.from(els.content.querySelectorAll("img"));
     if (!imgs.length) return;
     const landedPage = state.page;
     const landedChap = state.curChap;
-    // On an explicit restore use the supplied position; otherwise keep the word
-    // we're currently on so the relayout lands back exactly where the reader is.
+    // On an explicit restore/navigation use the supplied target position;
+    // otherwise keep the word we're currently on so the relayout lands back
+    // exactly where the reader is.
     const reseek = pos || (state.windowed ? getCanonicalPosition() : null);
     let done = false;
     const settle = () => {
-      if (done || imgs.some(im => !im.complete)) return;
+      if (done) return;
       done = true;
       if (state.page !== landedPage || (state.windowed && state.curChap !== landedChap)) return;
       // refresh stride/total against the final layout (windowed = current chapter only)
@@ -373,10 +380,12 @@ export function init(options = {}) {
       if (reseek) applyCanonicalPosition(reseek);
       else storage.restorePos(applyCanonicalPosition);
     };
-    imgs.forEach(im => {
-      im.addEventListener("load", settle, { once: true, signal });
-      im.addEventListener("error", settle, { once: true, signal });
-    });
+    // decode() can reject (no src, decode error, or detached) — treat any
+    // outcome as "settled" and re-measure once every image has resolved. The rAF
+    // ensures we run after the browser has had a frame to apply the decoded box.
+    Promise.all(imgs.map(im => (typeof im.decode === "function" ? im.decode() : Promise.reject())
+      .catch(() => {})))
+      .then(() => { if (!signal.aborted) requestAnimationFrame(settle); });
   }
 
   // ---------- Resume highlight ----------
