@@ -6,6 +6,8 @@
 
 import './epub/epub-adapter.js';
 import './pdf/pdf-adapter.js';
+import './comic/cbz-adapter.js';
+import './comic/cbr-adapter.js';
 
 // Future adapters:
 // import './mobi/mobi-adapter.js';

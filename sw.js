@@ -25,6 +25,8 @@ const CDN_LIBS = [
 const CDN_FORMAT_LIBS = [
   'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.mjs',
   'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.worker.min.mjs',
+  'https://cdn.jsdelivr.net/npm/libarchivejs@2.4.2/dist/libarchive.js',
+  'https://cdn.jsdelivr.net/npm/libarchivejs@2.4.2/dist/worker-bundle.js',
 ];
 
 // The app shell: enough to boot offline. The long tail of ES modules, component
