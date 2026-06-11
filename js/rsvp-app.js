@@ -6,7 +6,7 @@ import { PrefsManager } from './core/prefs.js';
 import { EventBus } from './core/events.js';
 import { BookSession, countWords } from './core/book-session.js';
 import { renderSearchResults } from './shared/search.js';
-import { applyTheme, applyOsThemeFallback, savePosition as shellSavePosition, loadPosition } from './base-reader-app.js';
+import { applyTheme, applyOsThemeFallback, applyBgSettings, savePosition as shellSavePosition, loadPosition } from './base-reader-app.js';
 import { RSVP_DEFAULTS } from './rsvp/constants.js';
 import { RsvpState } from './rsvp/state.js';
 import { tokenize } from './rsvp/tokenizer.js';
@@ -449,6 +449,7 @@ export function init(options = {}) {
         onGeneralChange(key, value) {
           generalPrefs.data[key] = value;
           if (key === 'theme') applyTheme(value);
+          applyBgSettings(generalPrefs);
         },
         onRsvpChange: onRsvpSettingChange,
       });
@@ -705,6 +706,7 @@ export function init(options = {}) {
 
   // ---------- Apply saved prefs ----------
   applyTheme(generalPrefs.data.theme);
+  applyBgSettings(generalPrefs);
   applyFont(prefs.data.font);
   document.documentElement.style.setProperty("--word-size", prefs.data.fontSize + "px");
 

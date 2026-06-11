@@ -87,6 +87,46 @@ body.error .reader-spinner { display: none; }
 }
 .reader-coach-card b { color: var(--accent); font-weight: 700; }
 
+/* Background image layer */
+#bgImageLayer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  opacity: var(--bg-image-opacity, 1);
+  display: none;
+}
+
+body.has-bg-image {
+  background: transparent;
+}
+
+body.has-bg-image #bgImageLayer {
+  display: block;
+}
+
+body.has-bg-image .reader-viewport {
+  background: transparent;
+}
+
+body.has-bg-image .tts-viewport {
+  background: transparent;
+}
+
+/* Content opacity applies to the main reading area in all modes */
+.reader-viewport {
+  opacity: var(--content-opacity, 1);
+}
+.tts-viewport {
+  opacity: var(--content-opacity, 1);
+}
+.rsvp-main {
+  opacity: var(--content-opacity, 1);
+}
+
 /* Comfort overlay */
 .reader-comfort-overlay {
   position: fixed;

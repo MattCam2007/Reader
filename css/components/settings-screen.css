@@ -238,3 +238,48 @@
   gap: 0.75rem;
   flex-wrap: wrap;
 }
+
+/* Background image upload controls */
+.ss-bg-upload-row {
+  padding: 0.7rem 1.15rem;
+  border-bottom: 1px solid var(--border-faint);
+}
+.ss-bg-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.ss-bg-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ss-bg-upload-btn:active { opacity: 0.82; }
+.ss-bg-clear-btn {
+  background: var(--control-bg);
+  color: var(--muted);
+  border: 1px solid var(--border-mid);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ss-bg-clear-btn:active { background: var(--control-bg-hover); }
+.ss-bg-opacity-row {
+  border-bottom: 1px solid var(--border-faint);
+}

@@ -31,7 +31,11 @@ export class InputHandler {
 
     viewport.addEventListener("touchstart", (e) => {
       this.callbacks.dismissCoach();
-      if (this.state.isScrollMode || e.touches.length !== 1 || this.state.total <= 1) return;
+      if (this.state.isScrollMode || e.touches.length !== 1) return;
+      const s = this.state;
+      const canSwipe = s.total > 1 ||
+        (s.windowed && s.chapWindows && (s.curChap > 0 || s.curChap < s.chapWindows.length - 1));
+      if (!canSwipe) return;
       const t = e.touches[0];
       this._startX = t.clientX;
       this._startY = t.clientY;
@@ -71,8 +75,8 @@ export class InputHandler {
       const dy = t ? t.clientY - this._startY : 0;
       if (this._decided === "h") {
         const threshold = Math.min(SWIPE_THRESHOLD_MAX_PX, viewport.clientWidth * SWIPE_THRESHOLD_VP_FRACTION);
-        if (dx <= -threshold) perf.latencyToPaint("turn-latency", () => this.pagination.goTo(this.state.page + 1, true), { via: "swipe", dir: "next" });
-        else if (dx >= threshold) perf.latencyToPaint("turn-latency", () => this.pagination.goTo(this.state.page - 1, true), { via: "swipe", dir: "prev" });
+        if (dx <= -threshold) perf.latencyToPaint("turn-latency", () => this.pagination.next(), { via: "swipe", dir: "next" });
+        else if (dx >= threshold) perf.latencyToPaint("turn-latency", () => this.pagination.prev(), { via: "swipe", dir: "prev" });
         else this.pagination.goTo(this.state.page, true);
       } else if (this._decided !== "v" && Math.abs(dx) < 10 && Math.abs(dy) < 10 && (Date.now() - this._startT) < TAP_TIMEOUT_MS) {
         this._handleTap(this._startX);
