@@ -208,7 +208,7 @@ function generalTabHTML(p) {
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           Upload
         </label>
-        <input type="file" id="ss-bg-file" accept="image/*" style="display:none">
+        <input type="file" id="ss-bg-file" style="display:none">
         <button class="ss-bg-clear-btn" id="ss-bgClear" type="button"${hasBg ? '' : ' hidden'}>Clear</button>
       </div>
     </div>`,
@@ -233,6 +233,11 @@ function wireGeneralTab(prefs, liveApply) {
     fileInput.addEventListener('change', () => {
       const file = fileInput.files && fileInput.files[0];
       if (!file) return;
+      if (!file.type.startsWith('image/')) {
+        alert('Please choose an image file (JPEG, PNG, WebP, etc.).');
+        fileInput.value = '';
+        return;
+      }
       const reader = new FileReader();
       reader.onload = (e) => {
         const dataUrl = e.target.result;
@@ -240,6 +245,7 @@ function wireGeneralTab(prefs, liveApply) {
           localStorage.setItem(BG_IMAGE_STORAGE_KEY, dataUrl);
         } catch (_) {
           alert('Image is too large to store. Try a smaller image.');
+          fileInput.value = '';
           return;
         }
         if (clearBtn) clearBtn.hidden = false;
