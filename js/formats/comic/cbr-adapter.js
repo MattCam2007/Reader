@@ -1,5 +1,5 @@
 // FormatAdapter for CBR (Comic Book RAR). Each image in the archive becomes one
-// page-section in the canonical IR. libarchivejs (WebAssembly) is lazy-loaded
+// page-section in the canonical IR. libarchive.js (WebAssembly) is lazy-loaded
 // the first time a CBR is opened — readers who only open EPUB/PDF/CBZ never
 // download it.
 
@@ -8,9 +8,10 @@ import { startsWith } from '../detect.js';
 import { registerAdapter } from '../registry.js';
 import { isImageFile, buildComicIR } from './comic-utils.js';
 
-const LIB_VERSION = '2.4.2';
-const LIB_BASE    = `https://cdn.jsdelivr.net/npm/libarchivejs@${LIB_VERSION}/dist`;
-const LIB_JS_URL  = `${LIB_BASE}/libarchive.js`;
+// npm package: "libarchive.js" (with a dot). Both dist files are ES modules.
+const LIB_VERSION    = '2.0.2';
+const LIB_BASE       = `https://cdn.jsdelivr.net/npm/libarchive.js@${LIB_VERSION}/dist`;
+const LIB_JS_URL     = `${LIB_BASE}/libarchive.js`;
 const LIB_WORKER_URL = `${LIB_BASE}/worker-bundle.js`;
 
 // RAR magic: first 6 bytes common to RAR 1.5-4.x and RAR 5.x.
@@ -43,28 +44,30 @@ export const cbrAdapter = {
     return (isRar && (byName || byMime)) || byName || byMime;
   },
 
-  // Lazy-load libarchivejs (WebAssembly). Cache the Archive class on globalThis
-  // so repeat opens do not re-import. Worker is fetched as a same-origin blob
-  // URL to avoid cross-origin Worker restrictions (same technique as pdf-adapter).
+  // Lazy-load libarchive.js (WebAssembly). Cache the Archive class on globalThis
+  // so repeat opens do not re-import.
+  //
+  // Worker shim: cross-origin *module* workers frequently fail to construct
+  // (same restriction pdf.js hits). We create a same-origin blob that does a
+  // single `import` of the CDN worker URL. The shim is same-origin so the
+  // Worker constructor succeeds; the actual worker code still runs from the CDN
+  // module, preserving its import.meta.url so relative WASM paths resolve correctly.
   async loadLibs() {
     if (globalThis._cbrArchive) return;
-    let Archive;
+    let mod;
     try {
-      const mod = await import(/* @vite-ignore */ LIB_JS_URL);
-      Archive = mod.default || mod.Archive || mod;
+      mod = await import(/* @vite-ignore */ LIB_JS_URL);
     } catch (e) {
       throw new Error('CBR library failed to load. Check your connection.');
     }
-    let workerSrc = LIB_WORKER_URL;
-    try {
-      const resp = await fetch(LIB_WORKER_URL);
-      if (!resp.ok) throw new Error('worker fetch ' + resp.status);
-      const code = await resp.text();
-      workerSrc = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
-    } catch (_) {
-      // Direct CDN URL as fallback.
-    }
-    Archive.init({ workerUrl: workerSrc });
+    const Archive = mod.Archive || mod.default;
+    if (!Archive) throw new Error('CBR library loaded but Archive class not found.');
+
+    const shimCode = `import '${LIB_WORKER_URL}';`;
+    const workerUrl = URL.createObjectURL(
+      new Blob([shimCode], { type: 'application/javascript' })
+    );
+    Archive.init({ workerUrl });
     globalThis._cbrArchive = Archive;
   },
 
