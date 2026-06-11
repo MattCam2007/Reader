@@ -14,6 +14,8 @@
 import { THEME_COLORS, ALL_THEME_NAMES } from './core/constants.js';
 import { loadStoredPosition, saveStoredPosition } from './core/position.js';
 
+export const BG_IMAGE_STORAGE_KEY = 'general:bgImage';
+
 // Toggle the body theme class. "dark" is the default (no class).
 export function applyThemeClass(name) {
   document.body.classList.remove(...ALL_THEME_NAMES.map(t => `theme-${t}`));
@@ -53,4 +55,42 @@ export function savePosition(bookId, getPos) {
 
 export function loadPosition(bookId) {
   return loadStoredPosition(bookId);
+}
+
+// Cached data URL to avoid repeatedly setting a potentially large CSS value.
+let _loadedBgUrl = null;
+
+// Apply background image and opacity settings from general prefs.
+// The image itself is stored under BG_IMAGE_STORAGE_KEY (separate from prefs JSON).
+export function applyBgSettings(generalPrefs) {
+  const p = generalPrefs.data;
+  const storedUrl = localStorage.getItem(BG_IMAGE_STORAGE_KEY);
+  const hasBg = !!storedUrl;
+
+  document.body.classList.toggle('has-bg-image', hasBg);
+
+  const bgLayer = document.getElementById('bgImageLayer');
+  if (bgLayer) {
+    if (hasBg) {
+      if (storedUrl !== _loadedBgUrl) {
+        bgLayer.style.backgroundImage = `url(${storedUrl})`;
+        _loadedBgUrl = storedUrl;
+      }
+    } else if (_loadedBgUrl) {
+      bgLayer.style.backgroundImage = 'none';
+      _loadedBgUrl = null;
+    }
+  }
+
+  document.body.style.setProperty('--bg-image-opacity', String(p.bgImageOpacity ?? 1));
+  document.body.style.setProperty('--content-opacity', String(p.contentOpacity ?? 1));
+}
+
+// Clear the stored background image and reset CSS state.
+export function clearBgImage(generalPrefs) {
+  try { localStorage.removeItem(BG_IMAGE_STORAGE_KEY); } catch (_) {}
+  _loadedBgUrl = null;
+  const bgLayer = document.getElementById('bgImageLayer');
+  if (bgLayer) bgLayer.style.backgroundImage = 'none';
+  document.body.classList.remove('has-bg-image');
 }

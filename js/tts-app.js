@@ -5,7 +5,7 @@ import { initBookmarksPanel } from './bookmarks/panel.js';
 import { BookSession, splitWords } from './core/book-session.js';
 import { renderSections, annotateInlineText } from './shared/render.js';
 import { renderSearchResults } from './shared/search.js';
-import { applyTheme, applyOsThemeFallback, savePosition as shellSavePosition, loadPosition } from './base-reader-app.js';
+import { applyTheme, applyOsThemeFallback, applyBgSettings, savePosition as shellSavePosition, loadPosition } from './base-reader-app.js';
 import { buildTOC, resolveHref } from './formats/epub/toc.js';
 import { TtsEngine } from './tts/engine.js';
 import { TtsHighlighter } from './tts/highlighter.js';
@@ -463,6 +463,9 @@ export function init(options = {}) {
     // Comfort overlay
     if (els.comfortDim) els.comfortDim.style.opacity = String(1 - (p.brightness || 1));
     if (els.comfortWarm) els.comfortWarm.style.opacity = String(p.warmth || 0);
+
+    // Background image and opacity
+    applyBgSettings(generalPrefs);
 
     // Auto scroll
     highlighter.setAutoScroll(p.autoScroll !== false);

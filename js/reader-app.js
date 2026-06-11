@@ -1,5 +1,5 @@
 import { FONT_MAP, FONT_SERIF, RESIZE_DEBOUNCE_MS, GENERAL_DEFAULTS, WINDOW_MIN_WORDS, MIN_SIZE, MAX_SIZE } from './core/constants.js';
-import { applyTheme, applyOsThemeFallback } from './base-reader-app.js';
+import { applyTheme, applyOsThemeFallback, applyBgSettings } from './base-reader-app.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
@@ -572,6 +572,9 @@ export function init(options = {}) {
     // Comfort overlay
     if (els.comfortDim) els.comfortDim.style.opacity = String(1 - (p.brightness || 1));
     if (els.comfortWarm) els.comfortWarm.style.opacity = String(p.warmth || 0);
+
+    // Background image and opacity
+    applyBgSettings(generalPrefs);
 
     // Sync quick drawer display values
     if (els.qdSizeVal)    els.qdSizeVal.textContent = String(p.size);

@@ -3,6 +3,7 @@ import { RSVP_DEFAULTS } from '../rsvp/constants.js';
 import { TTS_DEFAULTS } from '../tts/constants.js';
 import { PrefsManager } from '../core/prefs.js';
 import { createPicker } from '../shared/picker.js';
+import { BG_IMAGE_STORAGE_KEY, applyBgSettings, clearBgImage } from '../base-reader-app.js';
 
 let _screen = null;
 let _cleanup = null;
@@ -190,6 +191,7 @@ function pickerEl(prefix, label, unit) {
 // ── General tab ──────────────────────────────────────────────────────────────
 
 function generalTabHTML(p) {
+  const hasBg = !!localStorage.getItem(BG_IMAGE_STORAGE_KEY);
   return [
     section('Appearance'),
     row('Theme', seg('ss-gen-theme', 'data-theme', [
@@ -197,6 +199,23 @@ function generalTabHTML(p) {
       ['terminal','Terminal'],['nebula','Nebula'],['forest','Forest'],
       ['ember','Ember'],['nord','Nord'],
     ], p.theme)),
+
+    section('Background'),
+    `<div class="ss-row ss-bg-upload-row">
+      <span class="ss-label">Image</span>
+      <div class="ss-bg-actions">
+        <label class="ss-bg-upload-btn" for="ss-bg-file">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Upload
+        </label>
+        <input type="file" id="ss-bg-file" accept="image/*" style="display:none">
+        <button class="ss-bg-clear-btn" id="ss-bgClear" type="button"${hasBg ? '' : ' hidden'}>Clear</button>
+      </div>
+    </div>`,
+    `<div class="ss-bg-opacity-row" id="ss-bgOpacityRow"${hasBg ? '' : ' hidden'}>`,
+    row('Image opacity', slider('ss-bgOpacity', 0, 100, Math.round((p.bgImageOpacity ?? 1) * 100))),
+    `</div>`,
+    row('Content opacity', slider('ss-contentOpacity', 0, 100, Math.round((p.contentOpacity ?? 1) * 100))),
   ].join('');
 }
 
@@ -204,6 +223,52 @@ function wireGeneralTab(prefs, liveApply) {
   wireSeg('ss-gen-theme', 'data-theme', (val) => {
     prefs.data.theme = val; prefs.save();
     if (liveApply) liveApply('theme', val);
+  });
+
+  const fileInput = document.getElementById('ss-bg-file');
+  const clearBtn  = document.getElementById('ss-bgClear');
+  const opacityRow = document.getElementById('ss-bgOpacityRow');
+
+  if (fileInput) {
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target.result;
+        try {
+          localStorage.setItem(BG_IMAGE_STORAGE_KEY, dataUrl);
+        } catch (_) {
+          alert('Image is too large to store. Try a smaller image.');
+          return;
+        }
+        if (clearBtn) clearBtn.hidden = false;
+        if (opacityRow) opacityRow.hidden = false;
+        if (liveApply) liveApply('_bgImage', dataUrl);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      clearBgImage(prefs);
+      if (clearBtn) clearBtn.hidden = true;
+      if (opacityRow) opacityRow.hidden = true;
+      if (liveApply) liveApply('_bgImage', null);
+    });
+  }
+
+  bindSlider('ss-bgOpacity', (v) => {
+    prefs.data.bgImageOpacity = v / 100;
+    prefs.save();
+    if (liveApply) liveApply('bgImageOpacity', prefs.data.bgImageOpacity);
+  });
+
+  bindSlider('ss-contentOpacity', (v) => {
+    prefs.data.contentOpacity = v / 100;
+    prefs.save();
+    if (liveApply) liveApply('contentOpacity', prefs.data.contentOpacity);
   });
 }
 
