@@ -31,7 +31,11 @@ export class InputHandler {
 
     viewport.addEventListener("touchstart", (e) => {
       this.callbacks.dismissCoach();
-      if (this.state.isScrollMode || e.touches.length !== 1 || this.state.total <= 1) return;
+      if (this.state.isScrollMode || e.touches.length !== 1) return;
+      const s = this.state;
+      const canSwipe = s.total > 1 ||
+        (s.windowed && s.chapWindows && (s.curChap > 0 || s.curChap < s.chapWindows.length - 1));
+      if (!canSwipe) return;
       const t = e.touches[0];
       this._startX = t.clientX;
       this._startY = t.clientY;
