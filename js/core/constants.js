@@ -72,6 +72,7 @@ export const GENERAL_DEFAULTS = {
   theme: 'dark',
   bgImageOpacity: 1,
   contentOpacity: 1,
+  textOutline: 'none',
 };
 
 // Default prefs

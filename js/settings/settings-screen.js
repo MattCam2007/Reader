@@ -216,6 +216,11 @@ function generalTabHTML(p) {
     row('Image opacity', slider('ss-bgOpacity', 0, 100, Math.round((p.bgImageOpacity ?? 1) * 100))),
     `</div>`,
     row('Content opacity', slider('ss-contentOpacity', 0, 100, Math.round((p.contentOpacity ?? 1) * 100))),
+
+    section('Text'),
+    row('Outline', seg('ss-textOutline', 'data-outline', [
+      ['none', 'Off'], ['dark', 'Dark'], ['light', 'Light'],
+    ], p.textOutline || 'none')),
   ].join('');
 }
 
@@ -275,6 +280,11 @@ function wireGeneralTab(prefs, liveApply) {
     prefs.data.contentOpacity = v / 100;
     prefs.save();
     if (liveApply) liveApply('contentOpacity', prefs.data.contentOpacity);
+  });
+
+  wireSeg('ss-textOutline', 'data-outline', (val) => {
+    prefs.data.textOutline = val; prefs.save();
+    if (liveApply) liveApply('textOutline', val);
   });
 }
 

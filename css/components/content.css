@@ -266,3 +266,21 @@ body.layout-scroll .reader-scrub { display: none; }
 body:not(.layout-scroll) .reader-content.anim-fade {
   transition: opacity 180ms ease;
 }
+
+/* Text outline — useful over busy background images */
+body.text-outline-dark .reader-content,
+body.text-outline-dark .tts-content {
+  text-shadow:
+    -1px -1px 0 rgba(0,0,0,0.8),
+     1px -1px 0 rgba(0,0,0,0.8),
+    -1px  1px 0 rgba(0,0,0,0.8),
+     1px  1px 0 rgba(0,0,0,0.8);
+}
+body.text-outline-light .reader-content,
+body.text-outline-light .tts-content {
+  text-shadow:
+    -1px -1px 0 rgba(255,255,255,0.8),
+     1px -1px 0 rgba(255,255,255,0.8),
+    -1px  1px 0 rgba(255,255,255,0.8),
+     1px  1px 0 rgba(255,255,255,0.8);
+}

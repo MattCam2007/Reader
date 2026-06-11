@@ -84,6 +84,10 @@ export function applyBgSettings(generalPrefs) {
 
   document.body.style.setProperty('--bg-image-opacity', String(p.bgImageOpacity ?? 1));
   document.body.style.setProperty('--content-opacity', String(p.contentOpacity ?? 1));
+
+  const outline = p.textOutline || 'none';
+  document.body.classList.toggle('text-outline-dark',  outline === 'dark');
+  document.body.classList.toggle('text-outline-light', outline === 'light');
 }
 
 // Clear the stored background image and reset CSS state.
