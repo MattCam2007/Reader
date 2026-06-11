@@ -27,7 +27,15 @@ export class PaginationEngine {
     const { content } = els;
     content.style.transition = "none";
     content.style.setProperty("--page-offset", "0px");
-    const vpW = this.els.contentClip.clientWidth;
+    // Use the *fractional* clip width (computed style, unaffected by the viewport
+    // scale transform) rather than the integer clientWidth. With column-width set
+    // to an integer that's a fraction of a px wider than the real content box, the
+    // browser lays columns out at the true (fractional) width, so an integer
+    // stride drifts ~0.4px per column. Over a long chapter that accumulates past a
+    // pixel and flips floor() in pageOfElement to the previous column, landing a
+    // TOC/heading jump one page before its target (heading at the far right edge).
+    const cw = parseFloat(getComputedStyle(this.els.contentClip).width);
+    const vpW = cw > 0 ? cw : this.els.contentClip.clientWidth;
     const { cols, stride } = columnLayout(vpW, state._prefs.data);
     if (cols === 2) {
       content.style.columnCount = "2";
