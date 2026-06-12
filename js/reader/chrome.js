@@ -91,15 +91,22 @@ export class ChromeManager {
     }
 
     // Update quick-bm button color to match the bookmark on this page
+    this.refreshQuickBmState(items);
+  }
+
+  // Light the quick-bookmark button iff a bookmark sits on the current
+  // page/screen. Split from updateBookmarkMarkers so scroll mode can re-check
+  // on scroll without rebuilding or repositioning the marker dots.
+  refreshQuickBmState(items) {
+    const { quickBmBtnEl } = this.els;
+    if (!quickBmBtnEl) return;
     const pageItems = items.length > 0 ? this.getPageBookmarks(items) : [];
     const onPage = pageItems.length > 0;
-    if (quickBmBtnEl) {
-      quickBmBtnEl.classList.toggle('bookmarked', onPage);
-      if (onPage && pageItems[0].color) {
-        quickBmBtnEl.style.setProperty('--bm-active-color', `var(--bm-${pageItems[0].color})`);
-      } else {
-        quickBmBtnEl.style.removeProperty('--bm-active-color');
-      }
+    quickBmBtnEl.classList.toggle('bookmarked', onPage);
+    if (onPage && pageItems[0].color) {
+      quickBmBtnEl.style.setProperty('--bm-active-color', `var(--bm-${pageItems[0].color})`);
+    } else {
+      quickBmBtnEl.style.removeProperty('--bm-active-color');
     }
   }
 
