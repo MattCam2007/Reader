@@ -256,12 +256,16 @@ export function runSelftest(state, hooks) {
     assert('archive-guard', 'oversize entry throws a user-facing error',
       threw instanceof Error && /too large/.test(threw.message));
 
+    // Entries at the per-entry limit accumulate to exactly the total cap…
     const t2 = { bytes: 0 };
-    const half = Math.floor(MAX_ARCHIVE_TOTAL_BYTES / 2);
-    checkArchiveEntry('a.png', half, t2);
-    checkArchiveEntry('b.png', half, t2);
     let threwTotal = null;
-    try { checkArchiveEntry('c.png', 2, t2); } catch (e) { threwTotal = e; }
+    try {
+      const n = Math.floor(MAX_ARCHIVE_TOTAL_BYTES / MAX_ARCHIVE_ENTRY_BYTES);
+      for (let i = 0; i < n; i++) checkArchiveEntry('e' + i + '.png', MAX_ARCHIVE_ENTRY_BYTES, t2);
+    } catch (e) { threwTotal = e; }
+    assert('archive-guard', 'entries up to the total cap pass', threwTotal === null);
+    // …and the next entry crosses it.
+    try { checkArchiveEntry('over.png', 2, t2); } catch (e) { threwTotal = e; }
     assert('archive-guard', 'running total cap throws on the entry that crosses it',
       threwTotal instanceof Error && /too large/.test(threwTotal.message));
 
