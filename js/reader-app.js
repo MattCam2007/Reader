@@ -134,12 +134,15 @@ export function init(options = {}) {
     getContext: getBookmarkContext,
     onNavigate: navigateToBookmark,
     closePanel: () => { document.body.classList.remove('show-bookmarks'); updateAriaExpanded(); },
-    onBookmarksChange: () => chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark),
+    onBookmarksChange: () => chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark, bookmarkManager.generation),
   });
 
   // ---------- Helpers ----------
   function currentLocatorFn() {
-    return currentLocator(state, els.content, els.viewport, (wi) => toLocator(state, wi));
+    // Span (?perf=1): this is the scroll-mode save path — the A3 anchor change
+    // must stay provably cheap.
+    return perf.time('reader:locator', () =>
+      currentLocator(state, els.content, els.viewport, (wi) => toLocator(state, wi)));
   }
   function buildChapterIndexFn() { buildChapterIndex(state, els.content); }
   function savePosMain() { storage.savePos(getCanonicalPosition); }
@@ -150,7 +153,7 @@ export function init(options = {}) {
     }
     if (state.windowed) updateWindowedProgress();
     else chrome.updateProgress();
-    chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
+    chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark, bookmarkManager.generation);
   }
 
   // Cheap global progress for windowed mode: chapter index + page-within-chapter,
@@ -685,7 +688,7 @@ export function init(options = {}) {
     // unchanged. Paginated turns refresh via goTo->updateProgressFn, but a scroll
     // seek doesn't, so refresh here to cover every mode. The layout-signature
     // gate inside makes this a no-op when nothing actually moved.
-    chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
+    chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark, bookmarkManager.generation);
   }
 
   // Live-apply a re-paginating pref change (quick drawer) while preserving the
@@ -863,7 +866,7 @@ export function init(options = {}) {
         if (!ctx) return;
         bookmarkManager.add(ctx);
         bmPanel.render();
-        chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
+        chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark, bookmarkManager.generation);
         els.quickBmBtnEl.classList.add("bm-flash");
         setTimeout(() => els.quickBmBtnEl.classList.remove("bm-flash"), 600);
       }
@@ -875,7 +878,7 @@ export function init(options = {}) {
         if (deleteBtn) {
           chrome.getPageBookmarks(bookmarkManager.getAll()).forEach(bm => bookmarkManager.remove(bm.id));
           bmPanel.render();
-          chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
+          chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark, bookmarkManager.generation);
           _closeColorPopover();
           return;
         }
@@ -891,7 +894,7 @@ export function init(options = {}) {
           if (ctx) bookmarkManager.add({ ...ctx, color });
         }
         bmPanel.render();
-        chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
+        chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark, bookmarkManager.generation);
         _closeColorPopover();
       }, { signal });
 
