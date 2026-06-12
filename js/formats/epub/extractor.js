@@ -156,6 +156,7 @@ export async function extractSections(book, onProgress) {
   const sections = [];
   const allImgUrls = [];
   const idSeed = { n: 0 }; // shared counter — keeps synthetic toc-N ids unique book-wide
+  let skipped = 0;
   for (let i = 0; i < items.length; i++) {
     const section = items[i];
     if (onProgress) onProgress("Parsing\u2026 " + (i + 1) + " / " + items.length);
@@ -173,6 +174,7 @@ export async function extractSections(book, onProgress) {
         sections.push({ href: base, blocks });
       }
     } catch (err) {
+      skipped++;
       console.warn("Skipping section:", section && section.href, err);
     } finally {
       if (section && typeof section.unload === "function") {
@@ -180,7 +182,17 @@ export async function extractSections(book, onProgress) {
       }
     }
   }
-  return { sections, allImgUrls };
+  // Keep the resilience (a bad spine item must not kill the whole book), but
+  // make the loss visible: report it through the overlay/progress channel and
+  // return it so the session carries the warning for any later UI use.
+  const warnings = [];
+  if (skipped > 0) {
+    const msg = "Loaded " + (items.length - skipped) + " of " + items.length +
+      " chapters (" + skipped + " could not be read)";
+    warnings.push(msg);
+    if (onProgress) onProgress(msg);
+  }
+  return { sections, allImgUrls, warnings };
 }
 
 /* ── Plain-text extraction for RSVP speed reader ── */

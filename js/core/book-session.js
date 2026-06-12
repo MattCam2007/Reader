@@ -58,6 +58,9 @@ export class BookSession {
     this.buffer = data.buffer || null;
     this._blobUrls = data.blobUrls || [];
     this.isSample = !!data.isSample;
+    // Non-fatal extraction warnings (e.g. "Loaded 95 of 100 chapters") —
+    // surfaced through onProgress during parse, kept here for any later UI.
+    this.warnings = data.warnings || [];
     // Phase 0: format id and capabilities are carried on the session so modes
     // and UI can degrade gracefully without knowing which format was opened.
     this.format = data.format || '';
@@ -100,6 +103,7 @@ export class BookSession {
       toc: parsed.toc,
       title: parsed.title,
       blobUrls: parsed.blobUrls,
+      warnings: parsed.warnings,
       bookId,
       fileName,
       buffer,
