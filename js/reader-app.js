@@ -356,12 +356,26 @@ export function init(options = {}) {
     const settle = () => {
       if (done || imgs.some(im => !im.complete)) return;
       done = true;
-      if (state.page !== landedPage || (state.windowed && state.curChap !== landedChap)) return;
+      perf.mark("reader:image-settle");
+      if (state.page !== landedPage || (state.windowed && state.curChap !== landedChap)) {
+        // The reader turned away while images decoded — don't yank them back.
+        // But the debounced save running since they turned was measured against
+        // the provisional (images-collapsed) layout; re-save from the settled
+        // one so the stored position matches what is actually on screen,
+        // instead of persisting the provisional capture.
+        storage.savePos(getCanonicalPosition);
+        perf.measure("reader:image-settle", { aborted: true });
+        return;
+      }
       // refresh stride/total against the final layout (windowed = current chapter only)
       if (state.windowed) pagination.paginateWindow(false);
       else pagination.paginate(false);
+      // The reseek target is a ws-ordinal position (layout-independent), so
+      // seeking with it is safe; the post-seek save inside goTo re-captures
+      // against the settled layout.
       if (reseek) applyCanonicalPosition(reseek);
       else storage.restorePos(applyCanonicalPosition);
+      perf.measure("reader:image-settle", { imgs: imgs.length });
     };
     imgs.forEach(im => {
       im.addEventListener("load", settle, { once: true, signal });
