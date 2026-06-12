@@ -1,7 +1,7 @@
 import { wordRange, pageOfWord, wordAtPageStart } from '../model/geometry.js';
 import { toLocator, resolveLocator, exportTokens } from '../model/locator.js';
 import { deriveBookId, buildPosition, resolvePosition } from '../core/position.js';
-import { blocksFromDoc, sanitizeInline } from '../formats/epub/extractor.js';
+import { blocksFromDoc, sanitizeInline, safeAnchorHref } from '../formats/epub/extractor.js';
 import { EventBus } from '../core/events.js';
 import { FONT_MAP, SETTINGS, DEFAULT_PREFS } from '../core/constants.js';
 import { PrefsManager } from '../core/prefs.js';
@@ -170,6 +170,48 @@ export function runSelftest(state) {
   assert("extractor", "sanitizeInline keeps <b>", tempDiv.querySelector("b") !== null);
   assert("extractor", "sanitizeInline strips <script>", tempDiv.querySelector("script") === null);
   assert("extractor", "sanitizeInline keeps <a>", tempDiv.querySelector("a") !== null);
+
+  // --- epub/extractor: anchor href sanitisation (B1 — XSS via book anchors) ---
+  {
+    const dropped = [
+      'javascript:alert(1)',
+      'JaVaScRiPt:alert(1)',
+      ' javascript:alert(1)',
+      'java\nscript:alert(1)',          // URL parser strips \n — still javascript:
+      'java\tscript:alert(1)',
+      'javascript:alert(1)',
+      'data:text/html,<script>x</script>',
+      'vbscript:msgbox(1)',
+      '//evil.example.com/x',           // protocol-relative
+      'blob:https://x/y',
+      'file:///etc/passwd',
+    ];
+    assert('extractor', 'safeAnchorHref drops every dangerous scheme',
+      dropped.every(h => safeAnchorHref(h) === null));
+    const kept = ['#fn-12', 'chapter4.xhtml#anchor', '../text/ch01.xhtml',
+      'notes/note1.xhtml', 'http://example.com/a', 'https://example.com/a',
+      'foo/bar:baz.xhtml'];             // colon after a slash is not a scheme
+    assert('extractor', 'safeAnchorHref keeps fragments, relative paths, http(s)',
+      kept.every(h => safeAnchorHref(h) === h));
+    assert('extractor', 'safeAnchorHref empty/missing href drops',
+      safeAnchorHref('') === null && safeAnchorHref(null) === null && safeAnchorHref('   ') === null);
+
+    // End-to-end: a malicious fixture through sanitizeInline comes out inert.
+    const evil = document.createElement('div');
+    evil.innerHTML = '<a href="javascript:alert(1)">x</a><a href="#fn1">ok</a>';
+    // Build the second link's href via DOM to embed a real newline in the scheme.
+    const sneak = document.createElement('a');
+    sneak.setAttribute('href', 'java\nscript:alert(2)');
+    sneak.textContent = 'y';
+    evil.appendChild(sneak);
+    const out = document.createElement('div');
+    out.appendChild(sanitizeInline(evil));
+    const anchors = [...out.querySelectorAll('a')];
+    assert('extractor', 'sanitizeInline strips javascript: hrefs (fixture inert)',
+      anchors.length === 3 && !anchors[0].hasAttribute('href') && !anchors[2].hasAttribute('href'));
+    assert('extractor', 'sanitizeInline keeps the fragment href',
+      anchors[1].getAttribute('href') === '#fn1');
+  }
 
   // --- epub/extractor: blocksFromDoc ---
   const testDoc = document.createElement("div");

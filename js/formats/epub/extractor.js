@@ -1,5 +1,23 @@
 import { RICH_INLINE, BLOCK_SEL, SKIP_SEL, INLINE_TAGS, SAFE_ATTRS } from '../../core/constants.js';
 
+// Anchor hrefs from book content execute on click if they carry a
+// script-running scheme (javascript:, data:, vbscript:). Allow only what books
+// legitimately use: fragment links (footnotes/TOC), relative archive paths,
+// and absolute http(s) URLs. Returns the href to keep, or null to drop it.
+export function safeAnchorHref(raw) {
+  const href = (raw || '').trim();
+  if (!href) return null;
+  // Scheme-detect against a copy with control chars and whitespace stripped:
+  // the HTML URL parser ignores them, so "java\nscript:" IS javascript: to the
+  // browser even though a naive prefix check misses it.
+  const probe = href.replace(/[\u0000-\u0020\u007f]+/g, '').toLowerCase();
+  if (probe.startsWith('#')) return href;
+  if (probe.startsWith('http:') || probe.startsWith('https:')) return href;
+  if (probe.startsWith('//')) return null; // protocol-relative
+  if (/^[a-z][a-z0-9+.-]*:/.test(probe)) return null; // any other scheme
+  return href; // relative archive path
+}
+
 export function sanitizeInline(srcNode) {
   const frag = document.createDocumentFragment();
   for (const child of srcNode.childNodes) {
@@ -15,6 +33,11 @@ export function sanitizeInline(srcNode) {
           for (const attr of allowed) {
             if (child.hasAttribute(attr)) el.setAttribute(attr, child.getAttribute(attr));
           }
+        }
+        if (tag === "a" && el.hasAttribute("href")) {
+          const safe = safeAnchorHref(el.getAttribute("href"));
+          if (safe === null) el.removeAttribute("href");
+          else el.setAttribute("href", safe);
         }
         if (tag === "img" && el.hasAttribute("src")) {
           el.dataset.origSrc = el.getAttribute("src");
