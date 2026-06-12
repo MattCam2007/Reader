@@ -542,6 +542,65 @@ export function runSelftest(state) {
     }
   }
 
+  // --- formats: CBZ adapter ---
+  {
+    const cbz = getAdapterById('cbz');
+    assert('formats', 'CBZ: adapter is registered', cbz !== null);
+    if (cbz) {
+      assert('formats', 'CBZ: has parse + detect functions',
+        typeof cbz.parse === 'function' && typeof cbz.detect === 'function');
+      assert('formats', 'CBZ: extensions include .cbz', cbz.extensions.includes('.cbz'));
+      // ZIP magic + .cbz extension → detected.
+      const zipBytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]);
+      assert('formats', 'CBZ: detect matches ZIP magic + .cbz name',
+        cbz.detect(zipBytes, 'comic.cbz', ''));
+      assert('formats', 'CBZ: detect matches .cbz extension alone',
+        cbz.detect(new Uint8Array([0, 0, 0, 0]), 'comic.cbz', ''));
+      assert('formats', 'CBZ: detect rejects .epub',
+        !cbz.detect(zipBytes, 'book.epub', ''));
+      // Capabilities: image-only, no text stream, page fidelity.
+      assert('formats', 'CBZ: images capability true', cbz.capabilities.images === true);
+      assert('formats', 'CBZ: pageFidelity capability true', cbz.capabilities.pageFidelity === true);
+      assert('formats', 'CBZ: textStream capability false', cbz.capabilities.textStream === false);
+      assert('formats', 'CBZ: reflow capability false', cbz.capabilities.reflow === false);
+      // selectAdapter routes a .cbz file to the CBZ adapter, not EPUB.
+      const cbzBuf = new Uint8Array([0x50, 0x4b, 0x03, 0x04]).buffer;
+      const selCbz = selectAdapter(cbzBuf, 'comic.cbz');
+      assert('formats', 'registry: selectAdapter picks CBZ for .cbz file',
+        selCbz !== null && selCbz.id === 'cbz');
+      // acceptString now includes .cbz.
+      assert('formats', 'registry: acceptString includes .cbz', acceptString().includes('.cbz'));
+    }
+  }
+
+  // --- formats: CBR adapter ---
+  {
+    const cbr = getAdapterById('cbr');
+    assert('formats', 'CBR: adapter is registered', cbr !== null);
+    if (cbr) {
+      assert('formats', 'CBR: has parse + detect functions',
+        typeof cbr.parse === 'function' && typeof cbr.detect === 'function');
+      assert('formats', 'CBR: extensions include .cbr', cbr.extensions.includes('.cbr'));
+      // RAR magic bytes.
+      const rarBytes = new Uint8Array([0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00, 0x00]);
+      assert('formats', 'CBR: detect matches RAR magic', cbr.detect(rarBytes, 'comic.cbr', ''));
+      assert('formats', 'CBR: detect matches .cbr extension alone',
+        cbr.detect(new Uint8Array([0, 0, 0, 0]), 'comic.cbr', ''));
+      // Capabilities: same shape as CBZ.
+      assert('formats', 'CBR: images capability true', cbr.capabilities.images === true);
+      assert('formats', 'CBR: pageFidelity capability true', cbr.capabilities.pageFidelity === true);
+      assert('formats', 'CBR: textStream capability false', cbr.capabilities.textStream === false);
+      assert('formats', 'CBR: reflow capability false', cbr.capabilities.reflow === false);
+      // selectAdapter routes a .cbr file to the CBR adapter.
+      const cbrBuf = new Uint8Array([0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00, 0x00]).buffer;
+      const selCbr = selectAdapter(cbrBuf, 'comic.cbr');
+      assert('formats', 'registry: selectAdapter picks CBR for .cbr file',
+        selCbr !== null && selCbr.id === 'cbr');
+      // acceptString now includes .cbr.
+      assert('formats', 'registry: acceptString includes .cbr', acceptString().includes('.cbr'));
+    }
+  }
+
   // --- Report ---
   console.log("=== Reader Selftest ===");
   results.forEach(r => console.log(r.display));
