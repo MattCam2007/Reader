@@ -139,7 +139,15 @@ export class PageCounter {
     clip.appendChild(content);
     vp.appendChild(clip);
     document.body.appendChild(vp);
-    this._host = { viewport: vp, clip, content };
+    // Stride depends only on viewport width + prefs — identical for every
+    // chapter in a pass, so compute it (and apply the column styles) once here
+    // instead of per chapter in _measureChapter.
+    const vpW = content.getBoundingClientRect().width;
+    const { cols, stride } = columnLayout(vpW, this.prefs.data);
+    content.style.columnCount = cols === 2 ? '2' : '';
+    content.style.columnWidth = cols === 2 ? '' : vpW + 'px';
+    content.style.columnGap = COLUMN_GAP + 'px';
+    this._host = { viewport: vp, clip, content, stride };
   }
 
   _removeHost() {
@@ -171,13 +179,9 @@ export class PageCounter {
     const w = this.state.chapWindows[i];
     if (!w || !w.el) return undefined;
     const host = this._host.content;
+    const stride = this._host.stride; // columns/stride set once in _buildHost
     host.appendChild(w.el);
     try {
-      const vpW = host.getBoundingClientRect().width;
-      const { cols, stride } = columnLayout(vpW, this.prefs.data);
-      host.style.columnCount = cols === 2 ? '2' : '';
-      host.style.columnWidth = cols === 2 ? '' : vpW + 'px';
-      host.style.columnGap = COLUMN_GAP + 'px';
       await this._awaitImages(w.el);
       void host.offsetWidth;
       return Math.max(1, Math.round(host.scrollWidth / stride));
