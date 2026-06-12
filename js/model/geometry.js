@@ -95,35 +95,45 @@ export function wordAtPageStartRange(state, content, p, lo, hiExcl) {
   return result;
 }
 
-// Scroll-mode locator: binary search instead of sampling (Phase 8b)
+// Tolerance for the "at the viewport top" comparison: absorbs sub-pixel
+// measurement noise so a word sitting exactly on the fold counts as visible.
+const SCROLL_TOP_EPS_PX = 0.5;
+
+// Scroll-mode locator (Phase 8b: binary search instead of sampling).
+//
+// The anchor is the FIRST word whose top is at/below the viewport top — i.e.
+// the first whole word the reader can see — matching the product model "the
+// position is the words at the top of the page" and the paginated capture
+// (wordAtPageStart). The previous nearest-by-abs bookkeeping deliberately let a
+// word on the line already cut off above the fold win, which is why bookmarks
+// pressed on a fold-straddling paragraph could anchor a line above where the
+// reader's eye was (and land a page off after a relayout).
+//
+// Both rect tops below come from getBoundingClientRect under the same ancestor
+// transform (the viewport is scaled while the chrome bars are visible — see
+// layoutScale), so the comparison is scale-invariant and needs no de-scaling;
+// only offset÷length math does.
 export function currentLocator(state, content, viewport, toLocatorFn) {
   if (state.isScrollMode) {
     const vpTop = viewport.getBoundingClientRect().top;
     const words = state.doc.words;
     if (!words.length) return null;
-    // Binary search for the word nearest viewport top
+    // Binary search converges on the first word with top >= vpTop. Word index
+    // order already guarantees the leftmost word of that line wins.
     let lo = 0, hi = words.length - 1;
-    let best = 0, bestDist = Infinity;
+    let first = words.length - 1;
     while (lo <= hi) {
       const mid = (lo + hi) >>> 1;
       const r = wordRange(state, mid);
       if (!r) { lo = mid + 1; continue; }
-      const top = r.getBoundingClientRect().top;
-      const d = Math.abs(top - vpTop);
-      if (d < bestDist) { bestDist = d; best = mid; }
-      if (top < vpTop) lo = mid + 1;
-      else hi = mid - 1;
+      if (r.getBoundingClientRect().top >= vpTop - SCROLL_TOP_EPS_PX) {
+        first = mid;
+        hi = mid - 1;
+      } else {
+        lo = mid + 1;
+      }
     }
-    // Refine in local neighborhood
-    const refineLo = Math.max(0, best - 20);
-    const refineHi = Math.min(words.length - 1, best + 20);
-    for (let i = refineLo; i <= refineHi; i++) {
-      const r = wordRange(state, i);
-      if (!r) continue;
-      const d = Math.abs(r.getBoundingClientRect().top - vpTop);
-      if (d < bestDist) { bestDist = d; best = i; }
-    }
-    return toLocatorFn(best);
+    return toLocatorFn(first);
   }
   return toLocatorFn(wordAtPageStart(state, content, state.page));
 }
