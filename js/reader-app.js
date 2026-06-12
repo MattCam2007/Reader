@@ -667,6 +667,12 @@ export function init(options = {}) {
       pagination.paginate(false);
     }
     if (pos) applyCanonicalPosition(pos);
+    // Marker dots are positioned against the live layout; a relayout (resize,
+    // font/spacing change, mode switch) moves them even when the bookmark set is
+    // unchanged. Paginated turns refresh via goTo->updateProgressFn, but a scroll
+    // seek doesn't, so refresh here to cover every mode. The layout-signature
+    // gate inside makes this a no-op when nothing actually moved.
+    chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
   }
 
   // Live-apply a re-paginating pref change (quick drawer) while preserving the

@@ -1,10 +1,11 @@
-import { pageOfWord, wordRange } from '../model/geometry.js';
+import { pageOfWord, wordRange, layoutScale } from '../model/geometry.js';
 
 export class ChromeManager {
   constructor(state, els) {
     this.state = state;
     this.els = els;
     this._lastBmIds = null;
+    this._lastBmLayoutSig = null;
   }
 
   toggle() {
@@ -50,10 +51,11 @@ export class ChromeManager {
   updateBookmarkMarkers(items, navigateFn) {
     const { bmMarkersEl, quickBmBtnEl } = this.els;
 
-    // Re-render markers only when the bookmark set changes (ids + colors)
+    // (Re)build marker buttons only when the bookmark set changes (ids + colors).
     if (bmMarkersEl) {
       const ids = items.map(i => i.id + (i.color || '')).join(',');
-      if (ids !== this._lastBmIds) {
+      const rebuilt = ids !== this._lastBmIds;
+      if (rebuilt) {
         this._lastBmIds = ids;
         bmMarkersEl.innerHTML = '';
         if (items.length) {
@@ -65,13 +67,26 @@ export class ChromeManager {
             const pct = Math.round(item.fraction * 100);
             btn.setAttribute('aria-label', `Go to bookmark: ${item.chapterLabel ? item.chapterLabel + ' · ' : ''}${pct}%`);
             btn.title = `${item.chapterLabel ? item.chapterLabel + ' · ' : ''}${pct}%`;
-            btn.style.setProperty('--bm-f', String(item.fraction));
             if (item.color) btn.style.setProperty('--bm-color', `var(--bm-${item.color})`);
             btn.addEventListener('click', (e) => { e.stopPropagation(); navigateFn(item); });
             frag.appendChild(btn);
           }
           bmMarkersEl.appendChild(frag);
         }
+      }
+      // Position each dot with the same metric the scrubber thumb uses, so it
+      // sits exactly under the thumb when you reach that bookmark. The mapping
+      // is layout-dependent (scroll height / page count), so recompute it when
+      // the set is rebuilt or the layout signature changes — but skip it on
+      // ordinary page turns, where neither moves.
+      if (items.length) {
+        const sig = this._bmLayoutSig();
+        if (rebuilt || sig !== this._lastBmLayoutSig) {
+          this._lastBmLayoutSig = sig;
+          this._positionBookmarkMarkers(items, bmMarkersEl.children);
+        }
+      } else {
+        this._lastBmLayoutSig = null;
       }
     }
 
@@ -85,6 +100,59 @@ export class ChromeManager {
       } else {
         quickBmBtnEl.style.removeProperty('--bm-active-color');
       }
+    }
+  }
+
+  // A cheap fingerprint of the layout inputs that move marker dots. Scroll mode
+  // tracks total scroll height; paginated tracks page count; windowed positions
+  // dots by word fraction (layout-independent), so its signature is constant.
+  _bmLayoutSig() {
+    const { state, els } = this;
+    if (state.isScrollMode) return 's' + (els.viewport.scrollHeight - els.viewport.clientHeight);
+    if (state.windowed) return 'w';
+    return 'p' + state.total;
+  }
+
+  // Place each marker dot at the track fraction matching its mode's scrubber
+  // thumb: scroll -> word's scroll offset / scrollable height; paginated ->
+  // word's page / last page; windowed -> word fraction (the bar already is a
+  // word-fraction scrubber). `nodes` is the live .bm-marker list, 1:1 with items.
+  _positionBookmarkMarkers(items, nodes) {
+    const { state, els } = this;
+    const wsToToken = state.doc.wsToToken;
+    const totalWs = wsToToken.length;
+    // Shared layout reads, hoisted out of the per-bookmark loop.
+    const scrollMode = state.isScrollMode;
+    let sh = 0, contentTop = 0, scale = 1;
+    if (scrollMode) {
+      sh = els.viewport.scrollHeight - els.viewport.clientHeight;
+      contentTop = els.content.getBoundingClientRect().top;
+      scale = layoutScale(els.content);
+    }
+    const total = state.total;
+    for (let i = 0; i < items.length; i++) {
+      const node = nodes[i];
+      if (!node) continue;
+      const f = items[i].fraction || 0;
+      let pos = f; // windowed (and any fallback): the bar is a word-fraction scrubber
+      const tok = totalWs ? wsToToken[Math.round(f * (totalWs - 1))] : null;
+      if (tok != null && !state.windowed) {
+        if (scrollMode) {
+          if (sh > 0) {
+            const range = wordRange(state, tok);
+            if (range) {
+              // Word's offset from content top, de-scaled to layout px (the
+              // viewport transform scales rects but not scrollHeight), as a
+              // fraction of the scrollable range = where the thumb lands here.
+              const off = (range.getBoundingClientRect().top - contentTop) / scale;
+              pos = Math.max(0, Math.min(1, off / sh));
+            }
+          }
+        } else if (total > 1) {
+          pos = pageOfWord(state, els.content, tok) / (total - 1);
+        }
+      }
+      node.style.setProperty('--bm-f', String(pos));
     }
   }
 
