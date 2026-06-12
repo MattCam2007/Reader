@@ -20,6 +20,7 @@ import { PageCounter } from '../reader/page-counter.js';
 import { makeCapabilities, FULL_CAPABILITIES, NO_CAPABILITIES, CAPABILITY_KEYS } from '../formats/capabilities.js';
 import { magicBytes, startsWith, ZIP_MAGIC } from '../formats/detect.js';
 import { listAdapters, getAdapterById, selectAdapter, acceptString } from '../formats/registry.js';
+import { MAX_PDF_PAGES } from '../formats/pdf/pdf-adapter.js';
 import '../formats/index.js'; // ensure adapters are registered for format tests
 
 export function runSelftest(state, hooks) {
@@ -693,6 +694,12 @@ export function runSelftest(state, hooks) {
       const sel = selectAdapter(pdfBuf, 'book.pdf');
       assert('formats', 'registry: selectAdapter picks PDF for .pdf file', sel !== null && sel.id === 'pdf');
     }
+  }
+
+  // --- formats: PDF page cap (B4) ---
+  {
+    assert('formats', 'PDF: MAX_PDF_PAGES is a sane positive cap',
+      Number.isInteger(MAX_PDF_PAGES) && MAX_PDF_PAGES >= 500 && MAX_PDF_PAGES <= 10000);
   }
 
   // --- formats: EPUB adapter capabilities ---

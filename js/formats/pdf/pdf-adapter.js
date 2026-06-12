@@ -38,6 +38,11 @@ const HEADING_DECORATION = /^[\s\-–—*•·]+|[\s\-–—*•·]+$/g;
 // Pixels a first line must be indented past the body margin to count as a new
 // paragraph. The detected body margin + this threshold = the indent column.
 const INDENT_MIN = 8;
+// Hard ceiling on pages processed. Every page costs a worker round-trip and a
+// text-content walk; a hostile (or simply enormous) PDF would otherwise grind
+// the parse for minutes. Well above any real book — truncation is reported via
+// the onProgress channel.
+export const MAX_PDF_PAGES = 2000;
 
 export const pdfAdapter = {
   id: 'pdf',
@@ -112,7 +117,8 @@ export const pdfAdapter = {
       isEvalSupported: false,
     }).promise;
 
-    const numPages = pdf.numPages;
+    const numPages = Math.min(pdf.numPages, MAX_PDF_PAGES);
+    const truncated = pdf.numPages > MAX_PDF_PAGES;
 
     // Pass 1: extract lines for every page and learn two layout signals:
     //   bodyLeft   — the most common line start (continuation lines); indented
@@ -222,6 +228,10 @@ export const pdfAdapter = {
     });
 
     const title = (metaTitle || fileName).trim();
+
+    if (truncated && onProgress) {
+      onProgress('Large PDF — truncated at ' + MAX_PDF_PAGES + ' of ' + pdf.numPages + ' pages');
+    }
 
     return { sections, toc, title, metaTitle, blobUrls: [], cover: null };
   },
