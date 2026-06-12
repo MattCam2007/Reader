@@ -146,8 +146,9 @@ export function init(options = {}) {
     if (state.playState === 'playing') playback.pause();
     else if (state.playState === 'countdown') playback.cancelCountdown();
     if (!state.totalWords) return;
-    if (item.position) applyCanonicalPosition(item.position);
-    else playback.seekTo(state.ordinalToIdx(Math.round((item.fraction || 0) * (state.totalWords - 1))));
+    // Legacy bookmarks (fraction only) resolve through the same canonical
+    // pipeline as full positions (resolvePosition handles fraction-only input).
+    applyCanonicalPosition(item.position || { f: item.fraction || 0 });
   }
 
   bmPanel.setCallbacks({

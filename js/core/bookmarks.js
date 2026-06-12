@@ -59,6 +59,14 @@ export class BookmarkManager {
     if (item) { item.color = color || ''; this._save(); }
   }
 
+  // Migrate-on-read: legacy bookmarks (fraction only) get a canonical position
+  // written back the first time they are navigated to, so the fraction stops
+  // being a navigation input (it remains the display/marker metric).
+  updatePosition(id, position) {
+    const item = this._items.find(i => i.id === id);
+    if (item) { item.position = position || null; this._save(); }
+  }
+
   remove(id) {
     const idx = this._items.findIndex(i => i.id === id);
     if (idx !== -1) { this._items.splice(idx, 1); this._save(); }

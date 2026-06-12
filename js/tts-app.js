@@ -135,8 +135,10 @@ export function init(options = {}) {
   function navigateTtsToBookmark(item) {
     engine.cancel();
     setPlaying(false);
-    if (item.position) applyCanonicalPosition(item.position);
-    else seekToSentence(Math.round((item.fraction || 0) * Math.max(sentences.length - 1, 0)));
+    // Legacy bookmarks (fraction only) resolve through the canonical pipeline:
+    // fraction → word ordinal → sentence. Scaling the sentence index directly
+    // drifted with sentence-length density.
+    applyCanonicalPosition(item.position || { f: item.fraction || 0 });
   }
 
   bmPanel.setCallbacks({

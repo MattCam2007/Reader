@@ -113,24 +113,18 @@ export function init(options = {}) {
   }
 
   function navigateToBookmark(item) {
-    if (item.position && state.doc.words.length) {
-      applyCanonicalPosition(item.position);
-      return;
+    if (!state.doc.words.length) return;
+    let pos = item.position;
+    if (!pos) {
+      // Legacy bookmark with only a fraction: resolve it through the canonical
+      // pipeline (fraction → word ordinal → seekToToken) instead of scaling
+      // pages/scrollTop, which drifted with word density. Then migrate the
+      // resolved position onto the bookmark so the legacy path decays to zero.
+      const ord = resolvePosition({ f: item.fraction || 0 }, readerSections(), totalWsWords(), wsWordText);
+      pos = buildPosition(readerSections(), totalWsWords(), ord, wsWordText);
+      bookmarkManager.updatePosition(item.id, pos);
     }
-    // Legacy bookmark without a canonical position — fall back to a fraction.
-    if (state.windowed) {
-      const n = state.chapWindows.length || 1;
-      const sec = Math.max(0, Math.min(n - 1, Math.floor((item.fraction || 0) * n)));
-      pagination.attachChap(sec);
-      pagination.paginateWindow(false);
-      const within = (item.fraction || 0) * n - sec;
-      pagination.goTo(Math.round(within * (state.total - 1)), false);
-    } else if (state.isScrollMode) {
-      const sh = els.viewport.scrollHeight - els.viewport.clientHeight;
-      els.viewport.scrollTop = Math.round((item.fraction || 0) * sh);
-    } else {
-      pagination.goTo(Math.round((item.fraction || 0) * (state.total - 1)), false);
-    }
+    applyCanonicalPosition(pos);
   }
 
   // ---------- Chrome ----------
