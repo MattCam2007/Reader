@@ -87,6 +87,23 @@ export function deriveBookId(urlId, metaTitle, fileName) {
   return name || 'untitled';
 }
 
+// Short content fingerprint for derived (title/filename) book ids: SHA-256 of
+// the first 4 KB, first 8 hex chars. Two different books that share a title or
+// filename otherwise share every book:* storage key and poison each other's
+// saved positions. Returns '' when hashing is unavailable (no crypto.subtle —
+// e.g. an insecure context), in which case callers keep the un-hashed id and
+// behaviour is unchanged.
+export async function contentHashId(buffer) {
+  try {
+    if (!buffer || typeof crypto === 'undefined' || !crypto.subtle) return '';
+    const digest = await crypto.subtle.digest('SHA-256', buffer.slice(0, 4096));
+    return [...new Uint8Array(digest)].slice(0, 4)
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch (_) {
+    return '';
+  }
+}
+
 // Build a canonical position object.
 //
 //   sections   [{ href, wordStart, wordCount }] in reading order, where

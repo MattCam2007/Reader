@@ -1,4 +1,6 @@
-import { deriveBookId } from './position.js';
+import { deriveBookId, contentHashId, POS_KEY_PREFIX } from './position.js';
+import { PAGE_KEY_PREFIX } from './page-cache.js';
+import { BOOKMARKS_KEY_PREFIX } from './bookmarks.js';
 import { selectAdapter, supportedLabels } from '../formats/registry.js';
 import { makeCapabilities, FULL_CAPABILITIES } from '../formats/capabilities.js';
 import '../formats/index.js'; // ensure all adapters are registered (side-effect import)
@@ -15,6 +17,27 @@ export function splitWords(text) {
 
 export function countWords(text) {
   return splitWords(text).length;
+}
+
+// One-time storage-key migration for the B5 bookId change. Hash-suffixed ids
+// mean a returning reader's data lives under the OLD (un-hashed) key — without
+// this, every returning user would restart their book at the beginning, the
+// worst possible outcome. For each per-book key prefix: if the new key is
+// absent and the old one exists, move the value forward. Runs before the first
+// position read (fromBuffer derives the id before any mode touches storage).
+export function migrateBookKeys(oldId, newId) {
+  if (!oldId || !newId || oldId === newId) return;
+  for (const prefix of [POS_KEY_PREFIX, PAGE_KEY_PREFIX, BOOKMARKS_KEY_PREFIX]) {
+    try {
+      const oldKey = prefix + oldId;
+      const newKey = prefix + newId;
+      const value = localStorage.getItem(oldKey);
+      if (value !== null && localStorage.getItem(newKey) === null) {
+        localStorage.setItem(newKey, value);
+        localStorage.removeItem(oldKey);
+      }
+    } catch (_) { /* storage unavailable — nothing to migrate */ }
+  }
 }
 
 // A BookSession owns the parsed book and its mode-agnostic extracted data —
@@ -57,7 +80,20 @@ export class BookSession {
     const parsed = await perf.timeAsync('session:parse', () =>
       adapter.parse(buffer, fileName, { onProgress }));
 
-    const bookId = deriveBookId(urlId, parsed.metaTitle, fileName);
+    // Explicit ?id= is kept verbatim (library books rely on it). Derived ids
+    // (title/filename) get a short content-hash suffix so two books named
+    // "book.epub" — or sharing a metadata title — don't collide on every
+    // book:* storage key. Existing data is migrated forward from the
+    // un-hashed key before any mode reads a position.
+    let bookId = deriveBookId(urlId, parsed.metaTitle, fileName);
+    if (!(urlId || '').trim()) {
+      const hash = await contentHashId(buffer);
+      if (hash) {
+        const baseId = bookId;
+        bookId = baseId + ':' + hash;
+        migrateBookKeys(baseId, bookId);
+      }
+    }
 
     return new BookSession({
       sections: parsed.sections,

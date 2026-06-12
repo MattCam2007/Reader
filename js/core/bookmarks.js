@@ -1,4 +1,5 @@
-const KEY_PREFIX = 'reader:bookmarks:';
+export const BOOKMARKS_KEY_PREFIX = 'reader:bookmarks:';
+const KEY_PREFIX = BOOKMARKS_KEY_PREFIX;
 
 export class BookmarkManager {
   constructor() {

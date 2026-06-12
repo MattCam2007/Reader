@@ -7,7 +7,9 @@ import { FONT_MAP, SETTINGS, DEFAULT_PREFS, EXTRACTABLE_BLOCK_TYPES, EXTRACTABLE
 import { PrefsManager } from '../core/prefs.js';
 import { buildDocModel } from '../model/doc-model.js';
 import { buildChapterIndex } from '../reader/chapters.js';
-import { countWords, splitWords } from '../core/book-session.js';
+import { countWords, splitWords, migrateBookKeys } from '../core/book-session.js';
+import { POS_KEY_PREFIX } from '../core/position.js';
+import { BOOKMARKS_KEY_PREFIX } from '../core/bookmarks.js';
 import { findHits, indexForOffset } from '../shared/search.js';
 import { renderSections, annotateInlineText } from '../shared/render.js';
 import { loadPageCache, savePageCache, PAGE_KEY_PREFIX } from '../core/page-cache.js';
@@ -242,6 +244,33 @@ export function runSelftest(state, hooks) {
     const rel = validateBookSrcUrl('books/Fiction/x.epub');
     assert('src-url', 'validateBookSrcUrl resolves same-origin relative paths',
       typeof rel === 'string' && rel.endsWith('/books/Fiction/x.epub'));
+  }
+
+  // --- core/book-session: bookId hash migration (B5) ---
+  {
+    const oldId = '__selftest_mig__';
+    const newId = '__selftest_mig__:abcd1234';
+    const prefixes = [POS_KEY_PREFIX, PAGE_KEY_PREFIX, BOOKMARKS_KEY_PREFIX];
+    const cleanup = () => prefixes.forEach(p => {
+      try { localStorage.removeItem(p + oldId); localStorage.removeItem(p + newId); } catch (_) {}
+    });
+    cleanup();
+    // Seed data under the old (pre-hash) keys, as a pre-update session left it.
+    prefixes.forEach((p, i) => localStorage.setItem(p + oldId, 'v' + i));
+    migrateBookKeys(oldId, newId);
+    assert('book-id', 'migration moves every per-book key to the hashed id',
+      prefixes.every((p, i) => localStorage.getItem(p + newId) === 'v' + i));
+    assert('book-id', 'migration removes the old keys',
+      prefixes.every(p => localStorage.getItem(p + oldId) === null));
+    // A value already present under the new key must never be overwritten.
+    localStorage.setItem(POS_KEY_PREFIX + oldId, 'stale');
+    localStorage.setItem(POS_KEY_PREFIX + newId, 'current');
+    migrateBookKeys(oldId, newId);
+    assert('book-id', 'migration never overwrites existing data under the new id',
+      localStorage.getItem(POS_KEY_PREFIX + newId) === 'current');
+    assert('book-id', 'migration is a no-op for identical ids — keys intact',
+      (migrateBookKeys(oldId, oldId), localStorage.getItem(POS_KEY_PREFIX + oldId) === 'stale'));
+    cleanup();
   }
 
   // --- core/archive-guard: decompression limits (B3) ---
