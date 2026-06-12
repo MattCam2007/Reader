@@ -1,4 +1,4 @@
-import { FONT_MAP, FONT_SERIF, GENERAL_DEFAULTS } from './core/constants.js';
+import { FONT_MAP, FONT_SERIF, GENERAL_DEFAULTS, EXTRACTABLE_BLOCK_SELECTOR } from './core/constants.js';
 import { PrefsManager } from './core/prefs.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
@@ -328,10 +328,11 @@ export function init(options = {}) {
   function segmentContent() {
     // Must cover EVERY block type the extractor emits, so TTS counts words the
     // same way the Reader (doc-model walks all .blk) and RSVP (all sec.blocks)
-    // do. Omitting pre/table/figure here made TTS's word ordinals drift behind
-    // the other modes cumulatively, throwing cross-mode restores off by a page.
-    const blockSel = '.blk-p, .blk-h1, .blk-h2, .blk-h3, .blk-h4, .blk-h5, .blk-h6, .blk-blockquote, .blk-li, .blk-pre, .blk-table-wrap, .blk-figure';
-    const blocks = Array.from(els.content.querySelectorAll(blockSel));
+    // do. The selector is derived from the shared EXTRACTABLE_BLOCK_TYPES
+    // enumeration — a hand-maintained copy here once omitted pre/table/figure
+    // and made TTS's word ordinals drift behind the other modes cumulatively,
+    // throwing cross-mode restores off by a page.
+    const blocks = Array.from(els.content.querySelectorAll(EXTRACTABLE_BLOCK_SELECTOR));
     const result = [];
     const sectionsMeta = [];
     ttsWords = [];

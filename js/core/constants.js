@@ -59,6 +59,20 @@ export const SELECTION_DEBOUNCE_MS = 200;
 export const RICH_INLINE = true;
 export const BLOCK_SEL = "h1,h2,h3,h4,h5,h6,p,div,blockquote,li,pre,dd,dt,figure,figcaption,table,img";
 export const SKIP_SEL = "script,style,nav,header,footer,aside,form";
+
+// Every block type the extractor can emit (shared/render renders each as a
+// `.blk blk-<type>` element). This is the single enumeration the three modes'
+// word counting derives from: the Reader doc-model walks all .blk, TTS selects
+// blocks via EXTRACTABLE_BLOCK_SELECTOR, and RSVP consumes every extracted
+// block with text. If these ever disagree, cross-mode word ordinals drift
+// cumulatively and restores land pages off (a past bug — see tts-app.js
+// segmentContent). A selftest asserts all three counts match.
+export const EXTRACTABLE_BLOCK_TYPES = [
+  "p", "h1", "h2", "h3", "h4", "h5", "h6",
+  "blockquote", "li", "pre", "table-wrap", "figure",
+];
+export const EXTRACTABLE_BLOCK_SELECTOR =
+  EXTRACTABLE_BLOCK_TYPES.map(t => ".blk-" + t).join(", ");
 export const INLINE_TAGS = new Set(["b","strong","i","em","u","sup","sub","small","a","span","br","code","img","table","thead","tbody","tfoot","tr","th","td","caption"]);
 export const SAFE_ATTRS = {
   a: new Set(["href"]),

@@ -1,4 +1,4 @@
-import { FONT_MAP, FONT_MONO, GENERAL_DEFAULTS } from './core/constants.js';
+import { FONT_MAP, FONT_MONO, GENERAL_DEFAULTS, EXTRACTABLE_BLOCK_TYPES } from './core/constants.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
@@ -31,13 +31,18 @@ import * as perf from './core/perf.js';
 // lets the RSVP TOC seek to the precise heading word even when it isn't the first
 // block in its spine file (a quote/epigraph/section-break before it would
 // otherwise leave the seek a page early — section start != heading).
+const RSVP_BLOCK_TYPES = new Set(EXTRACTABLE_BLOCK_TYPES);
+
 function sectionsToText(sections) {
   const parts = [];
   const chapters = [];
   const blockOffsets = new Map();
   let wordOffset = 0;
   for (const sec of sections) {
-    const usable = sec.blocks.filter(b => b.text && b.text.trim());
+    // Type filter derived from the shared EXTRACTABLE_BLOCK_TYPES enumeration —
+    // the same list TTS's selector and (via .blk rendering) the Reader's
+    // doc-model count from, so the three modes count identical words.
+    const usable = sec.blocks.filter(b => RSVP_BLOCK_TYPES.has(b.type) && b.text && b.text.trim());
     if (!usable.length) continue;
     const secStart = wordOffset;
     // Count words block-by-block so each block id maps to its first word's

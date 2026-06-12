@@ -3,7 +3,7 @@ import { toLocator, resolveLocator, exportTokens } from '../model/locator.js';
 import { deriveBookId, buildPosition, resolvePosition } from '../core/position.js';
 import { blocksFromDoc, sanitizeInline, safeAnchorHref } from '../formats/epub/extractor.js';
 import { EventBus } from '../core/events.js';
-import { FONT_MAP, SETTINGS, DEFAULT_PREFS } from '../core/constants.js';
+import { FONT_MAP, SETTINGS, DEFAULT_PREFS, EXTRACTABLE_BLOCK_TYPES, EXTRACTABLE_BLOCK_SELECTOR } from '../core/constants.js';
 import { PrefsManager } from '../core/prefs.js';
 import { buildDocModel } from '../model/doc-model.js';
 import { buildChapterIndex } from '../reader/chapters.js';
@@ -400,6 +400,73 @@ export function runSelftest(state) {
     }
   }
 
+  // --- block-types: the shared EXTRACTABLE_BLOCK_TYPES enumeration (A1) ---
+  // The Reader (doc-model walks all .blk), TTS (selector derived from the
+  // enumeration) and RSVP (type filter derived from it) must count identical
+  // words or cross-mode restores drift cumulatively. This converts that silent
+  // drift class into a test failure.
+  {
+    const figFrag = document.createDocumentFragment();
+    figFrag.appendChild(document.createElement('img'));
+    const figCap = document.createElement('figcaption');
+    figCap.textContent = 'A caption of five words';
+    figFrag.appendChild(figCap);
+    const synth = [
+      { href: 's1', blocks: [
+        { type: 'h1', text: 'Title Words Here' },
+        { type: 'p', text: 'One two three four five.' },
+        { type: 'blockquote', text: 'Quoted words, with punctuation!' },
+        { type: 'li', text: 'list item words' },
+      ] },
+      { href: 's2', blocks: [
+        { type: 'pre', text: 'preformatted code words' },
+        { type: 'table-wrap', text: 'cell one cell two' },
+        { type: 'figure', text: 'A caption of five words', frag: figFrag },
+        { type: 'p', text: 'Closing paragraph.' },
+      ] },
+    ];
+    const host = document.createElement('div');
+    renderSections(host, synth, {});
+    annotateInlineText(host);
+    const st = { sectionBlockStart: [], doc: { words: [], blocks: [], sections: [], text: '', wordCharStart: [], tokenToWs: [], wsToToken: [] } };
+    buildDocModel(st, host);
+    const readerCount = st.doc.wsToToken.length;
+    let ttsCount = 0;
+    host.querySelectorAll(EXTRACTABLE_BLOCK_SELECTOR).forEach(el => { ttsCount += countWords(el.textContent.trim()); });
+    const typeSet = new Set(EXTRACTABLE_BLOCK_TYPES);
+    let rsvpCount = 0;
+    synth.forEach(sec => sec.blocks.forEach(b => {
+      if (typeSet.has(b.type) && b.text && b.text.trim()) rsvpCount += countWords(b.text);
+    }));
+    assert('block-types', 'synthetic book: reader == tts word count (' + readerCount + ')', readerCount > 0 && readerCount === ttsCount);
+    assert('block-types', 'synthetic book: reader == rsvp word count (' + rsvpCount + ')', readerCount === rsvpCount);
+
+    // The extractor must emit only enumerated types (a new type would silently
+    // escape TTS/RSVP counting otherwise).
+    const probeDoc = document.createElement('div');
+    probeDoc.innerHTML = '<h3>H</h3><p>p</p><div>d</div><dd>dd</dd><dt>dt</dt>' +
+      '<blockquote>q</blockquote><li>li</li><pre>code</pre>' +
+      '<table><tbody><tr><td>t</td></tr></tbody></table>' +
+      '<figure><img src="x.png"><figcaption>cap</figcaption></figure>';
+    const probeBlocks = blocksFromDoc(probeDoc, []);
+    assert('block-types', 'extractor emits only EXTRACTABLE_BLOCK_TYPES',
+      probeBlocks.length > 0 && probeBlocks.every(b => typeSet.has(b.type)));
+
+    // Live book: the TTS selector over the real rendered sections must count the
+    // doc-model's exact whitespace-word total (works windowed — section els are
+    // live references even when detached).
+    if (doc.sections.length) {
+      let liveTts = 0;
+      doc.sections.forEach(sec => {
+        sec.el.querySelectorAll(EXTRACTABLE_BLOCK_SELECTOR).forEach(el => {
+          liveTts += countWords(el.textContent.trim());
+        });
+      });
+      assert('block-types', 'live book: TTS selector count equals doc-model ws count',
+        liveTts === doc.wsToToken.length);
+    }
+  }
+
   // --- core/book-session: shared word counting (cross-mode count anchor) ---
   {
     assert("book-session", "splitWords ignores runs of whitespace",
@@ -673,6 +740,9 @@ export function runSelftest(state) {
 
   // UI report if visible
   showResults(results);
+
+  // Machine-readable handle for the headless harness (test/run-selftest.mjs).
+  if (typeof window !== 'undefined') window.__selftestResults = results;
 
   return results;
 }
