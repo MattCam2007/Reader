@@ -71,7 +71,7 @@ self.addEventListener('message', (event) => {
   if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
-const isCdnLib = (url) => CDN_LIBS.includes(url) || CDN_FORMAT_LIBS.includes(url);
+const isCdnLib = (url) => CDN_FORMAT_LIBS.includes(url);
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;

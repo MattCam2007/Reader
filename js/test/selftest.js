@@ -949,6 +949,9 @@ function runLiveTests(state, hooks, assert) {
   const origLayout = prefs.data.layout;
   const origSize = prefs.data.size;
   const origPos = getCanonicalPosition();
+  // Every bookmark the tests add, so the finally below can clean up even when
+  // a test throws mid-loop (remove() of an already-removed id is a no-op).
+  const addedBookmarkIds = [];
 
   const setLayout = (layout, forceWindow) => {
     prefs.data.layout = layout;
@@ -971,81 +974,85 @@ function runLiveTests(state, hooks, assert) {
     ['paginated', true,  'windowed'],
     ['scroll',    false, 'scroll'],
   ];
-  for (const [layout, force, name] of layouts) {
-    setLayout(layout, force);
-    if (name === 'windowed' && !state.windowed) {
-      assert('bookmark-symmetry', 'forceWindow enters windowed mode', false);
-      continue;
-    }
-    let ok = true, detail = '';
-    for (const ord of sampleOrds) {
-      seekToToken(doc.wsToToken[ord]);
-      const ctx = getBookmarkContext();
-      if (!ctx) { ok = false; detail = 'no context at ord ' + ord; break; }
-      const item = bookmarkManager.add(ctx);
-      const here = chrome.getPageBookmarks(bookmarkManager.getAll()).some(b => b.id === item.id);
-      seekToToken(0);
-      navigateToBookmark(item);
-      const back = chrome.getPageBookmarks(bookmarkManager.getAll()).some(b => b.id === item.id);
-      bookmarkManager.remove(item.id);
-      if (!here || !back) {
-        ok = false;
-        detail = 'ord ' + ord + ': present-at-capture=' + here + ' present-after-navigate=' + back;
-        break;
+  try {
+    for (const [layout, force, name] of layouts) {
+      setLayout(layout, force);
+      if (name === 'windowed' && !state.windowed) {
+        assert('bookmark-symmetry', 'forceWindow enters windowed mode', false);
+        continue;
       }
+      let ok = true, detail = '';
+      for (const ord of sampleOrds) {
+        seekToToken(doc.wsToToken[ord]);
+        const ctx = getBookmarkContext();
+        if (!ctx) { ok = false; detail = 'no context at ord ' + ord; break; }
+        const item = bookmarkManager.add(ctx);
+        addedBookmarkIds.push(item.id);
+        const here = chrome.getPageBookmarks(bookmarkManager.getAll()).some(b => b.id === item.id);
+        seekToToken(0);
+        navigateToBookmark(item);
+        const back = chrome.getPageBookmarks(bookmarkManager.getAll()).some(b => b.id === item.id);
+        bookmarkManager.remove(item.id);
+        if (!here || !back) {
+          ok = false;
+          detail = 'ord ' + ord + ': present-at-capture=' + here + ' present-after-navigate=' + back;
+          break;
+        }
+      }
+      assert('bookmark-symmetry', name + ': capture/check/navigate agree' + (ok ? '' : ' — ' + detail), ok);
     }
-    assert('bookmark-symmetry', name + ': capture/check/navigate agree' + (ok ? '' : ' — ' + detail), ok);
-  }
 
-  // --- C2: scroll restore after a font-size change lands the same word ---
-  setLayout('scroll', false);
-  seekToToken(doc.wsToToken[Math.round(0.5 * (totalWs - 1))]);
-  const before = getCanonicalPosition();
-  prefs.data.size = origSize + 3;
-  applyPrefs();
-  relayout(before);
-  const after = getCanonicalPosition();
-  assert('position-live', 'scroll restore after font-size change lands within ±1 word',
-    !!before && !!after && Math.abs(after.ord - before.ord) <= 1);
-  prefs.data.size = origSize;
-  applyPrefs();
-  relayout(null);
+    // --- C2: scroll restore after a font-size change lands the same word ---
+    setLayout('scroll', false);
+    seekToToken(doc.wsToToken[Math.round(0.5 * (totalWs - 1))]);
+    const before = getCanonicalPosition();
+    prefs.data.size = origSize + 3;
+    applyPrefs();
+    relayout(before);
+    const after = getCanonicalPosition();
+    assert('position-live', 'scroll restore after font-size change lands within ±1 word',
+      !!before && !!after && Math.abs(after.ord - before.ord) <= 1);
 
-  // --- C2: cross-mode round-trip (reader → TTS counting rule → reader) ---
-  // Builds the TTS-rule section table + word list from the live DOM (the same
-  // derivation tts-app's segmentContent uses) and round-trips positions
-  // through it. A1 makes the counts equal; the text snap absorbs the rest.
-  {
-    const ttsWords = [];
-    const ttsSecs = [];
-    doc.sections.forEach(sec => {
-      const start = ttsWords.length;
-      sec.el.querySelectorAll(EXTRACTABLE_BLOCK_SELECTOR).forEach(el => {
-        for (const w of splitWords(el.textContent.trim())) ttsWords.push(w);
+    // --- C2: cross-mode round-trip (reader → TTS counting rule → reader) ---
+    // Builds the TTS-rule section table + word list from the live DOM (the same
+    // derivation tts-app's segmentContent uses) and round-trips positions
+    // through it. A1 makes the counts equal; the text snap absorbs the rest.
+    {
+      const ttsWords = [];
+      const ttsSecs = [];
+      doc.sections.forEach(sec => {
+        const start = ttsWords.length;
+        sec.el.querySelectorAll(EXTRACTABLE_BLOCK_SELECTOR).forEach(el => {
+          for (const w of splitWords(el.textContent.trim())) ttsWords.push(w);
+        });
+        ttsSecs.push({ href: sec.href, wordStart: start, wordCount: ttsWords.length - start });
       });
-      ttsSecs.push({ href: sec.href, wordStart: start, wordCount: ttsWords.length - start });
-    });
-    const ttsAt = (i) => ttsWords[i] || '';
-    const readerSecs = readerSections();
-    const totalR = totalWsWords();
-    let ok = true, detail = '';
-    for (const f of [0.1, 0.35, 0.6, 0.85]) {
-      const ord = Math.round(f * (totalR - 1));
-      const p1 = buildPosition(readerSecs, totalR, ord, wsWordText);
-      const tOrd = resolvePosition(p1, ttsSecs, ttsWords.length, ttsAt);
-      const p2 = buildPosition(ttsSecs, ttsWords.length, tOrd, ttsAt);
-      const back = resolvePosition(p2, readerSecs, totalR, wsWordText);
-      if (Math.abs(back - ord) > 1) { ok = false; detail = ord + ' -> ' + tOrd + ' -> ' + back; break; }
+      const ttsAt = (i) => ttsWords[i] || '';
+      const readerSecs = readerSections();
+      const totalR = totalWsWords();
+      let ok = true, detail = '';
+      for (const f of [0.1, 0.35, 0.6, 0.85]) {
+        const ord = Math.round(f * (totalR - 1));
+        const p1 = buildPosition(readerSecs, totalR, ord, wsWordText);
+        const tOrd = resolvePosition(p1, ttsSecs, ttsWords.length, ttsAt);
+        const p2 = buildPosition(ttsSecs, ttsWords.length, tOrd, ttsAt);
+        const back = resolvePosition(p2, readerSecs, totalR, wsWordText);
+        if (Math.abs(back - ord) > 1) { ok = false; detail = ord + ' -> ' + tOrd + ' -> ' + back; break; }
+      }
+      assert('position-live', 'reader → TTS-rule → reader round-trip within ±1 word' + (ok ? '' : ' — ' + detail), ok);
     }
-    assert('position-live', 'reader → TTS-rule → reader round-trip within ±1 word' + (ok ? '' : ' — ' + detail), ok);
+  } finally {
+    // Restore the pre-test prefs, layout, position and bookmark set even when
+    // a test throws — without this, a mid-test exception left the reader in a
+    // forced-window/scroll layout with a leaked test bookmark.
+    for (const id of addedBookmarkIds) bookmarkManager.remove(id);
+    state.forceWindow = false;
+    prefs.data.layout = origLayout;
+    prefs.data.size = origSize;
+    applyPrefs();
+    relayout(null);
+    if (origPos) applyCanonicalPosition(origPos);
   }
-
-  // Restore the pre-test layout and position.
-  state.forceWindow = false;
-  prefs.data.layout = origLayout;
-  applyPrefs();
-  relayout(null);
-  if (origPos) applyCanonicalPosition(origPos);
 }
 
 function showResults(results) {

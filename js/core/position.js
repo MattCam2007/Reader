@@ -106,15 +106,22 @@ export function deriveBookId(urlId, metaTitle, fileName) {
 }
 
 // Short content fingerprint for derived (title/filename) book ids: SHA-256 of
-// the first 4 KB, first 8 hex chars. Two different books that share a title or
-// filename otherwise share every book:* storage key and poison each other's
-// saved positions. Returns '' when hashing is unavailable (no crypto.subtle —
-// e.g. an insecure context), in which case callers keep the un-hashed id and
-// behaviour is unchanged.
+// the first 4 KB plus the total byte length, first 8 hex chars. Two different
+// books that share a title or filename otherwise share every book:* storage
+// key and poison each other's saved positions. The byte length is mixed in
+// because same-pipeline EPUBs can share their entire first 4 KB (the mimetype
+// entry is identical by spec, container.xml is usually identical, and the
+// first content entry is often a common stylesheet). Returns '' when hashing
+// is unavailable (no crypto.subtle — e.g. an insecure context), in which case
+// callers keep the un-hashed id and behaviour is unchanged.
 export async function contentHashId(buffer) {
   try {
     if (!buffer || typeof crypto === 'undefined' || !crypto.subtle) return '';
-    const digest = await crypto.subtle.digest('SHA-256', buffer.slice(0, 4096));
+    const head = new Uint8Array(buffer.slice(0, 4096));
+    const data = new Uint8Array(head.length + 8);
+    data.set(head, 0);
+    new DataView(data.buffer).setFloat64(head.length, buffer.byteLength);
+    const digest = await crypto.subtle.digest('SHA-256', data);
     return [...new Uint8Array(digest)].slice(0, 4)
       .map(b => b.toString(16).padStart(2, '0')).join('');
   } catch (_) {
