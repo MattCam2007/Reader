@@ -631,7 +631,9 @@ export function init(options = {}) {
   function shouldWindow() {
     return !state.isScrollMode
       && state.doc.sections.length > 1
-      && state.doc.wsToToken.length >= WINDOW_MIN_WORDS;
+      // forceWindow is a test-only override (selftest drives all three layout
+      // modes on the small sample book, which never crosses WINDOW_MIN_WORDS).
+      && (state.forceWindow === true || state.doc.wsToToken.length >= WINDOW_MIN_WORDS);
   }
 
   // Re-lay-out in place (resize, font/margin change, or a layout-mode toggle),
@@ -746,7 +748,7 @@ export function init(options = {}) {
       } catch (e) { console.warn("reader:layout", e); }
       clearOverlay();
       if (urlParams.get("selftest") === "1") {
-        requestAnimationFrame(() => runSelftest(state));
+        requestAnimationFrame(() => runSelftest(state, selftestHooks));
       }
     } catch (err) {
       console.error("book render failed:", err);
@@ -1123,6 +1125,18 @@ export function init(options = {}) {
     setTimeout(dismissCoach, 6000);
   }
 
+  // Live-app hooks handed to the selftest suite (?selftest=1 only). They let
+  // the suite drive the real layout/bookmark/navigation paths — the bookmark
+  // anchor/check/navigate symmetry invariant can only be tested against the
+  // live closures, not pure functions.
+  const selftestHooks = {
+    els, prefs, chrome, bookmarkManager, pagination,
+    getBookmarkContext, navigateToBookmark,
+    getCanonicalPosition, applyCanonicalPosition, seekToToken,
+    relayout, applyPrefs,
+    readerSections, totalWsWords, wsWordText,
+  };
+
   const srcUrl = urlParams.get("src");
   if (srcUrl) {
     loadFromUrl(srcUrl);
@@ -1134,7 +1148,7 @@ export function init(options = {}) {
     requestAnimationFrame(() => {
       if (_suppressSampleLayout) return;
       finalizeLayout([], null);
-      requestAnimationFrame(() => runSelftest(state));
+      requestAnimationFrame(() => runSelftest(state, selftestHooks));
     });
   } else {
     showWelcome();

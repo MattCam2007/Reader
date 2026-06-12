@@ -200,9 +200,19 @@ export class ChromeManager {
         return tok != null && pageOfWord(state, els.content, tok) === state.page;
       });
     }
-    const total = state.total;
-    if (total <= 0) return [];
-    return items.filter(item => Math.round(item.fraction * (total - 1)) === state.page);
+    // Paginated: measure the bookmark word's real page, exactly like the
+    // windowed branch. Estimating the page as fraction × pages assumes uniform
+    // word density per page, which drifts (headings, images, short chapters)
+    // and breaks the anchor/check/navigate symmetry the quick-bookmark button
+    // depends on: navigation lands on the word's measured page, so presence
+    // must be measured the same way.
+    const wsToToken = state.doc.wsToToken;
+    const totalWs = wsToToken.length;
+    if (state.total <= 0 || !totalWs) return [];
+    return items.filter(item => {
+      const tok = wsToToken[Math.round((item.fraction || 0) * (totalWs - 1))];
+      return tok != null && pageOfWord(state, els.content, tok) === state.page;
+    });
   }
 
   currentChapterLabel() { return this._currentChapterLabel(); }

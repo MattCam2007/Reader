@@ -18,7 +18,7 @@ import { magicBytes, startsWith, ZIP_MAGIC } from '../formats/detect.js';
 import { listAdapters, getAdapterById, selectAdapter, acceptString } from '../formats/registry.js';
 import '../formats/index.js'; // ensure adapters are registered for format tests
 
-export function runSelftest(state) {
+export function runSelftest(state, hooks) {
   const results = [];
   const assert = (module, label, ok) => {
     results.push({ module, label, ok, display: (ok ? "PASS" : "FAIL") + ": [" + module + "] " + label });
@@ -728,6 +728,16 @@ export function runSelftest(state) {
     }
   }
 
+  // --- Live-app tests (need the real reader closures — see selftestHooks) ---
+  if (hooks && doc.wsToToken && doc.wsToToken.length) {
+    try {
+      runLiveTests(state, hooks, assert);
+    } catch (e) {
+      console.warn('selftest:live', e);
+      assert('live', 'live tests completed without exception (' + (e && e.message) + ')', false);
+    }
+  }
+
   // --- Report ---
   console.log("=== Reader Selftest ===");
   results.forEach(r => console.log(r.display));
@@ -745,6 +755,120 @@ export function runSelftest(state) {
   if (typeof window !== 'undefined') window.__selftestResults = results;
 
   return results;
+}
+
+// Tests that drive the live reader app through its real closures: layout-mode
+// switches, bookmark add/check/navigate, and position restores across layout
+// changes. Only runs from the ?selftest=1 entry points, where reader-app
+// passes its hooks. Restores layout prefs and position when done.
+function runLiveTests(state, hooks, assert) {
+  const {
+    prefs, chrome, bookmarkManager, applyPrefs, relayout, seekToToken,
+    getBookmarkContext, navigateToBookmark, getCanonicalPosition,
+    applyCanonicalPosition, readerSections, totalWsWords, wsWordText,
+  } = hooks;
+  const doc = state.doc;
+  const totalWs = doc.wsToToken.length;
+  const origLayout = prefs.data.layout;
+  const origSize = prefs.data.size;
+  const origPos = getCanonicalPosition();
+
+  const setLayout = (layout, forceWindow) => {
+    prefs.data.layout = layout;
+    state.forceWindow = !!forceWindow;
+    applyPrefs();        // toggles the layout-scroll body class
+    relayout(null);      // explicit null: lay out without a position restore
+  };
+
+  const sampleOrds = [0.05, 0.3, 0.55, 0.8, 0.97]
+    .map(f => Math.round(f * (totalWs - 1)));
+
+  // --- A7: bookmark anchor / page-presence / navigate symmetry ---
+  // For each layout mode: bookmark a position, assert the presence check sees
+  // it where it was captured, navigate away and back via the bookmark, and
+  // assert the presence check sees it at the landing position. This is the
+  // invariant behind the quick-bookmark button: the three operations must
+  // agree by construction.
+  const layouts = [
+    ['paginated', false, 'paginated'],
+    ['paginated', true,  'windowed'],
+    ['scroll',    false, 'scroll'],
+  ];
+  for (const [layout, force, name] of layouts) {
+    setLayout(layout, force);
+    if (name === 'windowed' && !state.windowed) {
+      assert('bookmark-symmetry', 'forceWindow enters windowed mode', false);
+      continue;
+    }
+    let ok = true, detail = '';
+    for (const ord of sampleOrds) {
+      seekToToken(doc.wsToToken[ord]);
+      const ctx = getBookmarkContext();
+      if (!ctx) { ok = false; detail = 'no context at ord ' + ord; break; }
+      const item = bookmarkManager.add(ctx);
+      const here = chrome.getPageBookmarks(bookmarkManager.getAll()).some(b => b.id === item.id);
+      seekToToken(0);
+      navigateToBookmark(item);
+      const back = chrome.getPageBookmarks(bookmarkManager.getAll()).some(b => b.id === item.id);
+      bookmarkManager.remove(item.id);
+      if (!here || !back) {
+        ok = false;
+        detail = 'ord ' + ord + ': present-at-capture=' + here + ' present-after-navigate=' + back;
+        break;
+      }
+    }
+    assert('bookmark-symmetry', name + ': capture/check/navigate agree' + (ok ? '' : ' — ' + detail), ok);
+  }
+
+  // --- C2: scroll restore after a font-size change lands the same word ---
+  setLayout('scroll', false);
+  seekToToken(doc.wsToToken[Math.round(0.5 * (totalWs - 1))]);
+  const before = getCanonicalPosition();
+  prefs.data.size = origSize + 3;
+  applyPrefs();
+  relayout(before);
+  const after = getCanonicalPosition();
+  assert('position-live', 'scroll restore after font-size change lands within ±1 word',
+    !!before && !!after && Math.abs(after.ord - before.ord) <= 1);
+  prefs.data.size = origSize;
+  applyPrefs();
+  relayout(null);
+
+  // --- C2: cross-mode round-trip (reader → TTS counting rule → reader) ---
+  // Builds the TTS-rule section table + word list from the live DOM (the same
+  // derivation tts-app's segmentContent uses) and round-trips positions
+  // through it. A1 makes the counts equal; the text snap absorbs the rest.
+  {
+    const ttsWords = [];
+    const ttsSecs = [];
+    doc.sections.forEach(sec => {
+      const start = ttsWords.length;
+      sec.el.querySelectorAll(EXTRACTABLE_BLOCK_SELECTOR).forEach(el => {
+        for (const w of splitWords(el.textContent.trim())) ttsWords.push(w);
+      });
+      ttsSecs.push({ href: sec.href, wordStart: start, wordCount: ttsWords.length - start });
+    });
+    const ttsAt = (i) => ttsWords[i] || '';
+    const readerSecs = readerSections();
+    const totalR = totalWsWords();
+    let ok = true, detail = '';
+    for (const f of [0.1, 0.35, 0.6, 0.85]) {
+      const ord = Math.round(f * (totalR - 1));
+      const p1 = buildPosition(readerSecs, totalR, ord, wsWordText);
+      const tOrd = resolvePosition(p1, ttsSecs, ttsWords.length, ttsAt);
+      const p2 = buildPosition(ttsSecs, ttsWords.length, tOrd, ttsAt);
+      const back = resolvePosition(p2, readerSecs, totalR, wsWordText);
+      if (Math.abs(back - ord) > 1) { ok = false; detail = ord + ' -> ' + tOrd + ' -> ' + back; break; }
+    }
+    assert('position-live', 'reader → TTS-rule → reader round-trip within ±1 word' + (ok ? '' : ' — ' + detail), ok);
+  }
+
+  // Restore the pre-test layout and position.
+  state.forceWindow = false;
+  prefs.data.layout = origLayout;
+  applyPrefs();
+  relayout(null);
+  if (origPos) applyCanonicalPosition(origPos);
 }
 
 function showResults(results) {
