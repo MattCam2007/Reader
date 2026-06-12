@@ -232,13 +232,25 @@ capture. Add a perf span around settle so the cost is visible under `?perf=1`.
 earlier sentence when an ordinal falls mid-sentence. Make it a binary search
 (same shape as geometry.js:65) and keep floor semantics deliberately (a position
 mid-sentence should re-read that sentence, not skip it) — documented, with a test.
+**Behavioral note:** after this change, a cross-mode return to TTS will re-read
+the sentence containing the anchor word rather than advance to the next sentence.
+That is the correct UX — confirm with the actual TTS playback flow that
+`seekToSentence` handles a mid-sentence ordinal without skipping ahead.
 
-### A6. Tighten `refineByText` against repeated passages
+### A6. Tighten `refineByText` against repeated passages — configurable
 
 position.js:42-66 accepts any ≥60% snippet match, tie-broken toward the
 prediction. Two-tier it: prefer ≥80% matches outright; accept 60–79% only when
-no high-tier match exists. Cheap, and directly reduces the "snapped to the wrong
-occurrence near a page boundary" case feeding Bug 2.
+no high-tier match exists. Expose the high-tier threshold as a named constant
+(`REFINE_HIGH_MATCH_THRESHOLD`, e.g. in constants.js) so it can be tuned without
+touching the algorithm. The low tier (60%) stays hard-coded as the minimum
+acceptable floor.
+
+Add selftests for two adversarial cases: (a) a book whose chapters are short
+enough that the snippet captures fewer than 3 unique words (the algorithm should
+fall back cleanly to the numeric prediction without asserting a spurious match),
+and (b) a passage that repeats verbatim (liturgical, legal boilerplate) so the
+tie-breaking toward prediction is exercised.
 
 ### A7. Bookmark anchor/check/navigate symmetry test
 
@@ -249,8 +261,22 @@ assert `getPageBookmarks` reports presence at the landing position of
 `navigateToBookmark` for each. This single test would have caught both reported
 bugs and the two fixed earlier on this branch.
 
+### A8. Fullscreen transition must trigger relayout
+
+The `fullscreenchange` handler (reader-app.js:901-905) only toggles a CSS class
+and updates an aria-label — it does not call `relayout()`. On desktop browsers
+going fullscreen fires a `resize` event which triggers the debounced relayout
+correctly. On some mobile browsers it does not, leaving the column flow (and
+therefore the position) stale until the next explicit resize.
+
+Fix: capture position before toggling fullscreen (same pre-capture pattern used
+in `applyPrefAndRelayout`, reader-app.js:676-678), then call `relayout(pos)` from
+inside the `fullscreenchange` handler. Five lines. Covers the user's reported
+scenario of "regular → fullscreen → scroll → listen → speed read → back" without
+any position drift at the fullscreen boundary.
+
 **Sequencing within A:** A1 → A2 → A3 (these three remove whole bug classes),
-then A4–A7. Each is independently shippable and reversible.
+then A4–A8. Each is independently shippable and reversible.
 
 ---
 
@@ -299,16 +325,43 @@ cap with a user-visible "truncated at N pages" notice via the existing
 `deriveBookId` (position.js:74-88) falls back title → filename; two books named
 `book.epub` (or a crafted `?id=`) share `book:pos:*`/`book:pages:*` keys. Mix in
 a short content hash (first 4 KB, SHA-256, 8 hex chars) for the derived cases;
-keep explicit `?id=` as-is for backward compat, and read old keys once for
-migration so nobody loses a position.
+keep explicit `?id=` as-is for backward compat.
 
-### B6. Book element IDs enter the app DOM unprefixed
+**Migration is mandatory, not optional.** On first load with the new code the
+hash-based key (`book:pos:a3f2b8c1`) will not exist, so without migration the
+app starts every returning user at the beginning of their book — the worst
+possible outcome. Migration logic must run before the first position read: derive
+both the old key (title/filename-based) and the new key (hash-based); if the new
+key is absent but the old key exists, copy the value forward under the new key
+and delete the old one. Gate P2 on this being implemented and tested against a
+book opened in a pre-update session.
+
+### B6. DOM clobbering: targeted fix, not global ID prefixing
 
 `sanitizeInline` copies `child.id` (extractor.js:12) — needed for TOC/footnote
-targets, but a book can claim app IDs (`progress`, `bmMarkers`) and confuse later
-`getElementById`/`closest` lookups (DOM clobbering). Prefix content IDs
-(`bk-${id}`) at sanitize time and resolve hrefs through the same prefix in the
-TOC/footnote path. Mechanical, contained to extractor + href resolution.
+targets — so a book element can shadow an app element in `document.getElementById`
+lookups. The full-prefix approach (`bk-${id}`) was reviewed and rejected: it
+breaks TOC navigation for EPUBs that supply their own nav document, because those
+TOC hrefs (`chapter.xhtml#anchor`) come from epub.js pre-formed and there is no
+clean interception point to translate them to the prefixed DOM IDs.
+
+The practical attack surface is much smaller than it first appears. The `els`
+object (reader-app.js:35-82) is captured once at init and holds stored
+references — book content loaded afterward cannot shadow those. The only
+post-load `document.getElementById` calls that could be confused are:
+
+- `document.getElementById("settingsScreen")` — reader-app.js:446, called from
+  `updateAriaExpanded` on every panel open/close. Fix: add `settingsScreen` to
+  `els` at init so it's a stored reference, not a live query.
+- Any dynamic ID the panel or settings screen injects after init (audit these at
+  implementation time; none currently identified).
+
+Book element IDs that are only consumed by `resolveHref` (toc.js:63-100) are
+safe: that function already scopes its query to `els.content`, not `document`.
+
+**Fix:** Convert the one confirmed live query to a stored reference at init.
+Document as "no full ID prefixing — scoped queries are the defense." Low
+complexity, no TOC regression risk.
 
 ### B7. Supply chain: pin CDN libs
 
@@ -347,8 +400,15 @@ strengthens. There is no Node-runnable harness (everything touches DOM layout).
 - **C3. Error-handling consistency.** Storage writes swallow quota errors
   silently everywhere (`catch (_) {}` — position.js:200, page-cache.js). Keep the
   graceful degradation but route through one `safeSetItem()` that logs once and,
-  for `book:pos:*`, prunes oldest entries — a full localStorage currently means
-  *positions silently stop saving*, the least premium failure imaginable.
+  for `book:pos:*`, prunes by **last-accessed time** — a full localStorage
+  currently means *positions silently stop saving*, the least premium failure
+  imaginable. Implementation: store a `lastAccessed` unix timestamp inside the
+  position object itself (one extra field, zero schema change — the existing
+  parse/serialize handles it). On quota error, deserialize all `book:pos:*`
+  values, sort ascending by `lastAccessed`, remove the least-recently-read entry,
+  and retry the write. Alphabetical pruning by key name (title order) must not be
+  used — it removes books whose titles start early in the alphabet, which is
+  arbitrary and wrong.
 - **C4. Dead code & docs debt.** `_bookmarksOnCurrentPage` already removed this
   branch; sweep for other unreferenced exports (low yield expected — the codebase
   is clean). Update PERFORMANCE.md Appendix A.3 with post-windowing numbers (the
@@ -382,9 +442,9 @@ Remaining, in priority order:
 | Phase | Items | Risk | Acceptance gate |
 |---|---|---|---|
 | **P0 — this week** | Bug 1 fix (✅ landed), B1, B2 | Trivial; allowlists can't loosen behavior | Malicious-href fixture inert; `?src=javascript:` rejected; button toggles correctly while scrolling |
-| **P1 — position integrity** | A1, A2, A3, A7 + C1/C2 tests | A3 changes saved-anchor semantics by ≤1 line — verify with round-trip test before/after | Bookmark symmetry test green in all three layouts; Bug 2 scenario reproduces fixed |
-| **P2 — hardening** | B3–B6, B8, C3 | B5 needs the key-migration read; everything else additive | Zip-bomb fixture graceful; two same-named books keep separate positions (after migration) |
-| **P3 — polish** | A4–A6, B7, C4, D1–D3 | Low; A4 is the only timing-sensitive change | Image-heavy book: seek → wait → saved position equals landed position |
+| **P1 — position integrity** | A1, A2, A3, A7, A8 + C1/C2 tests | A3 is a deliberate semantic shift ("first visible" replaces "nearest") — verify round-trip; A8 is 5 lines with low blast radius | Bookmark symmetry test green in all three layouts; Bug 2 fixed; fullscreen→paginated and fullscreen→scroll land at the correct word |
+| **P2 — hardening** | B3–B5, B6, B8, C3 | B5 migration is mandatory (gate on tested migration); B6 is additive (stored reference replaces live query); C3 pruning requires lastAccessed field added to stored position | Zip-bomb fixture graceful; two same-named books keep separate positions after migration; localStorage-full scenario saves the most-recently-read book and drops the oldest |
+| **P3 — polish** | A4–A6, B7, C4, D1–D3 | Low; A4 is the only timing-sensitive change; A6 threshold is now a named constant so mis-tuning is reversible | Image-heavy book: seek → wait → saved position equals landed position; A6 tests pass for short-chapter and repeated-phrase books; TTS cross-mode return re-reads current sentence (A5 behavioral check) |
 
 Every item is independently revertable; none changes visible UI. Branch
 discipline: one commit per lettered item, selftest additions land with (not
@@ -402,8 +462,6 @@ after) the behavior they protect.
   when a paragraph straddles a page.
 - Bookmark markers are 22×14 px hover targets on a slim track; consider a larger
   touch target (invisible padding) on coarse pointers.
-- When a legacy fraction-only bookmark is navigated (until A2's migrate-on-read
-  retires them), a subtle "approximate location" toast would set expectations.
 
 **Back/process:**
 - Serve with a CSP (`default-src 'self'; img-src 'self' blob:; script-src 'self'`
