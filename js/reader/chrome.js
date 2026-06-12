@@ -1,4 +1,4 @@
-import { pageOfWord } from '../model/geometry.js';
+import { pageOfWord, wordRange } from '../model/geometry.js';
 
 export class ChromeManager {
   constructor(state, els) {
@@ -91,11 +91,27 @@ export class ChromeManager {
   getPageBookmarks(items) {
     const { state, els } = this;
     if (state.isScrollMode) {
-      const sh = els.viewport.scrollHeight - els.viewport.clientHeight;
-      if (sh <= 0) return [];
-      const scrollTop = els.viewport.scrollTop;
-      const threshold = els.viewport.clientHeight * 0.55;
-      return items.filter(item => Math.abs(item.fraction * sh - scrollTop) < threshold);
+      // Measure each bookmark's word against the live layout (the same geometry
+      // scrollToWord uses) rather than estimating its scroll position from the
+      // word-count fraction. fraction*scrollHeight assumes words are spread
+      // evenly down the page, but density varies (headings, images, short
+      // chapters), so the estimate drifts from where the word actually sits and
+      // the just-saved bookmark reads as "not here". Map fraction -> ws ordinal
+      // -> render token like the windowed/paginated branches, then treat the
+      // bookmark as on-screen when its word's top is within ~half a viewport of
+      // the top edge (mirrors the prior 0.55-screen threshold, accurately).
+      const wsToToken = state.doc.wsToToken;
+      const totalWs = wsToToken.length;
+      if (!totalWs) return [];
+      const vpTop = els.viewport.getBoundingClientRect().top;
+      const margin = els.viewport.clientHeight * 0.55;
+      return items.filter(item => {
+        const tok = wsToToken[Math.round((item.fraction || 0) * (totalWs - 1))];
+        if (tok == null) return false;
+        const range = wordRange(state, tok);
+        if (!range) return false;
+        return Math.abs(range.getBoundingClientRect().top - vpTop) < margin;
+      });
     }
     if (state.windowed) {
       const wsToToken = state.doc.wsToToken;
@@ -112,35 +128,6 @@ export class ChromeManager {
     const total = state.total;
     if (total <= 0) return [];
     return items.filter(item => Math.round(item.fraction * (total - 1)) === state.page);
-  }
-
-  _bookmarksOnCurrentPage(items) {
-    const { state, els } = this;
-    if (state.isScrollMode) {
-      const sh = els.viewport.scrollHeight - els.viewport.clientHeight;
-      if (sh <= 0) return false;
-      const scrollTop = els.viewport.scrollTop;
-      const threshold = els.viewport.clientHeight * 0.55;
-      return items.some(item => Math.abs(item.fraction * sh - scrollTop) < threshold);
-    }
-    if (state.windowed) {
-      // item.fraction is a global word fraction; total/page are per-chapter. Only a
-      // bookmark whose word lands in the currently-attached chapter can be on this
-      // page — for those, measure the real page exactly (the chapter is laid out).
-      const wsToToken = state.doc.wsToToken;
-      const totalWs = wsToToken.length;
-      const sec = state.doc.sections[state.curChap];
-      if (!totalWs || !sec) return false;
-      return items.some(item => {
-        const bmWs = Math.round((item.fraction || 0) * (totalWs - 1));
-        if (bmWs < sec.wsStart || bmWs >= sec.wsEnd) return false; // other chapter
-        const tok = wsToToken[bmWs];
-        return tok != null && pageOfWord(state, els.content, tok) === state.page;
-      });
-    }
-    const total = state.total;
-    if (total <= 0) return false;
-    return items.some(item => Math.round(item.fraction * (total - 1)) === state.page);
   }
 
   currentChapterLabel() { return this._currentChapterLabel(); }
