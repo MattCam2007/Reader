@@ -10,6 +10,7 @@ import { buildChapterIndex } from '../reader/chapters.js';
 import { countWords, splitWords, migrateBookKeys } from '../core/book-session.js';
 import { POS_KEY_PREFIX, saveStoredPosition, loadStoredPosition } from '../core/position.js';
 import { pruneLeastRecentPosition } from '../core/safe-storage.js';
+import { sentenceIndexForOrdinal } from '../tts/sentences.js';
 import { BOOKMARKS_KEY_PREFIX } from '../core/bookmarks.js';
 import { findHits, indexForOffset } from '../shared/search.js';
 import { renderSections, annotateInlineText } from '../shared/render.js';
@@ -245,6 +246,30 @@ export function runSelftest(state, hooks) {
     const rel = validateBookSrcUrl('books/Fiction/x.epub');
     assert('src-url', 'validateBookSrcUrl resolves same-origin relative paths',
       typeof rel === 'string' && rel.endsWith('/books/Fiction/x.epub'));
+  }
+
+  // --- tts/sentences: binary-search sentence lookup with floor semantics (A5) ---
+  {
+    const sents = [{ wordOffset: 0 }, { wordOffset: 5 }, { wordOffset: 12 }, { wordOffset: 30 }];
+    // Reference: the old linear scan ("last sentence whose offset <= ord").
+    const linear = (ord) => {
+      let idx = 0;
+      for (let i = 0; i < sents.length; i++) { if (sents[i].wordOffset <= ord) idx = i; else break; }
+      return idx;
+    };
+    let matches = true;
+    for (let ord = 0; ord <= 40; ord++) {
+      if (sentenceIndexForOrdinal(sents, ord) !== linear(ord)) { matches = false; break; }
+    }
+    assert('tts-sentences', 'binary search matches the linear reference for every ordinal', matches);
+    assert('tts-sentences', 'mid-sentence ordinal floors to the containing sentence (re-read, not skip)',
+      sentenceIndexForOrdinal(sents, 7) === 1 && sentenceIndexForOrdinal(sents, 29) === 2);
+    assert('tts-sentences', 'sentence-start ordinal maps to that sentence',
+      sentenceIndexForOrdinal(sents, 12) === 2);
+    assert('tts-sentences', 'past-the-end ordinal clamps to the last sentence',
+      sentenceIndexForOrdinal(sents, 9999) === 3);
+    assert('tts-sentences', 'empty sentence list returns 0',
+      sentenceIndexForOrdinal([], 5) === 0);
   }
 
   // --- core/safe-storage: quota pruning by last-accessed time (C3) ---

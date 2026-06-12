@@ -10,6 +10,7 @@ import { buildTOC, resolveHref } from './formats/epub/toc.js';
 import { TtsEngine } from './tts/engine.js';
 import { TtsHighlighter } from './tts/highlighter.js';
 import { TTS_DEFAULTS } from './tts/constants.js';
+import { sentenceIndexForOrdinal } from './tts/sentences.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 import { buildPosition, resolvePosition } from './core/position.js';
 import { validateBookSrcUrl } from './core/src-url.js';
@@ -634,17 +635,12 @@ export function init(options = {}) {
   function restorePosition() {
     const pos = loadPosition(bookId);
     if (!pos) return 0;
-    return sentenceIndexForOrdinal(resolvePosition(pos, ttsSections, totalWords, wordAt));
+    return sentenceIndexForOrdinal(sentences, resolvePosition(pos, ttsSections, totalWords, wordAt));
   }
 
   // ---------- Canonical position ----------
-  function sentenceIndexForOrdinal(ord) {
-    let idx = 0;
-    for (let i = 0; i < sentences.length; i++) {
-      if (sentences[i].wordOffset <= ord) idx = i; else break;
-    }
-    return idx;
-  }
+  // Sentence lookup lives in tts/sentences.js (binary search, floor semantics:
+  // a mid-sentence ordinal re-reads that sentence rather than skipping ahead).
   // Raw word string at word ordinal `o`, for the text-anchored exact snap.
   function wordAt(o) { return ttsWords[o] || ''; }
   function getCanonicalPosition() {
@@ -662,7 +658,7 @@ export function init(options = {}) {
   }
   function applyCanonicalPosition(pos) {
     if (!sentences.length) return;
-    seekToSentence(sentenceIndexForOrdinal(resolvePosition(pos, ttsSections, totalWords, wordAt)));
+    seekToSentence(sentenceIndexForOrdinal(sentences, resolvePosition(pos, ttsSections, totalWords, wordAt)));
   }
 
 
