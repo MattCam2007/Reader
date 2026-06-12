@@ -76,6 +76,41 @@ async function runPage(browser, base, path) {
   return failures.length === 0 && pageErrors.length === 0;
 }
 
+// Boot-smoke a mode shell: the RSVP/TTS entry points are DYNAMICALLY imported
+// by the mode-switcher, so a broken import inside them is invisible to the
+// reader-mode selftest pages (which never load those modules) — every button
+// in the mode simply goes dead. Assert the shell boots to its welcome state
+// with zero uncaught errors and that a representative button still responds.
+async function smokeMode(browser, base, mode) {
+  const context = await browser.newContext({ serviceWorkers: 'block' });
+  const page = await context.newPage();
+  const pageErrors = [];
+  page.on('pageerror', (e) => pageErrors.push(String(e)));
+  page.on('console', (m) => { if (m.type() === 'error') pageErrors.push(m.text()); });
+  console.log(`\n=== smoke: reader.html?mode=${mode} ===`);
+  await page.goto(`${base}reader.html?mode=${mode}`, { waitUntil: 'load' });
+  let ok = false;
+  try {
+    // Welcome state = the mode's init() ran to completion.
+    await page.waitForFunction(() => document.body.classList.contains('welcome'), null, { timeout: 30000 });
+    // A panel button responding = listeners actually got wired.
+    const btnId = mode === 'tts' ? 'ttsTocBtn' : 'tocBtn';
+    ok = await page.evaluate((id) => {
+      const btn = document.getElementById(id);
+      if (!btn) return false;
+      btn.click();
+      return document.body.classList.contains('show-toc');
+    }, btnId);
+  } catch (_) { /* ok stays false */ }
+  if (pageErrors.length) {
+    console.error('  Uncaught page errors:');
+    for (const e of pageErrors) console.error('   ', String(e).slice(0, 300));
+  }
+  console.log(ok && !pageErrors.length ? '  boot + button wiring OK' : '  FAIL: shell did not boot cleanly');
+  await context.close();
+  return ok && pageErrors.length === 0;
+}
+
 // First .epub under books/ (if any) — used to exercise the full EPUB pipeline
 // (vendored jszip + epub.js + extraction), not just the in-memory sample.
 async function findAnyEpub() {
@@ -107,6 +142,10 @@ const browser = await chromium.launch();
 let ok = true;
 try {
   for (const p of pages) ok = (await runPage(browser, base, p)) && ok;
+  // Mode-shell boot smokes (skipped when explicit pages were requested).
+  if (!process.argv[2]) {
+    for (const mode of ['rsvp', 'tts']) ok = (await smokeMode(browser, base, mode)) && ok;
+  }
 } finally {
   await browser.close();
   server.close();

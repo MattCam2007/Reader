@@ -2,12 +2,23 @@
 //
 // Gives the PWA instant repeat loads and offline support, and replaces the
 // brittle per-file import-path rewriting the deploy workflow used to do for
-// cache-busting (see docs/PERFORMANCE.md). The cache name is versioned by the
-// deploy commit hash: a new deploy = a new cache, and on activate we delete the
-// old ones, so every asset is refetched fresh exactly once per deploy.
+// cache-busting (see docs/PERFORMANCE.md).
+//
+// IMPORTANT: GitHub Pages serves this repo without a build step, so the
+// __COMMIT_HASH__ placeholder below is NEVER substituted — the cache name
+// cannot rotate per deploy. The original cache-first-forever strategy
+// therefore served stale modules indefinitely, and any deploy that moved or
+// removed a module left returning visitors with a MIX of old and new code
+// whose imports 404 — every button in the affected mode goes dead. Two
+// defences below:
+//   1. Same-origin assets are served stale-while-revalidate: the cached copy
+//      answers instantly, but every use refreshes it in the background, so
+//      the app converges one visit after a deploy instead of never.
+//   2. The cache-name prefix is bumped (v2) so this deploy flushes the
+//      already-poisoned caches in the field once, on activate.
 
 const VERSION = '__COMMIT_HASH__';
-const CACHE = 'reader-' + VERSION;
+const CACHE = 'reader-v2-' + VERSION;
 
 // EPUB parsing libraries are vendored (vendor/ — see reader.html), so they are
 // same-origin app assets and precache like everything else. Only the
@@ -94,20 +105,25 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // App assets (same-origin) and the CDN libs: cache-first. On a miss we fetch
-  // with cache:'reload' so a fresh deploy's assets bypass any stale HTTP cache.
+  // Same-origin app assets: stale-while-revalidate (see header comment). The
+  // cached copy answers instantly; a background fetch with cache:'reload'
+  // refreshes it for the next load. Offline, the cached copy still serves.
+  // The version-pinned CDN format libs are immutable by URL and stay
+  // cache-first with no revalidation.
   if (sameOrigin || isCdnLib(req.url)) {
     event.respondWith((async () => {
       const cache = await caches.open(CACHE);
       const hit = await cache.match(req);
-      if (hit) return hit;
-      try {
-        const res = await fetch(req, { cache: 'reload' });
+      if (hit && isCdnLib(req.url)) return hit;
+      const refresh = fetch(req, { cache: 'reload' }).then((res) => {
         if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone());
         return res;
-      } catch (e) {
-        return cache.match(req) || Response.error();
+      }).catch(() => null);
+      if (hit) {
+        event.waitUntil(refresh);
+        return hit;
       }
+      return (await refresh) || Response.error();
     })());
     return;
   }

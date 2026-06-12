@@ -917,6 +917,28 @@ The Optimal Reading Position is roughly 30–35% into the word. For a 5-letter w
 
 ---
 
+### `js/rsvp/timing.js`
+
+Calculates the display duration for each word.
+
+**`durationMultiplier(token)`** → `number`  
+Returns a multiplier relative to a baseline of `60000 / wpm`:
+- Base: `1.0`
+- Length bonus: `+0.02 * max(0, word.length - 5)` (longer words show slightly longer)
+- Trailing punctuation: if the word ends with a short-pause character, multiply by `PUNCT_MULT`
+- If the word ends with a sentence-ending character, multiply by `LONG_PUNCT_MULT`
+
+**`rampSpeedFactor(rampRemaining)`** → `number` (0.5–1.0)  
+During ease-in, returns a speed factor < 1.0. At `rampRemaining = RAMP_WORDS`, returns `RAMP_FACTOR` (0.5). Interpolates linearly to `1.0` as `rampRemaining` approaches 0.
+
+**Effective duration:**
+```js
+const baseMs = 60000 / wpm;
+const ms = baseMs * durationMultiplier(token) / rampSpeedFactor(state.rampRemaining);
+```
+
+---
+
 ### `js/rsvp/playback.js`
 
 The timer loop that drives RSVP playback.
@@ -994,6 +1016,24 @@ All input handling for RSVP mode.
 
 **Fullscreen:**  
 Toggles `document.fullscreenElement`. In fullscreen, controls auto-hide after 3 seconds of inactivity.
+
+---
+
+### `js/rsvp/navigation.js`
+
+Step functions for RSVP navigation.
+
+**`stepWord(state, delta)`** → `number` (new tokenIdx)  
+Move forward/back by `delta` word tokens (skipping break tokens).
+
+**`stepSentence(state, delta)`** → `number`  
+Find the next/previous sentence boundary in `state.sentenceStarts[]`.
+
+**`stepParagraph(state, delta)`** → `number`  
+Find the next/previous paragraph break token.
+
+**`rewindWords(state, n)`** → `number`  
+Step back `n` word tokens from current position — called on pause to prevent disorientation.
 
 ---
 
