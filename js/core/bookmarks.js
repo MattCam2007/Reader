@@ -7,6 +7,10 @@ export class BookmarkManager {
   constructor() {
     this.bookId = null;
     this._items = [];
+    // Bumped on every mutation (load/add/remove/color/position). Consumers
+    // that cache derived bookmark state (chrome marker dots) compare this
+    // instead of re-deriving an id-string on every page turn.
+    this.generation = 0;
   }
 
   setBook(bookId) {
@@ -16,6 +20,7 @@ export class BookmarkManager {
 
   load() {
     if (!this.bookId) return;
+    this.generation++;
     try {
       const raw = localStorage.getItem(KEY_PREFIX + this.bookId);
       this._items = raw ? JSON.parse(raw) : [];
@@ -27,6 +32,7 @@ export class BookmarkManager {
   }
 
   _save() {
+    this.generation++;
     if (!this.bookId) return;
     try {
       safeSetItem(KEY_PREFIX + this.bookId, JSON.stringify(this._items));
