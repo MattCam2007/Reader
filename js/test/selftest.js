@@ -12,6 +12,10 @@ import { findHits, indexForOffset } from '../shared/search.js';
 import { renderSections, annotateInlineText } from '../shared/render.js';
 import { loadPageCache, savePageCache, PAGE_KEY_PREFIX } from '../core/page-cache.js';
 import { validateBookSrcUrl } from '../core/src-url.js';
+import {
+  checkArchiveEntry, isUnsafeArchivePath,
+  MAX_ARCHIVE_ENTRY_BYTES, MAX_ARCHIVE_TOTAL_BYTES,
+} from '../core/archive-guard.js';
 import { PageCounter } from '../reader/page-counter.js';
 import { makeCapabilities, FULL_CAPABILITIES, NO_CAPABILITIES, CAPABILITY_KEYS } from '../formats/capabilities.js';
 import { magicBytes, startsWith, ZIP_MAGIC } from '../formats/detect.js';
@@ -237,6 +241,34 @@ export function runSelftest(state, hooks) {
     const rel = validateBookSrcUrl('books/Fiction/x.epub');
     assert('src-url', 'validateBookSrcUrl resolves same-origin relative paths',
       typeof rel === 'string' && rel.endsWith('/books/Fiction/x.epub'));
+  }
+
+  // --- core/archive-guard: decompression limits (B3) ---
+  {
+    assert('archive-guard', 'isUnsafeArchivePath flags .. traversal',
+      ['../x.png', 'a/../x.png', 'a\\..\\x.png', '..'].every(isUnsafeArchivePath));
+    assert('archive-guard', 'isUnsafeArchivePath keeps normal names',
+      ['x.png', 'dir/x.png', 'my..file.png', 'a.b/c.png'].every(n => !isUnsafeArchivePath(n)));
+
+    const totals = { bytes: 0 };
+    let threw = null;
+    try { checkArchiveEntry('big.png', MAX_ARCHIVE_ENTRY_BYTES + 1, totals); } catch (e) { threw = e; }
+    assert('archive-guard', 'oversize entry throws a user-facing error',
+      threw instanceof Error && /too large/.test(threw.message));
+
+    const t2 = { bytes: 0 };
+    const half = Math.floor(MAX_ARCHIVE_TOTAL_BYTES / 2);
+    checkArchiveEntry('a.png', half, t2);
+    checkArchiveEntry('b.png', half, t2);
+    let threwTotal = null;
+    try { checkArchiveEntry('c.png', 2, t2); } catch (e) { threwTotal = e; }
+    assert('archive-guard', 'running total cap throws on the entry that crosses it',
+      threwTotal instanceof Error && /too large/.test(threwTotal.message));
+
+    const okTotals = { bytes: 0 };
+    let safeOk = true;
+    try { checkArchiveEntry('ok.png', 1024, okTotals); } catch (_) { safeOk = false; }
+    assert('archive-guard', 'normal-size entries pass', safeOk && okTotals.bytes === 1024);
   }
 
   // --- core/prefs ---
