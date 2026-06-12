@@ -16,13 +16,6 @@ export const MAX_SIZE = 30;
 // relayout overhead entirely. ~A short story; novels are far above it.
 export const WINDOW_MIN_WORDS = 6000;
 
-// Margins
-export const MARGINS = {
-  narrow: "1rem",
-  normal: "clamp(1.25rem, 6vw, 3rem)",
-  wide: "clamp(2rem, 10vw, 5rem)",
-};
-
 // Theme colors for meta tag
 export const THEME_COLORS = {
   dark:     "#1a1a1a",

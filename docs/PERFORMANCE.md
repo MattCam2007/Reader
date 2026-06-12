@@ -37,6 +37,18 @@ not JavaScript — the whole book was laid out as one giant multi-column element
 and re-rasterised on every turn. The second big cost was `mode-switch`, almost
 entirely re-parsing/re-extracting the same EPUB once per mode.
 
+## After (Phases 1–8 shipped)
+
+The baseline above is *historical* — kept so the wins stay measurable. The
+shipped numbers (same device/book; full capture in
+`plans/performance-refactor.md` Appendix A.4):
+
+| Operation | Before | After |
+|-----------|-------:|------:|
+| **`turn-latency`** (input→paint, avg) | 1307.9 | **~21 (~62×)** |
+| `page-turn` (sync JS, avg) | 0.2 | ~0.2 |
+| **`mode-switch`** | 388.5 | render+paginate only — `session:extract` fires **0×** on a switch |
+
 ## What changed
 
 ### Windowed rendering (Phase 6, shipped as default)
@@ -73,12 +85,15 @@ per keystroke on a 100k-word book); it is now a **binary search** (`indexForOffs
 
 ### Service worker + deferred libraries (Phase 4)
 
-`sw.js` precaches the shell + CDN libraries and serves cache-first, so repeat
-loads are instant and the app works offline. The `jszip` / `epub.js` libraries
-load **deferred** instead of render-blocking, so first paint no longer waits on
-jsdelivr. Cache busting is handled by the versioned SW cache, which **retired**
-the deploy step that rewrote every JS import path with `?v=hash`. See
-`docs/ARCHITECTURE.md` → *Service Worker*.
+`sw.js` precaches the shell and serves cache-first, so repeat loads are instant
+and the app works offline. The `jszip` / `epub.js` libraries are **vendored**
+(`vendor/` — same-origin, pinned; stewardship B7) and load **deferred** instead
+of render-blocking, so first paint never waits on a CDN and first load is fully
+offline-capable once cached. Per-format libraries (pdf.js, libarchive) remain
+lazy-loaded from the CDN only when that format is opened. Cache busting is
+handled by the versioned SW cache, which **retired** the deploy step that
+rewrote every JS import path with `?v=hash`. See `docs/ARCHITECTURE.md` →
+*Service Worker*.
 
 ### Whole-book page numbers (idle-measured, cached)
 
