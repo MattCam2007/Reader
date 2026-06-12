@@ -1,6 +1,6 @@
 import { FONT_MAP, FONT_SERIF, RESIZE_DEBOUNCE_MS, GENERAL_DEFAULTS, WINDOW_MIN_WORDS, MIN_SIZE, MAX_SIZE } from './core/constants.js';
 import { applyTheme, applyOsThemeFallback, applyBgSettings } from './base-reader-app.js';
-import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
+import { openSettingsScreen, closeSettingsScreen, isSettingsScreenOpen } from './settings/settings-screen.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
 import { PrefsManager } from './core/prefs.js';
@@ -438,7 +438,9 @@ export function init(options = {}) {
 
   function updateAriaExpanded() {
     els.tocBtn.setAttribute("aria-expanded", String(document.body.classList.contains("show-toc")));
-    els.settingsBtn.setAttribute("aria-expanded", String(!!document.getElementById("settingsScreen")));
+    // Stored module state, not a live document.getElementById — book content
+    // can carry an id="settingsScreen" element and shadow the lookup (B6).
+    els.settingsBtn.setAttribute("aria-expanded", String(isSettingsScreenOpen()));
     els.searchBtn.setAttribute("aria-expanded", String(document.body.classList.contains("show-search")));
     if (els.bookmarksBtn) els.bookmarksBtn.setAttribute("aria-expanded", String(document.body.classList.contains("show-bookmarks")));
   }
