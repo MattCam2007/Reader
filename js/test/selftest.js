@@ -8,7 +8,8 @@ import { PrefsManager } from '../core/prefs.js';
 import { buildDocModel } from '../model/doc-model.js';
 import { buildChapterIndex } from '../reader/chapters.js';
 import { countWords, splitWords, migrateBookKeys } from '../core/book-session.js';
-import { POS_KEY_PREFIX } from '../core/position.js';
+import { POS_KEY_PREFIX, saveStoredPosition, loadStoredPosition } from '../core/position.js';
+import { pruneLeastRecentPosition } from '../core/safe-storage.js';
 import { BOOKMARKS_KEY_PREFIX } from '../core/bookmarks.js';
 import { findHits, indexForOffset } from '../shared/search.js';
 import { renderSections, annotateInlineText } from '../shared/render.js';
@@ -244,6 +245,38 @@ export function runSelftest(state, hooks) {
     const rel = validateBookSrcUrl('books/Fiction/x.epub');
     assert('src-url', 'validateBookSrcUrl resolves same-origin relative paths',
       typeof rel === 'string' && rel.endsWith('/books/Fiction/x.epub'));
+  }
+
+  // --- core/safe-storage: quota pruning by last-accessed time (C3) ---
+  {
+    const ids = ['__st_old__', '__st_mid__', '__st_new__'];
+    const keys = ids.map(id => POS_KEY_PREFIX + id);
+    const cleanup = () => keys.forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });
+    cleanup();
+    localStorage.setItem(keys[0], JSON.stringify({ f: 0.1, la: 1000 }));
+    localStorage.setItem(keys[1], JSON.stringify({ f: 0.2, la: 2000 }));
+    localStorage.setItem(keys[2], JSON.stringify({ f: 0.3, la: 3000 }));
+    assert('safe-storage', 'prune removes the least-recently-read position',
+      pruneLeastRecentPosition(null) === true && localStorage.getItem(keys[0]) === null
+      && localStorage.getItem(keys[1]) !== null && localStorage.getItem(keys[2]) !== null);
+    // The key being written is never the victim, even when it is oldest.
+    assert('safe-storage', 'prune never evicts the key being written',
+      pruneLeastRecentPosition(keys[1]) === true && localStorage.getItem(keys[1]) !== null
+      && localStorage.getItem(keys[2]) === null);
+    cleanup();
+    // An entry without `la` (pre-update data) counts as oldest.
+    localStorage.setItem(keys[0], JSON.stringify({ f: 0.1 }));
+    localStorage.setItem(keys[1], JSON.stringify({ f: 0.2, la: 50 }));
+    pruneLeastRecentPosition(null);
+    assert('safe-storage', 'entries without la are pruned first',
+      localStorage.getItem(keys[0]) === null && localStorage.getItem(keys[1]) !== null);
+    cleanup();
+    // saveStoredPosition stamps last-accessed on every write.
+    saveStoredPosition(ids[0], { f: 0.5 });
+    const stamped = loadStoredPosition(ids[0]);
+    assert('safe-storage', 'saveStoredPosition stamps a lastAccessed timestamp',
+      !!stamped && typeof stamped.la === 'number' && Date.now() - stamped.la < 60_000);
+    cleanup();
   }
 
   // --- core/book-session: bookId hash migration (B5) ---

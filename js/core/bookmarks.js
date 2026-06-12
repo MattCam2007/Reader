@@ -1,3 +1,5 @@
+import { safeSetItem } from './safe-storage.js';
+
 export const BOOKMARKS_KEY_PREFIX = 'reader:bookmarks:';
 const KEY_PREFIX = BOOKMARKS_KEY_PREFIX;
 
@@ -27,7 +29,7 @@ export class BookmarkManager {
   _save() {
     if (!this.bookId) return;
     try {
-      localStorage.setItem(KEY_PREFIX + this.bookId, JSON.stringify(this._items));
+      safeSetItem(KEY_PREFIX + this.bookId, JSON.stringify(this._items));
     } catch (e) {
       console.warn('bookmarks:save', e);
     }

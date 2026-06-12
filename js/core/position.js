@@ -13,7 +13,9 @@
 //
 // Storage key (shared by every mode): `book:pos:{bookId}`.
 
-export const POS_KEY_PREFIX = 'book:pos:';
+import { safeSetItem, POS_KEY_PREFIX } from './safe-storage.js';
+
+export { POS_KEY_PREFIX };
 
 // Text-anchor refinement. After the section/ordinal math lands us *near* the
 // right word, we snap to the exact word by matching a short snippet of the
@@ -213,6 +215,10 @@ export function loadStoredPosition(bookId) {
 
 export function saveStoredPosition(bookId, pos) {
   if (!bookId || !pos) return;
-  try { localStorage.setItem(POS_KEY_PREFIX + bookId, JSON.stringify(pos)); }
+  // `la` (last-accessed, unix ms) rides inside the position object — one extra
+  // field, zero schema change — so safe-storage can prune by recency when
+  // localStorage fills instead of silently dropping the save.
+  pos.la = Date.now();
+  try { safeSetItem(POS_KEY_PREFIX + bookId, JSON.stringify(pos)); }
   catch (_) {}
 }
