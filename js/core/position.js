@@ -14,6 +14,7 @@
 // Storage key (shared by every mode): `book:pos:{bookId}`.
 
 import { safeSetItem, POS_KEY_PREFIX } from './safe-storage.js';
+import { REFINE_HIGH_MATCH_THRESHOLD } from './constants.js';
 
 export { POS_KEY_PREFIX };
 
@@ -39,8 +40,17 @@ function clamp(n, lo, hi) {
 
 // Snap `ord` to the best text match for `snippet` within REFINE_WINDOW words.
 // `wordAt(i)` returns the raw word string at global ordinal i in this mode.
-// Requires a strong majority of the snippet's real words to match, and breaks
-// ties toward the prediction, so repeated phrases don't pull us far away.
+//
+// Two-tier acceptance (A6):
+//   - High tier: candidates matching >= REFINE_HIGH_MATCH_THRESHOLD of the
+//     snippet's real words. All are credible; the one NEAREST the numeric
+//     prediction wins. This is the defence against verbatim-repeated passages
+//     (liturgical text, legal boilerplate): a perfect copy far away must not
+//     beat a near-perfect match at the predicted spot.
+//   - Low tier (only when no high-tier candidate exists): the hard 60% floor,
+//     best score first, ties toward the prediction — the original behaviour.
+// Fewer than 2 real snippet words can't discriminate; fall back to the
+// numeric prediction rather than asserting a spurious match.
 function refineByText(ord, snippet, wordAt, total) {
   if (!Array.isArray(snippet) || snippet.length < 2 || typeof wordAt !== 'function') return ord;
   const N = snippet.length;
@@ -52,19 +62,25 @@ function refineByText(ord, snippet, wordAt, total) {
   const maxMatch = snippet.filter(Boolean).length;
   if (maxMatch < 2) return ord;
   const need = Math.ceil(maxMatch * 0.6);
+  const needHigh = Math.ceil(maxMatch * REFINE_HIGH_MATCH_THRESHOLD);
 
-  let best = -1, bestScore = 0, bestDist = Infinity;
+  let bestHigh = -1, bestHighDist = Infinity;
+  let bestLow = -1, bestLowScore = 0, bestLowDist = Infinity;
   for (let i = 0; i + N <= tw.length; i++) {
     let score = 0;
     for (let j = 0; j < N; j++) { const a = tw[i + j]; if (a && a === snippet[j]) score++; }
-    if (score === 0) continue;
+    if (score < need) continue;
     const absI = lo + i;
     const d = Math.abs(absI - ord);
-    if (score > bestScore || (score === bestScore && d < bestDist)) {
-      bestScore = score; best = absI; bestDist = d;
+    if (score >= needHigh) {
+      if (d < bestHighDist) { bestHigh = absI; bestHighDist = d; }
+    } else if (score > bestLowScore || (score === bestLowScore && d < bestLowDist)) {
+      bestLow = absI; bestLowScore = score; bestLowDist = d;
     }
   }
-  return (best >= 0 && bestScore >= need) ? best : ord;
+  if (bestHigh >= 0) return bestHigh;
+  if (bestLow >= 0) return bestLow;
+  return ord;
 }
 
 // Derive a book identifier that is identical across every mode, so the shared

@@ -163,6 +163,50 @@ export function runSelftest(state, hooks) {
     }
   }
 
+  // --- core/position: refineByText two-tier acceptance (A6) ---
+  {
+    // (a) Short-chapter case: a snippet with fewer than 2 real (normalisable)
+    // words cannot discriminate — the resolver must fall back cleanly to the
+    // numeric prediction, not assert a spurious match.
+    const tinyWords = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta', 'iota', 'kappa'];
+    const tinySecs = [{ href: 'c', wordStart: 0, wordCount: tinyWords.length }];
+    const tinyAt = (i) => tinyWords[i] || '';
+    const weakPos = { v: 1, href: 'c', wordInSec: 4, secWords: 10, ord: 4, words: 10, f: 4 / 9, t: ['—', '!!'] };
+    assert('position-refine', 'snippet with <2 real words falls back to numeric prediction',
+      resolvePosition(weakPos, tinySecs, tinyWords.length, tinyAt) === 4);
+    const onewordPos = { v: 1, href: 'c', wordInSec: 4, secWords: 10, ord: 4, words: 10, f: 4 / 9, t: ['beta', ''] };
+    assert('position-refine', 'snippet with 1 real word falls back to numeric prediction',
+      resolvePosition(onewordPos, tinySecs, tinyWords.length, tinyAt) === 4);
+
+    // (b) Verbatim-repeated passage (liturgical/boilerplate): the snippet
+    // matches perfectly in two places; the high tier must pick the copy
+    // nearest the numeric prediction.
+    const refrain = 'glory be to the father and to the son'.split(' ');
+    const filler = (n, tag) => Array.from({ length: n }, (_, i) => tag + i);
+    const repWords = [...filler(20, 'a'), ...refrain, ...filler(60, 'b'), ...refrain, ...filler(20, 'c')];
+    const repSecs = [{ href: 'r', wordStart: 0, wordCount: repWords.length }];
+    const repAt = (i) => repWords[i] || '';
+    const secondCopy = 20 + refrain.length + 60; // ordinal of the second refrain
+    const nearSecond = buildPosition(repSecs, repWords.length, secondCopy, repAt);
+    assert('position-refine', 'repeated passage resolves to the copy nearest the prediction',
+      resolvePosition(nearSecond, repSecs, repWords.length, repAt) === secondCopy);
+
+    // (c) The two-tier point: a PERFECT copy far away must not beat a
+    // near-perfect (>=80%) match at the predicted location. One word of the
+    // original was altered in place; the verbatim copy lives 100 words on.
+    const phrase = 'now is the winter of our discontent made'.split(' ');
+    const phraseNear = [...phrase.slice(0, 4), 'springtime', ...phrase.slice(5)]; // 7/8 match
+    const farWords = [...filler(10, 'x'), ...phraseNear, ...filler(100, 'y'), ...phrase, ...filler(10, 'z')];
+    const farSecs = [{ href: 'f', wordStart: 0, wordCount: farWords.length }];
+    const farAt = (i) => farWords[i] || '';
+    const nearOrd = 10; // where the altered phrase sits — and where we predict
+    const posAtNear = { v: 1, href: 'f', wordInSec: nearOrd, secWords: farWords.length,
+      ord: nearOrd, words: farWords.length, f: nearOrd / (farWords.length - 1),
+      t: phrase.map(w => w.toLowerCase()) };
+    assert('position-refine', 'near 7/8 match beats a verbatim copy 100 words away',
+      resolvePosition(posAtNear, farSecs, farWords.length, farAt) === nearOrd);
+  }
+
   // --- model/geometry ---
   if (doc.words.length > 0) {
     const range = wordRange(state, 0);

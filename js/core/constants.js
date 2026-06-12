@@ -50,6 +50,15 @@ export const TAP_TIMEOUT_MS = 400;
 // Search
 export const MAX_SEARCH_HITS = 200;
 
+// Position text-snap (core/position.js refineByText). A candidate matching at
+// least this fraction of the saved snippet's words is "high confidence":
+// among high-confidence candidates the one nearest the numeric prediction
+// wins, which keeps verbatim-repeated passages (liturgy, boilerplate) from
+// pulling a restore to a distant copy. Named so it can be tuned without
+// touching the algorithm; the 60% acceptance floor below it is the hard-coded
+// minimum and not configurable.
+export const REFINE_HIGH_MATCH_THRESHOLD = 0.8;
+
 // Debounce timings
 export const SAVE_DEBOUNCE_MS = 500;
 export const RESIZE_DEBOUNCE_MS = 150;
