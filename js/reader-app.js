@@ -890,8 +890,14 @@ export function init(options = {}) {
     if (!document.fullscreenEnabled) {
       els.fullscreenBtnEl.hidden = true;
     } else {
+      // Position captured BEFORE the fullscreen toggle reflows the viewport —
+      // the same pre-capture pattern as applyPrefAndRelayout. A capture taken
+      // after the change reads the new geometry with stale stride/page state
+      // and loses the place.
+      let fsPos = null;
       els.fullscreenBtnEl.addEventListener('click', (e) => {
         e.stopPropagation();
+        fsPos = (state.docModelBuilt && state.doc.words.length) ? getCanonicalPosition() : null;
         if (document.fullscreenElement) document.exitFullscreen();
         else document.documentElement.requestFullscreen();
       }, { signal });
@@ -899,6 +905,13 @@ export function init(options = {}) {
         const isFs = !!document.fullscreenElement;
         document.body.classList.toggle('fs-active', isFs);
         els.fullscreenBtnEl.setAttribute('aria-label', isFs ? 'Exit fullscreen' : 'Toggle fullscreen');
+        // Desktop browsers fire a resize here (debounced relayout); some mobile
+        // browsers do not, leaving the column flow — and the position — stale
+        // until the next explicit resize. Relayout now, restoring the position
+        // captured at the click (Esc-exit has no capture; fall back to a fresh
+        // capture, same as the resize path).
+        if (state.docModelBuilt) relayout(fsPos || undefined);
+        fsPos = null;
       }, { signal });
     }
   }
