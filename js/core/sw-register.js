@@ -14,8 +14,14 @@ export function registerServiceWorker() {
         });
       });
     }).catch(() => {});
+    // Reload only on a genuine update takeover (a NEW worker replacing the one
+    // that controlled this page). On a first visit the fresh worker's
+    // clients.claim() also fires controllerchange — reloading there yanked the
+    // page out from under the reader seconds after it loaded.
+    let hadController = !!navigator.serviceWorker.controller;
     let refreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController) { hadController = true; return; }
       if (refreshing) return;
       refreshing = true;
       location.reload();
