@@ -12,6 +12,7 @@ import { buildTOC, resolveHref } from './formats/epub/toc.js';
 import { toLocator, resolveLocator } from './model/locator.js';
 import { currentLocator, pageOfElement, pageOfWord, wordAtPageStart, wordAtPageStartRange } from './model/geometry.js';
 import { buildPosition, resolvePosition } from './core/position.js';
+import { validateBookSrcUrl } from './core/src-url.js';
 import { buildChapterIndex } from './reader/chapters.js';
 import { PaginationEngine } from './reader/pagination.js';
 import { PageCounter } from './reader/page-counter.js';
@@ -760,13 +761,15 @@ export function init(options = {}) {
   }
 
   async function loadFromUrl(url) {
+    const safeUrl = validateBookSrcUrl(url);
+    if (!safeUrl) { showError("That book URL isn't allowed."); return; }
     showLoading("Fetching book\u2026");
     closePanels();
     try {
-      const resp = await fetch(url);
+      const resp = await fetch(safeUrl);
       if (!resp.ok) throw new Error("Fetch failed: " + resp.status);
       const blob = await resp.blob();
-      const filename = url.split("/").pop() || "book.epub";
+      const filename = safeUrl.split("/").pop() || "book.epub";
       const file = new File([blob], filename, { type: "application/epub+zip" });
       await loadEpub(file);
     } catch (err) {

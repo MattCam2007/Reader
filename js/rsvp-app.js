@@ -18,6 +18,7 @@ import { StatsTracker } from './rsvp/stats.js';
 import { TrainingManager } from './rsvp/training.js';
 import { createPicker } from './shared/picker.js';
 import { buildPosition, resolvePosition } from './core/position.js';
+import { validateBookSrcUrl } from './core/src-url.js';
 import * as perf from './core/perf.js';
 
 // Convert extractSections() output to the plain-text format the tokenizer expects.
@@ -716,8 +717,10 @@ export function init(options = {}) {
   applyOsThemeFallback(generalPrefs, (name) => { generalPrefs.save(); applyTheme(name); });
 
   // ---------- Init ----------
-  const srcUrl = urlParams.get('src');
-  if (srcUrl) {
+  const srcUrl = validateBookSrcUrl(urlParams.get('src'));
+  if (urlParams.get('src') && !srcUrl) {
+    showLoadError(new Error("That book URL isn't allowed."));
+  } else if (srcUrl) {
     state.setPlayState('loading');
     els.statusMsg.classList.remove('error');
     els.statusRetryBtn.hidden = true;

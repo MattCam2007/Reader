@@ -11,6 +11,7 @@ import { countWords, splitWords } from '../core/book-session.js';
 import { findHits, indexForOffset } from '../shared/search.js';
 import { renderSections, annotateInlineText } from '../shared/render.js';
 import { loadPageCache, savePageCache, PAGE_KEY_PREFIX } from '../core/page-cache.js';
+import { validateBookSrcUrl } from '../core/src-url.js';
 import { PageCounter } from '../reader/page-counter.js';
 import { makeCapabilities, FULL_CAPABILITIES, NO_CAPABILITIES, CAPABILITY_KEYS } from '../formats/capabilities.js';
 import { magicBytes, startsWith, ZIP_MAGIC } from '../formats/detect.js';
@@ -220,6 +221,23 @@ export function runSelftest(state) {
   assert("extractor", "blocksFromDoc returns blocks", blocks.length >= 2);
   assert("extractor", "blocksFromDoc has h1", blocks.some(b => b.type === "h1"));
   assert("extractor", "blocksFromDoc has p", blocks.some(b => b.type === "p"));
+
+  // --- core/src-url: ?src= fetch guard (B2) ---
+  {
+    const bad = ['javascript:alert(1)', 'data:text/plain,x', 'file:///etc/passwd',
+      'ftp://host/x.epub', 'blob:https://x/y', 'http://user:pass@host/x.epub',
+      'https://:secret@host/x.epub'];
+    assert('src-url', 'validateBookSrcUrl rejects non-http(s) and credential URLs',
+      bad.every(u => validateBookSrcUrl(u) === null));
+    assert('src-url', 'validateBookSrcUrl rejects empty/missing',
+      validateBookSrcUrl('') === null && validateBookSrcUrl(null) === null);
+    assert('src-url', 'validateBookSrcUrl accepts absolute https',
+      validateBookSrcUrl('https://example.com/b.epub') === 'https://example.com/b.epub');
+    // Same-origin relative library paths resolve against the page URL.
+    const rel = validateBookSrcUrl('books/Fiction/x.epub');
+    assert('src-url', 'validateBookSrcUrl resolves same-origin relative paths',
+      typeof rel === 'string' && rel.endsWith('/books/Fiction/x.epub'));
+  }
 
   // --- core/prefs ---
   {

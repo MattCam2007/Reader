@@ -12,6 +12,7 @@ import { TtsHighlighter } from './tts/highlighter.js';
 import { TTS_DEFAULTS } from './tts/constants.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 import { buildPosition, resolvePosition } from './core/position.js';
+import { validateBookSrcUrl } from './core/src-url.js';
 import * as perf from './core/perf.js';
 
 export function init(options = {}) {
@@ -873,8 +874,10 @@ export function init(options = {}) {
   loadAndDisplayVoices().then(() => restoreVoice());
 
   // Load sample or URL book
-  const srcUrl = urlParams.get('src');
-  if (srcUrl) {
+  const srcUrl = validateBookSrcUrl(urlParams.get('src'));
+  if (urlParams.get('src') && !srcUrl) {
+    showError("That book URL isn't allowed.");
+  } else if (srcUrl) {
     showLoading('Fetching book\u2026');
     fetch(srcUrl)
       .then(r => { if (!r.ok) throw new Error('Fetch failed: ' + r.status); return r.blob(); })
