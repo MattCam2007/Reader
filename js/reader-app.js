@@ -667,6 +667,12 @@ export function init(options = {}) {
       pagination.paginate(false);
     }
     if (pos) applyCanonicalPosition(pos);
+    // Marker dots are positioned against the live layout; a relayout (resize,
+    // font/spacing change, mode switch) moves them even when the bookmark set is
+    // unchanged. Paginated turns refresh via goTo->updateProgressFn, but a scroll
+    // seek doesn't, so refresh here to cover every mode. The layout-signature
+    // gate inside makes this a no-op when nothing actually moved.
+    chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
   }
 
   // Live-apply a re-paginating pref change (quick drawer) while preserving the
@@ -1006,6 +1012,7 @@ export function init(options = {}) {
   els.content.addEventListener("click", (e) => footnotes.handleContentClick(e), { signal });
 
   // Scroll mode progress tracking (storage.savePos has its own debounce)
+  let _bmStateRaf = false;
   els.viewport.addEventListener("scroll", () => {
     if (!state.isScrollMode) return;
     // Clear the resume highlight once the user scrolls away from where it landed
@@ -1014,6 +1021,17 @@ export function init(options = {}) {
       clearResumeHighlight();
     }
     chrome.updateProgress();
+    // Re-evaluate the quick-bookmark button as bookmarks scroll on/off screen.
+    // Paginated mode gets this via goTo->updateProgressFn; scroll mode has no
+    // page turns, so without this the button froze in whatever state the last
+    // add/remove left it. rAF-coalesced: one measured check per frame at most.
+    if (!_bmStateRaf) {
+      _bmStateRaf = true;
+      requestAnimationFrame(() => {
+        _bmStateRaf = false;
+        if (state.isScrollMode) chrome.refreshQuickBmState(bookmarkManager.getAll());
+      });
+    }
     savePosMain();
   }, { passive: true, signal });
 
