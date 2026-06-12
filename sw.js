@@ -9,13 +9,9 @@
 const VERSION = '__COMMIT_HASH__';
 const CACHE = 'reader-' + VERSION;
 
-// CDN libraries the app needs to parse EPUBs. Precached so they work offline and
-// never block first paint (the HTML loads them deferred). Kept in sync with the
-// <script> tags in reader.html / library.html.
-const CDN_LIBS = [
-  'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
-  'https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js',
-];
+// EPUB parsing libraries are vendored (vendor/ — see reader.html), so they are
+// same-origin app assets and precache like everything else. Only the
+// lazy-loaded per-format libraries below still come from a CDN.
 
 // Per-format parsing libraries that are lazy-loaded only when that format is
 // opened (see js/formats/<fmt>/<fmt>-adapter.js loadLibs). NOT precached — a
@@ -44,7 +40,8 @@ const PRECACHE = [
   'css/rsvp.css',
   'css/tts.css',
   'js/mode-switcher.js',
-  ...CDN_LIBS,
+  'vendor/jszip-3.10.1.min.js',
+  'vendor/epub-0.3.93.min.js',
 ];
 
 self.addEventListener('install', (event) => {

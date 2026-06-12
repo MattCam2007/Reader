@@ -14,8 +14,8 @@
 // run the suite against more entry points, e.g. a real EPUB via ?src=.
 
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { extname, join, normalize, sep } from 'node:path';
+import { readFile, readdir } from 'node:fs/promises';
+import { extname, join, normalize, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
@@ -54,7 +54,10 @@ function startServer() {
 }
 
 async function runPage(browser, base, path) {
-  const page = await browser.newPage();
+  // Block service workers: a SW that claims the page mid-test can serve stale
+  // cached assets or trigger reloads, making runs non-hermetic.
+  const context = await browser.newContext({ serviceWorkers: 'block' });
+  const page = await context.newPage();
   const pageErrors = [];
   page.on('pageerror', (e) => pageErrors.push(String(e)));
   const url = base + path;
@@ -69,8 +72,22 @@ async function runPage(browser, base, path) {
     console.error('  Uncaught page errors:');
     for (const e of pageErrors) console.error('   ', e);
   }
-  await page.close();
+  await context.close();
   return failures.length === 0 && pageErrors.length === 0;
+}
+
+// First .epub under books/ (if any) — used to exercise the full EPUB pipeline
+// (vendored jszip + epub.js + extraction), not just the in-memory sample.
+async function findAnyEpub() {
+  try {
+    const files = await readdir(join(ROOT, 'books'), { recursive: true, withFileTypes: true });
+    for (const f of files) {
+      if (f.isFile() && f.name.toLowerCase().endsWith('.epub')) {
+        return relative(ROOT, join(f.parentPath ?? f.path, f.name)).split(sep).join('/');
+      }
+    }
+  } catch (_) { /* no books directory */ }
+  return null;
 }
 
 const server = await startServer();
@@ -78,10 +95,12 @@ const base = `http://127.0.0.1:${server.address().port}/`;
 const pages = process.argv.slice(2);
 if (!pages.length) {
   pages.push('reader.html?selftest=1');
-  // Exercise the full EPUB pipeline (jszip + epub.js + extraction) when the
-  // bundled library books are present.
-  pages.push('reader.html?selftest=1&src=' +
-    encodeURIComponent('books/Fiction/Jane Austen/pride-and-prejudice.epub') + '&id=pp-selftest');
+  const epub = await findAnyEpub();
+  if (epub) {
+    pages.push('reader.html?selftest=1&src=' + encodeURIComponent(epub) + '&id=epub-selftest');
+  } else {
+    console.log('(no .epub under books/ — skipping the full-pipeline page)');
+  }
 }
 
 const browser = await chromium.launch();

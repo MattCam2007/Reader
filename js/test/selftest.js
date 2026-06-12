@@ -28,6 +28,9 @@ import { MAX_PDF_PAGES } from '../formats/pdf/pdf-adapter.js';
 import '../formats/index.js'; // ensure adapters are registered for format tests
 
 export function runSelftest(state, hooks) {
+  // Debug handle (selftest entry points only): lets a console / headless probe
+  // drive the same live-app closures the suite uses.
+  if (typeof window !== 'undefined') { window.__selftestState = state; window.__selftestHooks = hooks; }
   const results = [];
   const assert = (module, label, ok) => {
     results.push({ module, label, ok, display: (ok ? "PASS" : "FAIL") + ": [" + module + "] " + label });
