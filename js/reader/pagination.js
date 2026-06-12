@@ -1,6 +1,6 @@
 import { COLUMN_GAP } from '../core/constants.js';
 import { buildDocModel } from '../model/doc-model.js';
-import { pageOfWord } from '../model/geometry.js';
+import { pageOfWord, layoutScale } from '../model/geometry.js';
 import { resolveLocator } from '../model/locator.js';
 import * as perf from '../core/perf.js';
 
@@ -180,7 +180,14 @@ export class PaginationEngine {
     range.setStart(w.node, w.start);
     range.setEnd(w.node, w.end);
     const rect = range.getBoundingClientRect();
-    els.viewport.scrollTop += rect.top - els.viewport.getBoundingClientRect().top - 20;
+    // Rects are in SCALED pixels while the chrome transform is active, but
+    // scrollTop is in unscaled layout pixels. Divide the visual delta by the
+    // scale or long jumps (bookmark/TOC/restore deep into the book) land
+    // short — the error grows with the jump distance, exactly the bug class
+    // layoutScale() documents for pageOfWord.
+    const scale = layoutScale(els.content);
+    els.viewport.scrollTop +=
+      (rect.top - els.viewport.getBoundingClientRect().top) / scale - 20;
   }
 
   goTo(p, animate) {

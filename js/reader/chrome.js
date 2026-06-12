@@ -179,13 +179,17 @@ export class ChromeManager {
       const totalWs = wsToToken.length;
       if (!totalWs) return [];
       const vpTop = els.viewport.getBoundingClientRect().top;
+      // clientHeight is unscaled; rect deltas are scaled while the chrome
+      // transform is active — de-scale the delta so the threshold means the
+      // same fraction of a screen with and without the chrome visible.
+      const scale = layoutScale(els.content);
       const margin = els.viewport.clientHeight * 0.55;
       return items.filter(item => {
         const tok = wsToToken[Math.round((item.fraction || 0) * (totalWs - 1))];
         if (tok == null) return false;
         const range = wordRange(state, tok);
         if (!range) return false;
-        return Math.abs(range.getBoundingClientRect().top - vpTop) < margin;
+        return Math.abs((range.getBoundingClientRect().top - vpTop) / scale) < margin;
       });
     }
     if (state.windowed) {
