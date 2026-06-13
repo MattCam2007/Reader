@@ -58,17 +58,27 @@ export const FONT_REGISTRY = [
   { key: 'spectral',          label: 'Spectral',              stack: '"Spectral", Georgia, serif',                     group: 'named' },
   { key: 'vollkorn',          label: 'Vollkorn',              stack: '"Vollkorn", Georgia, serif',                     group: 'named' },
 
+  // ── Fonts designers love to hate 😈 (hosted — Comic Neue is the free, served
+  // twin of Comic Sans, so "Comic Sans" works for everyone even without the
+  // genuine article installed) ────────────────────────────────────────────────
+  { key: 'comic-sans',        label: 'Comic Sans',            stack: '"Comic Sans MS", "Comic Neue", cursive',         group: 'named' },
+  { key: 'lobster',           label: 'Lobster',               stack: '"Lobster", cursive',                             group: 'named' },
+  { key: 'pacifico',          label: 'Pacifico',              stack: '"Pacifico", cursive',                            group: 'named' },
+
   // ── System fonts — NOT bundled/served ───────────────────────────────────────
   // These are proprietary (Microsoft/Apple/Monotype) and can't be self-hosted.
   // They use the reader's device copy when installed and fall back to the closest
   // generic otherwise. `system: true` documents that there is no woff2 to ship.
   { key: 'arial',           label: 'Arial',           stack: 'Arial, "Helvetica Neue", Helvetica, sans-serif',          group: 'named', system: true },
   { key: 'avenir',          label: 'Avenir',          stack: '"Avenir Next", Avenir, "Segoe UI", sans-serif',           group: 'named', system: true },
+  { key: 'brush-script',    label: 'Brush Script',    stack: '"Brush Script MT", "Brush Script Std", cursive',          group: 'named', system: true },
   { key: 'futura',          label: 'Futura',          stack: 'Futura, "Century Gothic", "Trebuchet MS", sans-serif',    group: 'named', system: true },
   { key: 'georgia',         label: 'Georgia',         stack: 'Georgia, "Times New Roman", serif',                       group: 'named', system: true },
   { key: 'gill-sans',       label: 'Gill Sans',       stack: '"Gill Sans", "Gill Sans MT", Calibri, sans-serif',        group: 'named', system: true },
   { key: 'helvetica',       label: 'Helvetica',       stack: '"Helvetica Neue", Helvetica, Arial, sans-serif',          group: 'named', system: true },
+  { key: 'impact',          label: 'Impact',          stack: 'Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif', group: 'named', system: true },
   { key: 'palatino',        label: 'Palatino',        stack: '"Palatino Linotype", Palatino, "Book Antiqua", serif',    group: 'named', system: true },
+  { key: 'papyrus',         label: 'Papyrus',         stack: 'Papyrus, "Comic Sans MS", fantasy',                       group: 'named', system: true },
   { key: 'rockwell',        label: 'Rockwell',        stack: 'Rockwell, "Roboto Slab", Bitter, serif',                  group: 'named', system: true },
   { key: 'times-new-roman', label: 'Times New Roman', stack: '"Times New Roman", Times, serif',                         group: 'named', system: true },
 ];

@@ -23,6 +23,11 @@
 @font-face { font-family: 'URW Bookman'; src: url('../fonts/URWBookman-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
 @font-face { font-family: 'URW Bookman'; src: url('../fonts/URWBookman-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
 
+/* ── Comic Neue (free Comic Sans twin) ────────────────────────────────────── */
+@font-face { font-family: 'Comic Neue'; src: url('../fonts/ComicNeue-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Comic Neue'; src: url('../fonts/ComicNeue-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Comic Neue'; src: url('../fonts/ComicNeue-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
 /* ── Crimson Pro ──────────────────────────────────────────────────────────── */
 @font-face { font-family: 'Crimson Pro'; src: url('../fonts/CrimsonPro-Regular.woff2')  format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: 'Crimson Pro'; src: url('../fonts/CrimsonPro-Italic.woff2')   format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
@@ -70,6 +75,9 @@
 @font-face { font-family: 'Lora'; src: url('../fonts/Lora-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
 @font-face { font-family: 'Lora'; src: url('../fonts/Lora-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
 
+/* ── Lobster (here be dragons) ────────────────────────────────────────────── */
+@font-face { font-family: 'Lobster'; src: url('../fonts/Lobster-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+
 /* ── Merriweather ─────────────────────────────────────────────────────────── */
 @font-face { font-family: 'Merriweather'; src: url('../fonts/Merriweather-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: 'Merriweather'; src: url('../fonts/Merriweather-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
@@ -92,6 +100,9 @@
 @font-face { font-family: 'Open Sans'; src: url('../fonts/OpenSans-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: 'Open Sans'; src: url('../fonts/OpenSans-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
 @font-face { font-family: 'Open Sans'; src: url('../fonts/OpenSans-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Pacifico (also here be dragons) ──────────────────────────────────────── */
+@font-face { font-family: 'Pacifico'; src: url('../fonts/Pacifico-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
 
 /* ── PT Serif ─────────────────────────────────────────────────────────────── */
 @font-face { font-family: 'PT Serif'; src: url('../fonts/PTSerif-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
