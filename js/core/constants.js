@@ -85,6 +85,8 @@ export const GENERAL_DEFAULTS = {
   bgImageOpacity: 1,
   contentOpacity: 1,
   textOutline: 'none',
+  brightness: 1,
+  warmth: 0,
 };
 
 // Default prefs
@@ -103,8 +105,6 @@ export const DEFAULT_PREFS = {
   align: "justify",
   hyphens: true,
   selection: false,
-  brightness: 1,
-  warmth: 0,
   pageAnim: "slide",
   layout: "paginated",
   columns: "auto",

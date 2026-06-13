@@ -6,8 +6,6 @@ export const TTS_DEFAULTS = {
   lineHeight: 1.62,
   margin: 'normal',
   align: 'justify',
-  brightness: 1,
-  warmth: 0,
   rate: 1.0,
   pitch: 1.0,
   voiceName: '',
