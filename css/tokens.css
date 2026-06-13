@@ -18,6 +18,11 @@
 @font-face { font-family: 'Bitter'; src: url('../fonts/Bitter-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: 'Bitter'; src: url('../fonts/Bitter-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
 
+/* ── Bookman (URW) ────────────────────────────────────────────────────────── */
+@font-face { font-family: 'URW Bookman'; src: url('../fonts/URWBookman-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'URW Bookman'; src: url('../fonts/URWBookman-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'URW Bookman'; src: url('../fonts/URWBookman-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
 /* ── Crimson Pro ──────────────────────────────────────────────────────────── */
 @font-face { font-family: 'Crimson Pro'; src: url('../fonts/CrimsonPro-Regular.woff2')  format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: 'Crimson Pro'; src: url('../fonts/CrimsonPro-Italic.woff2')   format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
@@ -50,6 +55,11 @@
 @font-face { font-family: 'Libre Baskerville'; src: url('../fonts/LibreBaskerville-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
 @font-face { font-family: 'Libre Baskerville'; src: url('../fonts/LibreBaskerville-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
 
+/* ── Libre Caslon Text ────────────────────────────────────────────────────── */
+@font-face { font-family: 'Libre Caslon Text'; src: url('../fonts/LibreCaslonText-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Libre Caslon Text'; src: url('../fonts/LibreCaslonText-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Libre Caslon Text'; src: url('../fonts/LibreCaslonText-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
 /* ── Literata ─────────────────────────────────────────────────────────────── */
 @font-face { font-family: 'Literata'; src: url('../fonts/Literata-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: 'Literata'; src: url('../fonts/Literata-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
@@ -64,6 +74,11 @@
 @font-face { font-family: 'Merriweather'; src: url('../fonts/Merriweather-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: 'Merriweather'; src: url('../fonts/Merriweather-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
 @font-face { font-family: 'Merriweather'; src: url('../fonts/Merriweather-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Noto Serif ───────────────────────────────────────────────────────────── */
+@font-face { font-family: 'Noto Serif'; src: url('../fonts/NotoSerif-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Noto Serif'; src: url('../fonts/NotoSerif-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Noto Serif'; src: url('../fonts/NotoSerif-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
 
 /* ── Nunito ───────────────────────────────────────────────────────────────── */
 @font-face { font-family: 'Nunito'; src: url('../fonts/Nunito-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }

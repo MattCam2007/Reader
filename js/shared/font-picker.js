@@ -1,4 +1,4 @@
-import { FONT_REGISTRY, fontByKey } from '../core/fonts.js';
+import { FONTS_ORDERED, fontByKey } from '../core/fonts.js';
 
 const CHEVRON = `<svg class="font-picker-chevron" viewBox="0 0 10 6" width="10" height="6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1,1 5,5 9,1"/></svg>`;
 
@@ -17,7 +17,7 @@ export function fontPickerItemsHTML(currentKey) {
   const items = [];
   let addedSep = false;
 
-  for (const f of FONT_REGISTRY) {
+  for (const f of FONTS_ORDERED) {
     if (!addedSep && f.group === 'named') {
       items.push('<hr class="font-picker-sep" role="separator" aria-hidden="true">');
       addedSep = true;

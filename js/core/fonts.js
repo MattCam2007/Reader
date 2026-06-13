@@ -35,6 +35,7 @@ export const FONT_REGISTRY = [
   { key: 'andika',            label: 'Andika',                stack: '"Andika", sans-serif',                           group: 'named' },
   { key: 'atkinson',          label: 'Atkinson Hyperlegible', stack: '"Atkinson Hyperlegible", Helvetica, sans-serif', group: 'named' },
   { key: 'bitter',            label: 'Bitter',                stack: '"Bitter", Georgia, serif',                       group: 'named' },
+  { key: 'bookman',           label: 'Bookman',               stack: '"URW Bookman", "Bookman Old Style", serif',      group: 'named' },
   { key: 'crimson-pro',       label: 'Crimson Pro',           stack: '"Crimson Pro", Georgia, serif',                  group: 'named' },
   { key: 'dyslexic',          label: 'OpenDyslexic',          stack: '"OpenDyslexic", "Comic Sans MS", cursive',       group: 'named' },
   { key: 'eb-garamond',       label: 'EB Garamond',           stack: '"EB Garamond", Georgia, serif',                  group: 'named' },
@@ -43,9 +44,11 @@ export const FONT_REGISTRY = [
   { key: 'lato',              label: 'Lato',                  stack: '"Lato", Helvetica, sans-serif',                  group: 'named' },
   { key: 'lexend',            label: 'Lexend',                stack: '"Lexend", Helvetica, sans-serif',                group: 'named' },
   { key: 'libre-baskerville', label: 'Libre Baskerville',     stack: '"Libre Baskerville", Georgia, serif',            group: 'named' },
+  { key: 'libre-caslon',      label: 'Libre Caslon',          stack: '"Libre Caslon Text", Georgia, serif',            group: 'named' },
   { key: 'literata',          label: 'Literata',              stack: '"Literata", Georgia, serif',                     group: 'named' },
   { key: 'lora',              label: 'Lora',                  stack: '"Lora", Georgia, serif',                         group: 'named' },
   { key: 'merriweather',      label: 'Merriweather',          stack: '"Merriweather", Georgia, serif',                 group: 'named' },
+  { key: 'noto-serif',        label: 'Noto Serif',            stack: '"Noto Serif", Georgia, serif',                   group: 'named' },
   { key: 'nunito',            label: 'Nunito',                stack: '"Nunito", Helvetica, sans-serif',                group: 'named' },
   { key: 'open-sans',         label: 'Open Sans',             stack: '"Open Sans", Helvetica, sans-serif',             group: 'named' },
   { key: 'pt-serif',          label: 'PT Serif',              stack: '"PT Serif", Georgia, serif',                     group: 'named' },
@@ -54,6 +57,16 @@ export const FONT_REGISTRY = [
   { key: 'source-serif-4',    label: 'Source Serif 4',        stack: '"Source Serif 4", Georgia, serif',               group: 'named' },
   { key: 'spectral',          label: 'Spectral',              stack: '"Spectral", Georgia, serif',                     group: 'named' },
   { key: 'vollkorn',          label: 'Vollkorn',              stack: '"Vollkorn", Georgia, serif',                     group: 'named' },
+];
+
+// Display order for the picker: the generic stacks first (in registry order:
+// serif, sans, mono), then the named fonts alphabetised by their visible label.
+// Sorting here means new fonts can be added anywhere in FONT_REGISTRY above and
+// still land in the right alphabetical slot.
+export const FONTS_ORDERED = [
+  ...FONT_REGISTRY.filter(f => f.group === 'generic'),
+  ...FONT_REGISTRY.filter(f => f.group === 'named')
+    .sort((a, b) => a.label.localeCompare(b.label)),
 ];
 
 // key → CSS font-family stack
