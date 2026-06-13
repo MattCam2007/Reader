@@ -1024,6 +1024,8 @@ export function init(options = {}) {
   els.backdrop.addEventListener("click", () => { closePanels(); closeSettingsScreen(); }, { signal });
 
   // ---------- Reader quick drawer ----------
+  let _floatingDrawerH = null; // remembers user-set height within session
+
   function applyQuickDrawerOpen(open) {
     if (els.readerQuickPanel) {
       els.readerQuickPanel.classList.toggle('is-collapsed', !open);
@@ -1040,13 +1042,18 @@ export function init(options = {}) {
         drawer.classList.add('is-floating');
         document.getElementById('app').appendChild(drawer);
       }
+      // Restore or set a default height for the resizable floating drawer.
+      const initH = _floatingDrawerH || Math.round(window.innerHeight * 0.55);
+      drawer.style.setProperty('--drawer-height', initH + 'px');
       document.body.classList.add('chrome-hidden');
       chrome.updateViewportScale();
     } else {
-      // Reattach to footer before chrome-hidden is re-evaluated so the
-      // drawer doesn't flash in the wrong position.
+      // Save the current height so the next open restores it.
       if (drawer && drawer.classList.contains('is-floating')) {
+        const h = parseInt(drawer.style.getPropertyValue('--drawer-height'), 10);
+        if (h > 0) _floatingDrawerH = h;
         drawer.classList.remove('is-floating');
+        drawer.style.removeProperty('--drawer-height');
         els.bottombar.insertAdjacentElement('afterbegin', drawer);
       }
       // Leave chrome-hidden intentionally: user is now in full-screen
@@ -1058,8 +1065,40 @@ export function init(options = {}) {
   applyQuickDrawerOpen(false); // always start closed; open state after close is chrome-hidden
 
   if (els.readerDrawerHandle) {
+    let _dragStartY = null, _dragStartH = null, _didDrag = false;
+
+    els.readerDrawerHandle.addEventListener('pointerdown', (e) => {
+      if (!els.readerQuickDrawer?.classList.contains('is-floating')) return;
+      _dragStartY = e.clientY;
+      _dragStartH = parseInt(els.readerQuickDrawer.style.getPropertyValue('--drawer-height'), 10)
+                    || Math.round(window.innerHeight * 0.55);
+      _didDrag = false;
+      els.readerDrawerHandle.setPointerCapture(e.pointerId);
+    }, { signal });
+
+    els.readerDrawerHandle.addEventListener('pointermove', (e) => {
+      if (_dragStartY === null) return;
+      const dy = _dragStartY - e.clientY; // up = positive = taller
+      if (!_didDrag && Math.abs(dy) < 6) return;
+      _didDrag = true;
+      const minH = 64;
+      const maxH = Math.round(window.innerHeight * 0.92);
+      const newH = Math.min(Math.max(_dragStartH + dy, minH), maxH);
+      els.readerQuickDrawer.style.setProperty('--drawer-height', newH + 'px');
+    }, { signal });
+
+    els.readerDrawerHandle.addEventListener('pointerup', () => {
+      if (_didDrag) {
+        const h = parseInt(els.readerQuickDrawer.style.getPropertyValue('--drawer-height'), 10);
+        if (h > 0) _floatingDrawerH = h;
+      }
+      _dragStartY = null;
+      _dragStartH = null;
+    }, { signal });
+
     els.readerDrawerHandle.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (_didDrag) { _didDrag = false; return; }
       applyQuickDrawerOpen(!(prefs.data.quickDrawerOpen ?? false));
     }, { signal });
   }
