@@ -119,7 +119,7 @@ export function rsvpTemplate() {
   </div>
 
   <div class="book-submenu" id="bookMenu" hidden>
-    <button class="book-submenu-item" id="openEpubBtn" type="button" aria-label="Open EPUB">
+    <button class="book-submenu-item" id="openEpubBtn" type="button" aria-label="Open book">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
       Open
     </button>
@@ -156,7 +156,7 @@ export function rsvpTemplate() {
   <nav class="reader-toc" id="toc" role="dialog" aria-modal="true" aria-label="Contents">
     <div class="reader-toc-head">Contents</div>
     <div class="reader-toc-list" id="tocList">
-      <div class="reader-toc-empty">Load an EPUB to see chapters.</div>
+      <div class="reader-toc-empty">Load a book to see chapters.</div>
     </div>
   </nav>
 

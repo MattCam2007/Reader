@@ -65,11 +65,6 @@ async function switchMode(targetMode, posInfo) {
   appEl.innerHTML = '';
   currentMode = null;
 
-  // Update URL without reload
-  const url = new URL(location.href);
-  url.searchParams.set('mode', targetMode);
-  history.replaceState(null, '', url);
-
   // Set up new mode
   currentController = new AbortController();
   const { signal } = currentController;

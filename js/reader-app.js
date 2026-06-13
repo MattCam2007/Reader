@@ -50,7 +50,6 @@ export function init(options = {}) {
     fileInput:     document.getElementById("fileInput"),
     bookSubEl:     document.getElementById("bookSub"),
     contentClip:   document.getElementById("contentClip"),
-    coachEl:       document.getElementById("coach"),
     searchInput:   document.getElementById("searchInput"),
     searchResults: document.getElementById("searchResults"),
     comfortDim:    document.getElementById("comfortDim"),
@@ -522,6 +521,8 @@ export function init(options = {}) {
     if (firstItem) firstItem.focus();
   }
 
+  let _previewWasChromeHidden = false;
+
   function openSettings() {
     closePanels();
     openSettingsScreen({
@@ -543,16 +544,17 @@ export function init(options = {}) {
         applyPrefs();
         if (needsRepaginate) relayout(pos);
       },
+      onPreviewStart() {
+        _previewWasChromeHidden = document.body.classList.contains('chrome-hidden');
+        document.body.classList.add('chrome-hidden');
+        chrome.updateViewportScale();
+      },
+      onPreviewEnd() {
+        if (!_previewWasChromeHidden) document.body.classList.remove('chrome-hidden');
+        chrome.updateViewportScale();
+      },
     });
     updateAriaExpanded();
-  }
-
-  function dismissCoach() {
-    if (els.coachEl && !els.coachEl.classList.contains("hide")) {
-      els.coachEl.classList.add("hide");
-      els.coachEl.setAttribute("aria-hidden", "true");
-      try { localStorage.setItem("reader:hinted", "1"); } catch (e) { console.warn("coach:dismiss", e); }
-    }
   }
 
   // ---------- Input ----------
@@ -564,7 +566,6 @@ export function init(options = {}) {
         chrome.toggle();
       }
     },
-    dismissCoach,
     closePanels,
     dismissSelBar: () => selection.dismiss(),
     dismissNotePopover: () => footnotes.dismiss(),
@@ -587,7 +588,7 @@ export function init(options = {}) {
   function showWelcome() {
     document.body.classList.remove("loading", "error");
     document.body.classList.add("welcome");
-    els.overlayMsg.textContent = "Open an EPUB or PDF to start reading.";
+    els.overlayMsg.textContent = "Open an ebook to start reading.";
     els.overlayBtn.textContent = "Open a book";
     els.overlayBtn.hidden = false;
   }
@@ -609,7 +610,7 @@ export function init(options = {}) {
     els.content.style.setProperty("--reading-line-height", String(p.lineHeight));
 
     // Margins via CSS class
-    els.viewport.classList.remove("margin-narrow", "margin-normal", "margin-wide");
+    els.viewport.classList.remove("margin-fine", "margin-narrow", "margin-normal", "margin-wide");
     els.viewport.classList.add("margin-" + (p.margin || "normal"));
 
     // Paragraph spacing
@@ -1294,15 +1295,6 @@ export function init(options = {}) {
       prefs.save();
     }
   }, { signal });
-
-  let hinted = false;
-  try { hinted = localStorage.getItem("reader:hinted") === "1"; } catch (e) { console.warn("init:hinted", e); }
-  if (hinted) {
-    els.coachEl.classList.add("hide");
-  } else {
-    els.coachEl.setAttribute("aria-hidden", "false");
-    setTimeout(dismissCoach, 6000);
-  }
 
   // Live-app hooks handed to the selftest suite (?selftest=1 only). They let
   // the suite drive the real layout/bookmark/navigation paths — the bookmark

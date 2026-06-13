@@ -17,7 +17,7 @@ export class InputHandler {
     this.state = state;
     this.els = els;
     this.pagination = pagination;
-    this.callbacks = callbacks; // { toggleChrome, dismissCoach, closePanels, dismissSelBar, dismissNotePopover, activePopoverRef }
+    this.callbacks = callbacks; // { toggleChrome, closePanels, dismissSelBar, dismissNotePopover, activePopoverRef }
     this._signal = signal;
 
     // Single-touch drag (page turn) state
@@ -61,8 +61,6 @@ export class InputHandler {
     const signal = this._signal;
 
     viewport.addEventListener("touchstart", (e) => {
-      this.callbacks.dismissCoach();
-
       // ── Two-finger pinch: start zoom ──────────────────────────────────────
       if (e.touches.length === 2 && !this.state.isScrollMode) {
         this._dragging = false;
@@ -215,7 +213,6 @@ export class InputHandler {
     }, { passive: true, signal });
 
     viewport.addEventListener("click", (e) => {
-      this.callbacks.dismissCoach();
       if (Date.now() - this._lastTouchEnd < SYNTHETIC_CLICK_GUARD_MS) return;
       this._handleTap(e.clientX);
     }, { signal });
@@ -239,7 +236,6 @@ export class InputHandler {
         perf.latencyToPaint("turn-latency", () => this.pagination.prev(), { via: "key", dir: "prev" });
       } else if (e.key === "Escape") {
         if (this._zoomScale > 1) { this._resetZoom(); return; }
-        this.callbacks.dismissCoach();
         this.callbacks.closePanels();
       }
     }, { signal });

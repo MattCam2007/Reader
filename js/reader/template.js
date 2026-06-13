@@ -73,6 +73,7 @@ export function readerTemplate() {
             <div class="reader-quick-item reader-quick-item--wide">
               <span class="reader-quick-label">Margins</span>
               <div class="reader-seg reader-seg--fill" id="qdMarginSeg">
+                <button class="reader-seg-btn" data-margin="fine" type="button">Fine</button>
                 <button class="reader-seg-btn" data-margin="narrow" type="button">Narrow</button>
                 <button class="reader-seg-btn" data-margin="normal" type="button">Normal</button>
                 <button class="reader-seg-btn" data-margin="wide" type="button">Wide</button>
@@ -130,7 +131,7 @@ export function readerTemplate() {
   </div>
 
   <div class="book-submenu" id="bookMenu" hidden>
-    <button class="book-submenu-item" id="openBtn" type="button" aria-label="Open EPUB">
+    <button class="book-submenu-item" id="openBtn" type="button" aria-label="Open book">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
       Open
     </button>
@@ -185,10 +186,8 @@ export function readerTemplate() {
   <div class="reader-overlay" id="overlay">
     <div class="reader-spinner" id="spinner"></div>
     <div class="reader-overlay-msg" id="overlayMsg">Loading\u2026</div>
-    <button class="ui-chip" id="overlayBtn" type="button" hidden>Open EPUB</button>
+    <button class="ui-chip" id="overlayBtn" type="button" hidden>Open book</button>
   </div>
 
-  <div class="reader-coach" id="coach" role="status" aria-hidden="true">
-    <div class="reader-coach-card">Tap the <b>center</b> for the menu.<br>Swipe or tap the <b>edges</b> to turn pages.</div>
-  </div>`;
+  `;
 }

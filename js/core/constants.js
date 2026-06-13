@@ -106,7 +106,7 @@ export const DEFAULT_PREFS = {
   quickDrawerOpen: false,
   align: "justify",
   hyphens: true,
-  selection: true,
+  selection: false,
   brightness: 1,
   warmth: 0,
   pageAnim: "slide",

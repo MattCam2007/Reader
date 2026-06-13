@@ -5,11 +5,11 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0d3a8a">
 <meta name="build-version" content="__COMMIT_HASH__">
-<meta http-equiv="refresh" content="0;url=reader.html?mode=rsvp">
+<meta http-equiv="refresh" content="0;url=reader.html">
 <title>Redirecting to Reader</title>
 </head>
 <body>
-<p>Redirecting to <a href="reader.html?mode=rsvp">Reader (RSVP mode)</a>&hellip;</p>
-<script>location.replace("reader.html?mode=rsvp" + location.search.replace(/^\?/, "&"));</script>
+<p>Redirecting to <a href="reader.html">Reader</a>&hellip;</p>
+<script>location.replace("reader.html" + (location.search ? location.search : ""));</script>
 </body>
 </html>
