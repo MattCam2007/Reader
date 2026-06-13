@@ -121,8 +121,16 @@ That's it — the dropdown, previews, and all three reading modes pick it up.
 No file, no `@font-face` — just a registry entry with `system: true`:
 
 ```js
-{ key: 'baskerville', label: 'Baskerville', stack: 'Baskerville, "Baskerville Old Face", Georgia, serif', group: 'named', system: true },
+{ key: 'baskerville', label: 'Baskerville', stack: 'Baskerville, "Baskerville Old Face", serif', group: 'named', system: true },
 ```
+
+System fonts are **auto-hidden from the menu when the reader's device doesn't
+have them** (detected at runtime in `shared/font-picker.js`) — so they never
+show up rendering as an indistinguishable generic fallback. For that detection
+to stay honest, a system stack must list **only genuine aliases/clones of the
+same typeface** plus one generic keyword. Never add an unrelated fallback (e.g.
+`Papyrus, "Comic Sans MS"`) or the entry will appear whenever the *fallback* is
+installed and render the wrong font.
 
 ## How to remove a font
 

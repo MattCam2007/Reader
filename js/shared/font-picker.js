@@ -9,15 +9,62 @@ function escAttr(s) {
   return String(s).replace(/"/g, '&quot;');
 }
 
+// ── System-font availability detection ───────────────────────────────────────
+// System fonts (system:true) aren't bundled — they only render if the reader's
+// device has them, otherwise they collapse to a generic and look identical to
+// every other unavailable system font. We detect presence with the classic
+// canvas width-comparison trick and hide the ones that aren't installed.
+
+const GENERIC_FAMILIES = new Set([
+  'serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui',
+  'ui-serif', 'ui-sans-serif', 'ui-monospace', 'ui-rounded', 'math', 'emoji',
+  '-apple-system',
+]);
+
+const _availCache = new Map();
+
+function isFontAvailable(family) {
+  if (_availCache.has(family)) return _availCache.get(family);
+  if (typeof document === 'undefined') return true; // SSR/node: don't filter
+  const test = 'mmmmmmmmmmlli WgQ 0123456789';
+  const size = '72px';
+  const ctx = document.createElement('canvas').getContext('2d');
+  let available = false;
+  for (const base of ['monospace', 'sans-serif', 'serif']) {
+    ctx.font = `${size} ${base}`;
+    const baseW = ctx.measureText(test).width;
+    ctx.font = `${size} "${family}", ${base}`;
+    if (ctx.measureText(test).width !== baseW) { available = true; break; }
+  }
+  _availCache.set(family, available);
+  return available;
+}
+
+// Split a CSS font stack into its specific (non-generic) family names.
+function stackFamilies(stack) {
+  return stack.split(',')
+    .map(s => s.trim().replace(/^["']|["']$/g, '').trim())
+    .filter(s => s && !GENERIC_FAMILIES.has(s.toLowerCase()));
+}
+
+// A system entry is shown only if at least one specific family in its stack is
+// actually installed on this device.
+function systemEntryAvailable(font) {
+  return stackFamilies(font.stack).some(isFontAvailable);
+}
+
 // The list of option buttons (with the serif/sans/mono → separator → A-Z order).
 // Each option is rendered IN ITS OWN typeface so the menu previews the font.
-// Shared by the settings screen and the reader quick drawer.
+// System fonts not installed on this device are omitted (except the current
+// selection, so its active state still shows). Shared by the settings screen
+// and the reader quick drawer.
 export function fontPickerItemsHTML(currentKey) {
   const cur = fontByKey(currentKey);
   const items = [];
   let addedSep = false;
 
   for (const f of FONTS_ORDERED) {
+    if (f.system && f.key !== cur.key && !systemEntryAvailable(f)) continue;
     if (!addedSep && f.group === 'named') {
       items.push('<hr class="font-picker-sep" role="separator" aria-hidden="true">');
       addedSep = true;

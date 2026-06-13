@@ -85,12 +85,9 @@ export function init(options = {}) {
     qdAlignSeg:    document.getElementById("qdAlignSeg"),
   };
 
-  // Populated here; mounted below once prefs is in scope.
+  // Quick-drawer font picker handle (panel populated + mounted below, once
+  // prefs is in scope so the list reflects the saved font).
   let qdFontHandle = null;
-  if (els.qdFontPicker) {
-    const panel = els.qdFontPicker.querySelector('.font-picker-panel');
-    if (panel) panel.innerHTML = fontPickerItemsHTML('serif');
-  }
 
   // ---------- State & Prefs ----------
   const prefs = new PrefsManager();
@@ -1142,6 +1139,8 @@ export function init(options = {}) {
     }, { signal });
   }
   if (els.qdFontPicker) {
+    const panel = els.qdFontPicker.querySelector('.font-picker-panel');
+    if (panel) panel.innerHTML = fontPickerItemsHTML(prefs.data.font || 'serif');
     qdFontHandle = mountFontPicker(els.qdFontPicker, (key) => {
       prefs.data.font = key; prefs.save();
       applyPrefAndRelayout();
