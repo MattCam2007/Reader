@@ -8,6 +8,25 @@ import { BG_IMAGE_STORAGE_KEY, applyBgSettings, clearBgImage } from '../base-rea
 let _screen = null;
 let _cleanup = null;
 
+// Live-preview state: set while settings screen is open.
+let _onPreviewStart = null;
+let _onPreviewEnd = null;
+let _previewActive = false;
+
+function _startPreview() {
+  if (_previewActive) return;
+  _previewActive = true;
+  if (_screen) _screen.classList.add('sscreen--preview');
+  if (_onPreviewStart) _onPreviewStart();
+}
+
+function _endPreview() {
+  if (!_previewActive) return;
+  _previewActive = false;
+  if (_screen) _screen.classList.remove('sscreen--preview');
+  if (_onPreviewEnd) _onPreviewEnd();
+}
+
 // Module-level singleton prefs — one instance per scope for the entire app lifetime.
 // Created lazily on first settings open; load() called each time to sync with localStorage.
 let _generalPrefs = null;
@@ -53,7 +72,13 @@ export function openSettingsScreen(config = {}) {
     onReaderChange = null,   // fn(key, value, needsRepaginate)
     onRsvpChange = null,     // fn(key, value)
     onTtsChange = null,      // fn(key, value)
+    onPreviewStart = null,   // fn() — called when a preview-enabled control is held
+    onPreviewEnd = null,     // fn() — called when the hold ends
   } = config;
+
+  _onPreviewStart = onPreviewStart;
+  _onPreviewEnd = onPreviewEnd;
+  _previewActive = false;
 
   _generalPrefs = getOrCreatePrefs(_generalPrefs, { storageKey: 'general:prefs', defaults: GENERAL_DEFAULTS });
   _readerPrefs  = getOrCreatePrefs(_readerPrefs,  { storageKey: 'reader:prefs',  defaults: DEFAULT_PREFS });
@@ -142,8 +167,11 @@ export function openSettingsScreen(config = {}) {
 
 export function closeSettingsScreen() {
   if (!_screen) return;
+  _endPreview();
   const el = _screen;
   _screen = null;
+  _onPreviewStart = null;
+  _onPreviewEnd = null;
   if (_cleanup) { _cleanup(); _cleanup = null; }
   el.classList.remove('sscreen--open');
   el.addEventListener('transitionend', () => el.remove(), { once: true });
@@ -244,7 +272,7 @@ function wireGeneralTab(prefs, liveApply) {
   wireSeg('ss-gen-theme', 'data-theme', (val) => {
     prefs.data.theme = val; prefs.save();
     if (liveApply) liveApply('theme', val);
-  });
+  }, true);
 
   const fileInput = byId('ss-bg-file');
   const clearBtn  = byId('ss-bgClear');
@@ -290,18 +318,18 @@ function wireGeneralTab(prefs, liveApply) {
     prefs.data.bgImageOpacity = v / 100;
     prefs.save();
     if (liveApply) liveApply('bgImageOpacity', prefs.data.bgImageOpacity);
-  });
+  }, true);
 
   bindSlider('ss-contentOpacity', (v) => {
     prefs.data.contentOpacity = v / 100;
     prefs.save();
     if (liveApply) liveApply('contentOpacity', prefs.data.contentOpacity);
-  });
+  }, true);
 
   wireSeg('ss-textOutline', 'data-outline', (val) => {
     prefs.data.textOutline = val; prefs.save();
     if (liveApply) liveApply('textOutline', val);
-  });
+  }, true);
 }
 
 // ── Read tab ─────────────────────────────────────────────────────────────────
@@ -315,7 +343,7 @@ function readTabHTML(p) {
     row('Typeface', seg('ss-font', 'data-font', [['serif','Serif'],['sans','Sans'],['dyslexic','Dyslexic']], p.font)),
 
     section('Layout'),
-    row('Margins', seg('ss-margin', 'data-margin', [['narrow','Narrow'],['normal','Normal'],['wide','Wide']], p.margin)),
+    row('Margins', seg('ss-margin', 'data-margin', [['fine','Fine'],['narrow','Narrow'],['normal','Normal'],['wide','Wide']], p.margin)),
     row('Line spacing', counter('ss-lhDown', 'ss-lhDisplay', 'ss-lhUp', p.lineHeight.toFixed(1))),
     row('Paragraphs', seg('ss-para', 'data-para', [['indent','Indented'],['spaced','Spaced'],['both','Both']], p.paraSpacing)),
     row('Alignment', seg('ss-align', 'data-align', [['justify','Justify'],['left','Left']], p.align)),
@@ -332,12 +360,12 @@ function readTabHTML(p) {
 
 function wireReadTab(prefs, liveApply) {
   const SEGS = [
-    { id: 'ss-font',   attr: 'data-font',   pref: 'font',         repag: true  },
+    { id: 'ss-font',   attr: 'data-font',   pref: 'font',         repag: true,  preview: true  },
     { id: 'ss-margin', attr: 'data-margin', pref: 'margin',       repag: true  },
     { id: 'ss-para',   attr: 'data-para',   pref: 'paraSpacing',  repag: true  },
     { id: 'ss-align',  attr: 'data-align',  pref: 'align',        repag: true  },
     { id: 'ss-layout', attr: 'data-layout', pref: 'layout',       repag: true  },
-    { id: 'ss-cols',   attr: 'data-cols',   pref: 'columns',      repag: true  },
+    { id: 'ss-cols',   attr: 'data-cols',   pref: 'columns',      repag: true,  preview: true  },
     { id: 'ss-anim',   attr: 'data-anim',   pref: 'pageAnim',     repag: false },
     { id: 'ss-images', attr: 'data-images', pref: 'images',       repag: true,  xform: v => v === 'true' },
     { id: 'ss-notepop',attr: 'data-notepop',pref: 'notePopovers', repag: false, xform: v => v === 'true' },
@@ -361,19 +389,27 @@ function wireReadTab(prefs, liveApply) {
       });
       if (liveApply) liveApply(s.pref, val, s.repag);
     });
+    if (s.preview) {
+      el.addEventListener('pointerdown', (e) => {
+        if (e.target.closest(`[${s.attr}]`)) _startPreview();
+      });
+      el.addEventListener('pointerup', _endPreview);
+      el.addEventListener('pointercancel', _endPreview);
+      el.addEventListener('pointerleave', _endPreview);
+    }
   }
 
   bindSlider('ss-brightness', (v) => {
     prefs.data.brightness = v / 100;
     prefs.save();
     if (liveApply) liveApply('brightness', prefs.data.brightness, false);
-  });
+  }, true);
 
   bindSlider('ss-warmth', (v) => {
     prefs.data.warmth = v / 100;
     prefs.save();
     if (liveApply) liveApply('warmth', prefs.data.warmth, false);
-  });
+  }, true);
 
   bindCounter('ss-sizeDown', 'ss-sizeUp', 'ss-sizeDisplay',
     () => prefs.data.size,
@@ -556,7 +592,7 @@ function listenTabHTML(p) {
     row('Typeface', seg('ss-tts-font', 'data-font', [['serif','Serif'],['sans','Sans'],['dyslexic','Dyslexic']], p.font)),
 
     section('Layout'),
-    row('Margins', seg('ss-tts-margin', 'data-margin', [['narrow','Narrow'],['normal','Normal'],['wide','Wide']], p.margin || 'normal')),
+    row('Margins', seg('ss-tts-margin', 'data-margin', [['fine','Fine'],['narrow','Narrow'],['normal','Normal'],['wide','Wide']], p.margin || 'normal')),
     row('Line spacing', counter('ss-tts-lhDown', 'ss-tts-lhDisplay', 'ss-tts-lhUp', p.lineHeight.toFixed(1))),
 
     section('Playback'),
@@ -612,7 +648,7 @@ function wireListenTab(prefs, liveApply) {
 
 // ── Shared wiring helpers ────────────────────────────────────────────────────
 
-function wireSeg(id, attr, onChange) {
+function wireSeg(id, attr, onChange, enablePreview) {
   const el = byId(id);
   if (!el) return;
   el.addEventListener('click', (e) => {
@@ -626,11 +662,25 @@ function wireSeg(id, attr, onChange) {
     });
     onChange(val);
   });
+  if (enablePreview) {
+    el.addEventListener('pointerdown', (e) => {
+      if (e.target.closest(`[${attr}]`)) _startPreview();
+    });
+    el.addEventListener('pointerup', _endPreview);
+    el.addEventListener('pointercancel', _endPreview);
+    el.addEventListener('pointerleave', _endPreview);
+  }
 }
 
-function bindSlider(id, onChange) {
+function bindSlider(id, onChange, enablePreview) {
   const el = byId(id);
-  if (el) el.addEventListener('input', (e) => onChange(parseInt(e.target.value, 10)));
+  if (!el) return;
+  el.addEventListener('input', (e) => onChange(parseInt(e.target.value, 10)));
+  if (enablePreview) {
+    el.addEventListener('pointerdown', _startPreview);
+    el.addEventListener('pointerup', _endPreview);
+    el.addEventListener('pointercancel', _endPreview);
+  }
 }
 
 function bindToggle(id, onChange) {

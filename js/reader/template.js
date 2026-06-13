@@ -73,6 +73,7 @@ export function readerTemplate() {
             <div class="reader-quick-item reader-quick-item--wide">
               <span class="reader-quick-label">Margins</span>
               <div class="reader-seg reader-seg--fill" id="qdMarginSeg">
+                <button class="reader-seg-btn" data-margin="fine" type="button">Fine</button>
                 <button class="reader-seg-btn" data-margin="narrow" type="button">Narrow</button>
                 <button class="reader-seg-btn" data-margin="normal" type="button">Normal</button>
                 <button class="reader-seg-btn" data-margin="wide" type="button">Wide</button>
@@ -188,7 +189,5 @@ export function readerTemplate() {
     <button class="ui-chip" id="overlayBtn" type="button" hidden>Open EPUB</button>
   </div>
 
-  <div class="reader-coach" id="coach" role="status" aria-hidden="true">
-    <div class="reader-coach-card">Tap the <b>center</b> for the menu.<br>Swipe or tap the <b>edges</b> to turn pages.</div>
-  </div>`;
+  `;
 }
