@@ -466,8 +466,8 @@ export function init(options = {}) {
     els.viewport.classList.add('margin-' + (p.margin || 'normal'));
 
     // Comfort overlay
-    if (els.comfortDim) els.comfortDim.style.opacity = String(1 - (p.brightness || 1));
-    if (els.comfortWarm) els.comfortWarm.style.opacity = String(p.warmth || 0);
+    if (els.comfortDim) els.comfortDim.style.opacity = String(1 - (generalPrefs.data.brightness || 1));
+    if (els.comfortWarm) els.comfortWarm.style.opacity = String(generalPrefs.data.warmth || 0);
 
     // Background image and opacity
     applyBgSettings(generalPrefs);

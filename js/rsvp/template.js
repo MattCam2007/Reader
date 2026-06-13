@@ -2,6 +2,11 @@ export function rsvpTemplate() {
   return `
   <a href="#readerWrap" class="reader-skip-link">Skip to reader</a>
 
+  <div class="reader-comfort-overlay" id="comfortOverlay">
+    <div class="reader-comfort-dim" id="comfortDim"></div>
+    <div class="reader-comfort-warm" id="comfortWarm"></div>
+  </div>
+
   <header class="rsvp-topbar" id="topbar">
     <div class="rsvp-topbar-spacer"></div>
     <div class="rsvp-topbar-center">

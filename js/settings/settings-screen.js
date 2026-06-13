@@ -249,6 +249,8 @@ function generalTabHTML(p) {
       ['terminal','Terminal'],['nebula','Nebula'],['forest','Forest'],
       ['ember','Ember'],['nord','Nord'],
     ], p.theme)),
+    row('Brightness', slider('ss-gen-brightness', 30, 100, Math.round((p.brightness || 1) * 100))),
+    row('Warmth', slider('ss-gen-warmth', 0, 100, Math.round((p.warmth || 0) * 100))),
 
     section('Background'),
     `<div class="ss-row ss-bg-upload-row">
@@ -332,6 +334,18 @@ function wireGeneralTab(prefs, liveApply) {
     if (liveApply) liveApply('contentOpacity', prefs.data.contentOpacity);
   }, true);
 
+  bindSlider('ss-gen-brightness', (v) => {
+    prefs.data.brightness = v / 100;
+    prefs.save();
+    if (liveApply) liveApply('brightness', prefs.data.brightness);
+  }, true);
+
+  bindSlider('ss-gen-warmth', (v) => {
+    prefs.data.warmth = v / 100;
+    prefs.save();
+    if (liveApply) liveApply('warmth', prefs.data.warmth);
+  }, true);
+
   wireSeg('ss-textOutline', 'data-outline', (val) => {
     prefs.data.textOutline = val; prefs.save();
     if (liveApply) liveApply('textOutline', val);
@@ -342,17 +356,7 @@ function wireGeneralTab(prefs, liveApply) {
 
 function readTabHTML(p) {
   return [
-    section('Appearance'),
-    row('Brightness', slider('ss-brightness', 30, 100, Math.round((p.brightness || 1) * 100))),
-    row('Warmth', slider('ss-warmth', 0, 100, Math.round((p.warmth || 0) * 100))),
-    row('Text size', counter('ss-sizeDown', 'ss-sizeDisplay', 'ss-sizeUp', p.size)),
-    row('Typeface', renderFontPickerHTML('ss-font', p.font)),
-
     section('Layout'),
-    row('Margins', seg('ss-margin', 'data-margin', [['fine','Fine'],['narrow','Narrow'],['normal','Normal'],['wide','Wide']], p.margin)),
-    row('Line spacing', counter('ss-lhDown', 'ss-lhDisplay', 'ss-lhUp', p.lineHeight.toFixed(1))),
-    row('Paragraphs', seg('ss-para', 'data-para', [['indent','Indented'],['spaced','Spaced'],['both','Both']], p.paraSpacing)),
-    row('Alignment', seg('ss-align', 'data-align', [['justify','Justify'],['left','Left']], p.align)),
     row('Layout', seg('ss-layout', 'data-layout', [['paginated','Paged'],['scroll','Scroll']], p.layout)),
     row('Columns', seg('ss-cols', 'data-cols', [['auto','Auto'],['1','1'],['2','2']], String(p.columns))),
     row('Page turn', seg('ss-anim', 'data-anim', [['slide','Slide'],['fade','Fade'],['none','None']], p.pageAnim)),
@@ -361,6 +365,14 @@ function readTabHTML(p) {
     row('Images', seg('ss-images', 'data-images', [['true','On'],['false','Off']], String(p.images))),
     row('Note popovers', seg('ss-notepop', 'data-notepop', [['true','On'],['false','Off']], String(p.notePopovers))),
     row('Text selection', seg('ss-sel', 'data-sel', [['true','On'],['false','Off']], String(p.selection))),
+
+    section('Typography'),
+    row('Text size', counter('ss-sizeDown', 'ss-sizeDisplay', 'ss-sizeUp', p.size)),
+    row('Typeface', renderFontPickerHTML('ss-font', p.font)),
+    row('Margins', seg('ss-margin', 'data-margin', [['fine','Fine'],['narrow','Narrow'],['normal','Normal'],['wide','Wide']], p.margin)),
+    row('Line spacing', counter('ss-lhDown', 'ss-lhDisplay', 'ss-lhUp', p.lineHeight.toFixed(1))),
+    row('Paragraphs', seg('ss-para', 'data-para', [['indent','Indented'],['spaced','Spaced'],['both','Both']], p.paraSpacing)),
+    row('Alignment', seg('ss-align', 'data-align', [['justify','Justify'],['left','Left']], p.align)),
   ].join('');
 }
 
@@ -432,18 +444,6 @@ function wireReadTab(prefs, liveApply) {
       });
     }
   }
-
-  bindSlider('ss-brightness', (v) => {
-    prefs.data.brightness = v / 100;
-    prefs.save();
-    if (liveApply) liveApply('brightness', prefs.data.brightness, false);
-  }, true);
-
-  bindSlider('ss-warmth', (v) => {
-    prefs.data.warmth = v / 100;
-    prefs.save();
-    if (liveApply) liveApply('warmth', prefs.data.warmth, false);
-  }, true);
 
   bindCounter('ss-sizeDown', 'ss-sizeUp', 'ss-sizeDisplay',
     () => prefs.data.size,
@@ -621,19 +621,15 @@ function wireSpeedTab(prefs, liveApply) {
 
 function listenTabHTML(p) {
   return [
-    section('Appearance'),
-    row('Brightness', slider('ss-tts-brightness', 30, 100, Math.round((p.brightness || 1) * 100))),
-    row('Warmth', slider('ss-tts-warmth', 0, 100, Math.round((p.warmth || 0) * 100))),
-    row('Text size', counter('ss-tts-sizeDown', 'ss-tts-sizeDisplay', 'ss-tts-sizeUp', p.size)),
-    row('Typeface', renderFontPickerHTML('ss-tts-font', p.font)),
-
-    section('Layout'),
-    row('Margins', seg('ss-tts-margin', 'data-margin', [['fine','Fine'],['narrow','Narrow'],['normal','Normal'],['wide','Wide']], p.margin || 'normal')),
-    row('Line spacing', counter('ss-tts-lhDown', 'ss-tts-lhDisplay', 'ss-tts-lhUp', p.lineHeight.toFixed(1))),
-
     section('Playback'),
     row('Highlight', seg('ss-tts-hl', 'data-hl', [['word','Word'],['sentence','Sentence'],['paragraph','Para'],['off','Off']], p.highlightMode || 'sentence')),
     toggleRow('ss-tts-autoScroll', 'Auto-scroll to highlighted text', p.autoScroll !== false),
+
+    section('Typography'),
+    row('Text size', counter('ss-tts-sizeDown', 'ss-tts-sizeDisplay', 'ss-tts-sizeUp', p.size)),
+    row('Typeface', renderFontPickerHTML('ss-tts-font', p.font)),
+    row('Margins', seg('ss-tts-margin', 'data-margin', [['fine','Fine'],['narrow','Narrow'],['normal','Normal'],['wide','Wide']], p.margin || 'normal')),
+    row('Line spacing', counter('ss-tts-lhDown', 'ss-tts-lhDisplay', 'ss-tts-lhUp', p.lineHeight.toFixed(1))),
   ].join('');
 }
 
@@ -651,16 +647,6 @@ function wireListenTab(prefs, liveApply) {
   wireSeg('ss-tts-hl', 'data-hl', (val) => {
     prefs.data.highlightMode = val; prefs.save();
     if (liveApply) liveApply('highlightMode', val);
-  });
-
-  bindSlider('ss-tts-brightness', (v) => {
-    prefs.data.brightness = v / 100; prefs.save();
-    if (liveApply) liveApply('brightness', prefs.data.brightness);
-  });
-
-  bindSlider('ss-tts-warmth', (v) => {
-    prefs.data.warmth = v / 100; prefs.save();
-    if (liveApply) liveApply('warmth', prefs.data.warmth);
   });
 
   bindCounter('ss-tts-sizeDown', 'ss-tts-sizeUp', 'ss-tts-sizeDisplay',

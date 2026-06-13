@@ -99,6 +99,9 @@ export function init(options = {}) {
     panelBlue:    document.getElementById("panelBlue"),
     panelPurple:  document.getElementById("panelPurple"),
     drawerHandle: document.getElementById("drawerHandle"),
+    // Comfort overlay
+    comfortDim:   document.getElementById("comfortDim"),
+    comfortWarm:  document.getElementById("comfortWarm"),
     // File
     fileInput: document.getElementById("fileInput"),
   };
@@ -448,6 +451,7 @@ export function init(options = {}) {
           generalPrefs.data[key] = value;
           if (key === 'theme') applyTheme(value);
           applyBgSettings(generalPrefs);
+          applyComfortOverlay();
         },
         onRsvpChange: onRsvpSettingChange,
       });
@@ -703,8 +707,15 @@ export function init(options = {}) {
   }
 
   // ---------- Apply saved prefs ----------
+  function applyComfortOverlay() {
+    const gp = generalPrefs.data;
+    if (els.comfortDim)  els.comfortDim.style.opacity  = String(1 - (gp.brightness || 1));
+    if (els.comfortWarm) els.comfortWarm.style.opacity = String(gp.warmth || 0);
+  }
+
   applyTheme(generalPrefs.data.theme);
   applyBgSettings(generalPrefs);
+  applyComfortOverlay();
   applyFont(prefs.data.font);
   document.documentElement.style.setProperty("--word-size", prefs.data.fontSize + "px");
 
