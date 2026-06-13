@@ -1,19 +1,137 @@
 /* Shared CSS custom properties, themes, and reset */
 
-@font-face {
-  font-family: 'OpenDyslexic';
-  src: url('../fonts/OpenDyslexic-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'OpenDyslexic';
-  src: url('../fonts/OpenDyslexic-Bold.woff2') format('woff2');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
+/* ── Alegreya ─────────────────────────────────────────────────────────────── */
+@font-face { font-family: 'Alegreya'; src: url('../fonts/Alegreya-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Alegreya'; src: url('../fonts/Alegreya-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Alegreya'; src: url('../fonts/Alegreya-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Andika ───────────────────────────────────────────────────────────────── */
+@font-face { font-family: 'Andika'; src: url('../fonts/Andika-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Andika'; src: url('../fonts/Andika-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Atkinson Hyperlegible ────────────────────────────────────────────────── */
+@font-face { font-family: 'Atkinson Hyperlegible'; src: url('../fonts/AtkinsonHyperlegible-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Atkinson Hyperlegible'; src: url('../fonts/AtkinsonHyperlegible-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Atkinson Hyperlegible'; src: url('../fonts/AtkinsonHyperlegible-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Bitter ───────────────────────────────────────────────────────────────── */
+@font-face { font-family: 'Bitter'; src: url('../fonts/Bitter-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Bitter'; src: url('../fonts/Bitter-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Bookman (URW) ────────────────────────────────────────────────────────── */
+@font-face { font-family: 'URW Bookman'; src: url('../fonts/URWBookman-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'URW Bookman'; src: url('../fonts/URWBookman-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'URW Bookman'; src: url('../fonts/URWBookman-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Comic Neue (free Comic Sans twin) ────────────────────────────────────── */
+@font-face { font-family: 'Comic Neue'; src: url('../fonts/ComicNeue-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Comic Neue'; src: url('../fonts/ComicNeue-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Comic Neue'; src: url('../fonts/ComicNeue-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Crimson Pro ──────────────────────────────────────────────────────────── */
+@font-face { font-family: 'Crimson Pro'; src: url('../fonts/CrimsonPro-Regular.woff2')  format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Crimson Pro'; src: url('../fonts/CrimsonPro-Italic.woff2')   format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Crimson Pro'; src: url('../fonts/CrimsonPro-SemiBold.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+
+/* ── EB Garamond ──────────────────────────────────────────────────────────── */
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Inconsolata ──────────────────────────────────────────────────────────── */
+@font-face { font-family: 'Inconsolata'; src: url('../fonts/Inconsolata-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inconsolata'; src: url('../fonts/Inconsolata-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── JetBrains Mono ───────────────────────────────────────────────────────── */
+@font-face { font-family: 'JetBrains Mono'; src: url('../fonts/JetBrainsMono-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'JetBrains Mono'; src: url('../fonts/JetBrainsMono-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Lato ─────────────────────────────────────────────────────────────────── */
+@font-face { font-family: 'Lato'; src: url('../fonts/Lato-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Lato'; src: url('../fonts/Lato-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Lato'; src: url('../fonts/Lato-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Lexend ───────────────────────────────────────────────────────────────── */
+@font-face { font-family: 'Lexend'; src: url('../fonts/Lexend-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Lexend'; src: url('../fonts/Lexend-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Libre Baskerville ────────────────────────────────────────────────────── */
+@font-face { font-family: 'Libre Baskerville'; src: url('../fonts/LibreBaskerville-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Libre Baskerville'; src: url('../fonts/LibreBaskerville-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Libre Baskerville'; src: url('../fonts/LibreBaskerville-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Libre Caslon Text ────────────────────────────────────────────────────── */
+@font-face { font-family: 'Libre Caslon Text'; src: url('../fonts/LibreCaslonText-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Libre Caslon Text'; src: url('../fonts/LibreCaslonText-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Libre Caslon Text'; src: url('../fonts/LibreCaslonText-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Literata ─────────────────────────────────────────────────────────────── */
+@font-face { font-family: 'Literata'; src: url('../fonts/Literata-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Literata'; src: url('../fonts/Literata-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Literata'; src: url('../fonts/Literata-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Lora ─────────────────────────────────────────────────────────────────── */
+@font-face { font-family: 'Lora'; src: url('../fonts/Lora-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Lora'; src: url('../fonts/Lora-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Lora'; src: url('../fonts/Lora-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Lobster (here be dragons) ────────────────────────────────────────────── */
+@font-face { font-family: 'Lobster'; src: url('../fonts/Lobster-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+
+/* ── Merriweather ─────────────────────────────────────────────────────────── */
+@font-face { font-family: 'Merriweather'; src: url('../fonts/Merriweather-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Merriweather'; src: url('../fonts/Merriweather-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Merriweather'; src: url('../fonts/Merriweather-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Noto Serif ───────────────────────────────────────────────────────────── */
+@font-face { font-family: 'Noto Serif'; src: url('../fonts/NotoSerif-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Noto Serif'; src: url('../fonts/NotoSerif-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Noto Serif'; src: url('../fonts/NotoSerif-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Nunito ───────────────────────────────────────────────────────────────── */
+@font-face { font-family: 'Nunito'; src: url('../fonts/Nunito-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Nunito'; src: url('../fonts/Nunito-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── OpenDyslexic ─────────────────────────────────────────────────────────── */
+@font-face { font-family: 'OpenDyslexic'; src: url('../fonts/OpenDyslexic-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'OpenDyslexic'; src: url('../fonts/OpenDyslexic-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Open Sans ────────────────────────────────────────────────────────────── */
+@font-face { font-family: 'Open Sans'; src: url('../fonts/OpenSans-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Open Sans'; src: url('../fonts/OpenSans-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Open Sans'; src: url('../fonts/OpenSans-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Pacifico (also here be dragons) ──────────────────────────────────────── */
+@font-face { font-family: 'Pacifico'; src: url('../fonts/Pacifico-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+
+/* ── PT Serif ─────────────────────────────────────────────────────────────── */
+@font-face { font-family: 'PT Serif'; src: url('../fonts/PTSerif-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'PT Serif'; src: url('../fonts/PTSerif-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'PT Serif'; src: url('../fonts/PTSerif-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Source Code Pro ──────────────────────────────────────────────────────── */
+@font-face { font-family: 'Source Code Pro'; src: url('../fonts/SourceCodePro-Regular.woff2')  format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Source Code Pro'; src: url('../fonts/SourceCodePro-SemiBold.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+
+/* ── Source Sans 3 ────────────────────────────────────────────────────────── */
+@font-face { font-family: 'Source Sans 3'; src: url('../fonts/SourceSans3-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Source Sans 3'; src: url('../fonts/SourceSans3-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Source Sans 3'; src: url('../fonts/SourceSans3-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Source Serif 4 ───────────────────────────────────────────────────────── */
+@font-face { font-family: 'Source Serif 4'; src: url('../fonts/SourceSerif4-Regular.woff2')  format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Source Serif 4'; src: url('../fonts/SourceSerif4-Italic.woff2')   format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Source Serif 4'; src: url('../fonts/SourceSerif4-SemiBold.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+
+/* ── Spectral ─────────────────────────────────────────────────────────────── */
+@font-face { font-family: 'Spectral'; src: url('../fonts/Spectral-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Spectral'; src: url('../fonts/Spectral-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Spectral'; src: url('../fonts/Spectral-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ── Vollkorn ─────────────────────────────────────────────────────────────── */
+@font-face { font-family: 'Vollkorn'; src: url('../fonts/Vollkorn-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Vollkorn'; src: url('../fonts/Vollkorn-Italic.woff2')  format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Vollkorn'; src: url('../fonts/Vollkorn-Bold.woff2')    format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
 
 :root {
   --bg: #1a1a1a;

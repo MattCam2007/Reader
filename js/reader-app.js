@@ -1,4 +1,5 @@
 import { FONT_MAP, FONT_SERIF, RESIZE_DEBOUNCE_MS, GENERAL_DEFAULTS, WINDOW_MIN_WORDS, MIN_SIZE, MAX_SIZE } from './core/constants.js';
+import { mountFontPicker, fontPickerItemsHTML } from './shared/font-picker.js';
 import { applyTheme, applyOsThemeFallback, applyBgSettings } from './base-reader-app.js';
 import { openSettingsScreen, closeSettingsScreen, isSettingsScreenOpen } from './settings/settings-screen.js';
 import { BookmarkManager } from './core/bookmarks.js';
@@ -79,10 +80,14 @@ export function init(options = {}) {
     qdLhUp:        document.getElementById("qdLhUp"),
     qdLhVal:       document.getElementById("qdLhVal"),
     qdParaSeg:     document.getElementById("qdParaSeg"),
-    qdFontSeg:     document.getElementById("qdFontSeg"),
+    qdFontPicker:  document.getElementById("qdFontPicker"),
     qdMarginSeg:   document.getElementById("qdMarginSeg"),
     qdAlignSeg:    document.getElementById("qdAlignSeg"),
   };
+
+  // Quick-drawer font picker handle (panel populated + mounted below, once
+  // prefs is in scope so the list reflects the saved font).
+  let qdFontHandle = null;
 
   // ---------- State & Prefs ----------
   const prefs = new PrefsManager();
@@ -644,11 +649,7 @@ export function init(options = {}) {
         btn.classList.toggle('is-active', btn.dataset.para === p.paraSpacing);
       });
     }
-    if (els.qdFontSeg) {
-      els.qdFontSeg.querySelectorAll('[data-font]').forEach(btn => {
-        btn.classList.toggle('is-active', btn.dataset.font === (p.font || 'serif'));
-      });
-    }
+    if (qdFontHandle) qdFontHandle.update(p.font || 'serif');
     if (els.qdMarginSeg) {
       els.qdMarginSeg.querySelectorAll('[data-margin]').forEach(btn => {
         btn.classList.toggle('is-active', btn.dataset.margin === (p.margin || 'normal'));
@@ -1137,13 +1138,13 @@ export function init(options = {}) {
       applyPrefAndRelayout();
     }, { signal });
   }
-  if (els.qdFontSeg) {
-    els.qdFontSeg.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-font]');
-      if (!btn) return;
-      prefs.data.font = btn.dataset.font; prefs.save();
+  if (els.qdFontPicker) {
+    const panel = els.qdFontPicker.querySelector('.font-picker-panel');
+    if (panel) panel.innerHTML = fontPickerItemsHTML(prefs.data.font || 'serif');
+    qdFontHandle = mountFontPicker(els.qdFontPicker, (key) => {
+      prefs.data.font = key; prefs.save();
       applyPrefAndRelayout();
-    }, { signal });
+    });
   }
   if (els.qdMarginSeg) {
     els.qdMarginSeg.addEventListener('click', (e) => {

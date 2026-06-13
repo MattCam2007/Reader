@@ -1,6 +1,7 @@
 /* RSVP Speed Reader styles */
 @import 'tokens.css';
 @import 'components/picker.css';
+@import 'components/font-dropdown.css';
 
 /* ===== Layout ===== */
 body.rsvp {

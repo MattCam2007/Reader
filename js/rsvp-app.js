@@ -216,19 +216,10 @@ export function init(options = {}) {
   bus.on('themeChange', applyTheme);
 
   // ---------- Font ----------
-  const FONT_STACKS = {
-    sans: FONT_MAP.sans,
-    serif: FONT_MAP.serif,
-    mono: FONT_MONO,
-    dyslexic: FONT_MAP.dyslexic,
-  };
-
   function applyFont(name) {
-    document.documentElement.style.setProperty("--word-font", FONT_STACKS[name] || FONT_STACKS.mono);
+    document.documentElement.style.setProperty("--word-font", FONT_MAP[name] || FONT_MONO);
     prefs.data.font = name;
     prefs.save();
-    document.querySelectorAll("[data-font]").forEach(b =>
-      b.classList.toggle("is-active", b.dataset.font === name));
   }
   bus.on('fontChange', applyFont);
 
