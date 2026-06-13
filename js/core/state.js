@@ -20,6 +20,16 @@ export class ReaderState {
     this.curChap = 0;        // index of the currently-attached chapter
     this.sectionLabels = []; // per-section heading label, for windowed progress
 
+    // Last stable paginated reading anchor (a canonical position) — the first
+    // word on screen, captured while the layout was intact. A viewport resize
+    // (mobile address bar collapsing, rotation, entering/leaving the "extended"
+    // chrome-hidden view) reflows the DOM *before* its resize event fires, so by
+    // the time relayout() runs the page number is stale and re-reading the
+    // position lands several pages off. relayout() restores this cached anchor
+    // instead. Scroll mode reads its position from live scrollTop (correct across
+    // a reflow), so it is left null there. See reader-app relayout()/savePosMain().
+    this._lastPos = null;
+
     // Whole-book page counts (windowed mode only). Measured lazily by PageCounter
     // during idle time and cached in localStorage keyed by layout signature so
     // the exact numbers are available instantly on subsequent loads with the same

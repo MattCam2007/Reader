@@ -145,7 +145,17 @@ export function init(options = {}) {
       currentLocator(state, els.content, els.viewport, (wi) => toLocator(state, wi)));
   }
   function buildChapterIndexFn() { buildChapterIndex(state, els.content); }
-  function savePosMain() { storage.savePos(getCanonicalPosition); }
+  function savePosMain() {
+    storage.savePos(() => {
+      const pos = getCanonicalPosition();
+      // Cache the anchor while the layout is intact. The debounced save only runs
+      // once the reader pauses, so this records the first word on screen at a
+      // stable moment — what relayout() restores after a viewport resize reflows
+      // the DOM out from under a now-stale page number. See relayout().
+      if (pos && !state.isScrollMode) state._lastPos = pos;
+      return pos;
+    });
+  }
   function updateProgressFn() {
     // The resume highlight lives until the page changes away from where it was set.
     if (state._resumeHlActive && !state.isScrollMode && state.page !== state._resumeHlPage) {
@@ -666,9 +676,17 @@ export function init(options = {}) {
   // as-is.
   function relayout(savedPos) {
     if (!state.docModelBuilt) return;
+    // For a self-captured relayout (resize / fullscreen toggle, savedPos ===
+    // undefined) in a paginated layout, restore the cached anchor rather than
+    // reading the position now: a viewport resize has already reflowed the DOM
+    // while state.page still describes the old layout, so re-deriving the anchor
+    // here jumps several pages. Scroll mode reads its position from live scrollTop
+    // (still correct after a reflow), so it keeps capturing fresh.
     const pos = savedPos !== undefined
       ? savedPos
-      : (state.doc.words.length ? getCanonicalPosition() : null);
+      : (state.doc.words.length
+          ? ((!state.isScrollMode && state._lastPos) ? state._lastPos : getCanonicalPosition())
+          : null);
     if (shouldWindow()) {
       if (!state.windowed) { pagination.setupWindow(state.curChap || 0); state.windowed = true; }
       pagination.paginateWindow(false);
@@ -683,6 +701,11 @@ export function init(options = {}) {
       pagination.paginate(false);
     }
     if (pos) applyCanonicalPosition(pos);
+    // Pin the cached anchor to the word we just restored, so a follow-up relayout
+    // (a second font tweak, a rotation right after another) preserves the SAME
+    // first word instead of re-reading from a stale page number in the window
+    // before the next debounced save refreshes it.
+    if (pos && !state.isScrollMode) state._lastPos = pos;
     // Marker dots are positioned against the live layout; a relayout (resize,
     // font/spacing change, mode switch) moves them even when the bookmark set is
     // unchanged. Paginated turns refresh via goTo->updateProgressFn, but a scroll
