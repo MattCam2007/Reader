@@ -375,9 +375,8 @@ function wireReadTab(prefs, liveApply) {
   for (const s of SEGS) {
     const el = byId(s.id);
     if (!el) continue;
-    el.addEventListener('click', (e) => {
-      const btn = e.target.closest(`[${s.attr}]`);
-      if (!btn) return;
+
+    const applyVal = (btn) => {
       const raw = btn.getAttribute(s.attr);
       const val = s.xform ? s.xform(raw) : raw;
       prefs.data[s.pref] = val;
@@ -388,14 +387,39 @@ function wireReadTab(prefs, liveApply) {
         b.setAttribute('aria-pressed', String(active));
       });
       if (liveApply) liveApply(s.pref, val, s.repag);
-    });
+    };
+
     if (s.preview) {
+      let _timer = null;
+      let _appliedByPointer = false;
+
       el.addEventListener('pointerdown', (e) => {
-        if (e.target.closest(`[${s.attr}]`)) _startPreview();
+        const btn = e.target.closest(`[${s.attr}]`);
+        if (!btn) return;
+        applyVal(btn);
+        _appliedByPointer = true;
+        clearTimeout(_timer);
+        _timer = setTimeout(() => { _timer = null; _startPreview(); }, 500);
       });
-      el.addEventListener('pointerup', _endPreview);
-      el.addEventListener('pointercancel', _endPreview);
-      el.addEventListener('pointerleave', _endPreview);
+
+      const _cancel = () => {
+        clearTimeout(_timer);
+        _timer = null;
+        _endPreview();
+      };
+      el.addEventListener('pointerup', _cancel);
+      el.addEventListener('pointercancel', _cancel);
+
+      el.addEventListener('click', (e) => {
+        if (_appliedByPointer) { _appliedByPointer = false; return; }
+        const btn = e.target.closest(`[${s.attr}]`);
+        if (btn) applyVal(btn);
+      });
+    } else {
+      el.addEventListener('click', (e) => {
+        const btn = e.target.closest(`[${s.attr}]`);
+        if (btn) applyVal(btn);
+      });
     }
   }
 
@@ -651,9 +675,8 @@ function wireListenTab(prefs, liveApply) {
 function wireSeg(id, attr, onChange, enablePreview) {
   const el = byId(id);
   if (!el) return;
-  el.addEventListener('click', (e) => {
-    const btn = e.target.closest(`[${attr}]`);
-    if (!btn) return;
+
+  function applyVal(btn) {
     const val = btn.getAttribute(attr);
     el.querySelectorAll('.reader-seg-btn').forEach(b => {
       const active = b.getAttribute(attr) === val;
@@ -661,14 +684,40 @@ function wireSeg(id, attr, onChange, enablePreview) {
       b.setAttribute('aria-pressed', String(active));
     });
     onChange(val);
-  });
+  }
+
   if (enablePreview) {
+    let _timer = null;
+    let _appliedByPointer = false;
+
     el.addEventListener('pointerdown', (e) => {
-      if (e.target.closest(`[${attr}]`)) _startPreview();
+      const btn = e.target.closest(`[${attr}]`);
+      if (!btn) return;
+      applyVal(btn);
+      _appliedByPointer = true;
+      clearTimeout(_timer);
+      _timer = setTimeout(() => { _timer = null; _startPreview(); }, 500);
     });
-    el.addEventListener('pointerup', _endPreview);
-    el.addEventListener('pointercancel', _endPreview);
-    el.addEventListener('pointerleave', _endPreview);
+
+    const _cancel = () => {
+      clearTimeout(_timer);
+      _timer = null;
+      _endPreview();
+    };
+    el.addEventListener('pointerup', _cancel);
+    el.addEventListener('pointercancel', _cancel);
+
+    // Keyboard/programmatic click fallback — skip if already applied via pointer
+    el.addEventListener('click', (e) => {
+      if (_appliedByPointer) { _appliedByPointer = false; return; }
+      const btn = e.target.closest(`[${attr}]`);
+      if (btn) applyVal(btn);
+    });
+  } else {
+    el.addEventListener('click', (e) => {
+      const btn = e.target.closest(`[${attr}]`);
+      if (btn) applyVal(btn);
+    });
   }
 }
 
