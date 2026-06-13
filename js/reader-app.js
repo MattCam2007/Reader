@@ -70,6 +70,7 @@ export function init(options = {}) {
     bookMenu:      document.getElementById("bookMenu"),
     topbar:        document.getElementById("topbar"),
     bottombar:     document.getElementById("bottombar"),
+    readerQuickDrawer:  document.getElementById("readerQuickDrawer"),
     readerDrawerHandle: document.getElementById("readerDrawerHandle"),
     readerQuickPanel:   document.getElementById("readerQuickPanel"),
     qdSizeDown:    document.getElementById("qdSizeDown"),
@@ -79,7 +80,9 @@ export function init(options = {}) {
     qdLhUp:        document.getElementById("qdLhUp"),
     qdLhVal:       document.getElementById("qdLhVal"),
     qdParaSeg:     document.getElementById("qdParaSeg"),
-    qdBrightness:  document.getElementById("qdBrightness"),
+    qdFontSeg:     document.getElementById("qdFontSeg"),
+    qdMarginSeg:   document.getElementById("qdMarginSeg"),
+    qdAlignSeg:    document.getElementById("qdAlignSeg"),
   };
 
   // ---------- State & Prefs ----------
@@ -501,6 +504,7 @@ export function init(options = {}) {
     document.body.classList.remove("show-toc", "show-search", "show-bookmarks");
     search.clearHighlights();
     updateAriaExpanded();
+    if (prefs.data.quickDrawerOpen) applyQuickDrawerOpen(false);
     if (_lastPanelTrigger) {
       _lastPanelTrigger.focus();
       _lastPanelTrigger = null;
@@ -553,7 +557,13 @@ export function init(options = {}) {
 
   // ---------- Input ----------
   const input = new InputHandler(state, els, pagination, {
-    toggleChrome: () => chrome.toggle(),
+    toggleChrome: () => {
+      if (prefs.data.quickDrawerOpen) {
+        applyQuickDrawerOpen(false);
+      } else {
+        chrome.toggle();
+      }
+    },
     dismissCoach,
     closePanels,
     dismissSelBar: () => selection.dismiss(),
@@ -628,10 +638,24 @@ export function init(options = {}) {
     // Sync quick drawer display values
     if (els.qdSizeVal)    els.qdSizeVal.textContent = String(p.size);
     if (els.qdLhVal)      els.qdLhVal.textContent = Number(p.lineHeight).toFixed(1);
-    if (els.qdBrightness) els.qdBrightness.value = String(Math.round((p.brightness || 1) * 100));
     if (els.qdParaSeg) {
       els.qdParaSeg.querySelectorAll('[data-para]').forEach(btn => {
         btn.classList.toggle('is-active', btn.dataset.para === p.paraSpacing);
+      });
+    }
+    if (els.qdFontSeg) {
+      els.qdFontSeg.querySelectorAll('[data-font]').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.font === (p.font || 'serif'));
+      });
+    }
+    if (els.qdMarginSeg) {
+      els.qdMarginSeg.querySelectorAll('[data-margin]').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.margin === (p.margin || 'normal'));
+      });
+    }
+    if (els.qdAlignSeg) {
+      els.qdAlignSeg.querySelectorAll('[data-align]').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.align === (p.align || 'justify'));
       });
     }
   }
@@ -998,6 +1022,8 @@ export function init(options = {}) {
   els.backdrop.addEventListener("click", () => { closePanels(); closeSettingsScreen(); }, { signal });
 
   // ---------- Reader quick drawer ----------
+  let _floatingDrawerH = null; // remembers user-set height within session
+
   function applyQuickDrawerOpen(open) {
     if (els.readerQuickPanel) {
       els.readerQuickPanel.classList.toggle('is-collapsed', !open);
@@ -1005,14 +1031,72 @@ export function init(options = {}) {
     if (els.readerDrawerHandle) {
       els.readerDrawerHandle.setAttribute('aria-label', open ? 'Close quick settings' : 'Show quick settings');
     }
+    const drawer = els.readerQuickDrawer;
+    if (open) {
+      // Detach from the footer so the drawer isn't hidden by chrome-hidden's
+      // translateY(100%) transform. Append to #app (no transform ancestor)
+      // so position:fixed keeps it pinned at the bottom of the viewport.
+      if (drawer && !drawer.classList.contains('is-floating')) {
+        drawer.classList.add('is-floating');
+        document.getElementById('app').appendChild(drawer);
+      }
+      // Restore or set a default height for the resizable floating drawer.
+      const initH = _floatingDrawerH || Math.round(window.innerHeight * 0.55);
+      drawer.style.setProperty('--drawer-height', initH + 'px');
+      document.body.classList.add('chrome-hidden');
+      chrome.updateViewportScale();
+    } else {
+      // Save the current height so the next open restores it.
+      if (drawer && drawer.classList.contains('is-floating')) {
+        const h = parseInt(drawer.style.getPropertyValue('--drawer-height'), 10);
+        if (h > 0) _floatingDrawerH = h;
+        drawer.classList.remove('is-floating');
+        drawer.style.removeProperty('--drawer-height');
+        els.bottombar.insertAdjacentElement('afterbegin', drawer);
+      }
+      // Leave chrome-hidden intentionally: user is now in full-screen
+      // reading mode and can tap the content to bring chrome back.
+    }
     prefs.data.quickDrawerOpen = open;
     prefs.save();
   }
-  applyQuickDrawerOpen(prefs.data.quickDrawerOpen ?? false);
+  applyQuickDrawerOpen(false); // always start closed; open state after close is chrome-hidden
 
   if (els.readerDrawerHandle) {
+    let _dragStartY = null, _dragStartH = null, _didDrag = false;
+
+    els.readerDrawerHandle.addEventListener('pointerdown', (e) => {
+      if (!els.readerQuickDrawer?.classList.contains('is-floating')) return;
+      _dragStartY = e.clientY;
+      _dragStartH = parseInt(els.readerQuickDrawer.style.getPropertyValue('--drawer-height'), 10)
+                    || Math.round(window.innerHeight * 0.55);
+      _didDrag = false;
+      els.readerDrawerHandle.setPointerCapture(e.pointerId);
+    }, { signal });
+
+    els.readerDrawerHandle.addEventListener('pointermove', (e) => {
+      if (_dragStartY === null) return;
+      const dy = _dragStartY - e.clientY; // up = positive = taller
+      if (!_didDrag && Math.abs(dy) < 6) return;
+      _didDrag = true;
+      const minH = 64;
+      const maxH = Math.round(window.innerHeight * 0.92);
+      const newH = Math.min(Math.max(_dragStartH + dy, minH), maxH);
+      els.readerQuickDrawer.style.setProperty('--drawer-height', newH + 'px');
+    }, { signal });
+
+    els.readerDrawerHandle.addEventListener('pointerup', () => {
+      if (_didDrag) {
+        const h = parseInt(els.readerQuickDrawer.style.getPropertyValue('--drawer-height'), 10);
+        if (h > 0) _floatingDrawerH = h;
+      }
+      _dragStartY = null;
+      _dragStartH = null;
+    }, { signal });
+
     els.readerDrawerHandle.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (_didDrag) { _didDrag = false; return; }
       applyQuickDrawerOpen(!(prefs.data.quickDrawerOpen ?? false));
     }, { signal });
   }
@@ -1052,13 +1136,30 @@ export function init(options = {}) {
       applyPrefAndRelayout();
     }, { signal });
   }
-  if (els.qdBrightness) {
-    els.qdBrightness.addEventListener('input', () => {
-      prefs.data.brightness = parseInt(els.qdBrightness.value, 10) / 100;
-      prefs.save(); applyPrefs();
+  if (els.qdFontSeg) {
+    els.qdFontSeg.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-font]');
+      if (!btn) return;
+      prefs.data.font = btn.dataset.font; prefs.save();
+      applyPrefAndRelayout();
     }, { signal });
   }
-
+  if (els.qdMarginSeg) {
+    els.qdMarginSeg.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-margin]');
+      if (!btn) return;
+      prefs.data.margin = btn.dataset.margin; prefs.save();
+      applyPrefAndRelayout();
+    }, { signal });
+  }
+  if (els.qdAlignSeg) {
+    els.qdAlignSeg.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-align]');
+      if (!btn) return;
+      prefs.data.align = btn.dataset.align; prefs.save();
+      applyPrefAndRelayout();
+    }, { signal });
+  }
   // Book submenu
   if (els.bookBtn && els.bookMenu) {
     function closeBookMenu() {

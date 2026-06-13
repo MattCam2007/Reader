@@ -101,6 +101,34 @@ body.chrome-hidden .reader-bottombar { opacity: 0; transform: translateY(100%); 
   display: flex;
   flex-direction: column;
 }
+/* Detached from footer during preview — floats over chrome-hidden content */
+.reader-quick-drawer.is-floating {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 35;
+  background: var(--chrome-bg);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  height: var(--drawer-height, 55vh);
+  display: flex;
+  flex-direction: column;
+}
+.reader-quick-drawer.is-floating .reader-drawer-handle {
+  cursor: ns-resize;
+  touch-action: none;
+  flex-shrink: 0;
+}
+.reader-quick-drawer.is-floating .reader-quick-panel {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .reader-drawer-handle {
   display: flex;
   justify-content: center;
@@ -126,7 +154,7 @@ body.chrome-hidden .reader-bottombar { opacity: 0; transform: translateY(100%); 
 }
 .reader-quick-panel {
   overflow: hidden;
-  max-height: 300px;
+  max-height: 520px;
   transition: max-height 240ms ease;
 }
 .reader-quick-panel.is-collapsed {
