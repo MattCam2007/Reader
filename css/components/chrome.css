@@ -96,6 +96,25 @@ body.fs-active .reader-fullscreen-btn .fs-shrink-icon { display: block; }
 body.chrome-hidden .reader-topbar { opacity: 0; transform: translateY(-100%); pointer-events: none; }
 body.chrome-hidden .reader-bottombar { opacity: 0; transform: translateY(100%); pointer-events: none; }
 
+/* Drawer preview: hide topbar and non-drawer chrome so reading content is fully visible */
+body.drawer-preview .reader-topbar {
+  opacity: 0;
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+body.drawer-preview .reader-scrub {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  pointer-events: none;
+}
+body.drawer-preview .reader-toolbar {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* ===== Reader quick-settings drawer ===== */
 .reader-quick-drawer {
   display: flex;
@@ -191,6 +210,9 @@ body.chrome-hidden .reader-bottombar { opacity: 0; transform: translateY(100%); 
 
 .reader-scrub {
   padding: 0.7rem 1.25rem 0.15rem;
+  overflow: hidden;
+  max-height: 120px;
+  transition: max-height 220ms ease, opacity 220ms ease, padding-top 220ms ease, padding-bottom 220ms ease;
 }
 .reader-progress-label {
   margin-top: 0.05rem;
@@ -202,6 +224,9 @@ body.chrome-hidden .reader-bottombar { opacity: 0; transform: translateY(100%); 
 .reader-toolbar {
   display: flex;
   align-items: stretch;
+  overflow: hidden;
+  max-height: 80px;
+  transition: max-height 220ms ease, opacity 220ms ease;
 }
 .reader-tool {
   flex: 1 1 0;

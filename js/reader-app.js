@@ -501,6 +501,7 @@ export function init(options = {}) {
     document.body.classList.remove("show-toc", "show-search", "show-bookmarks");
     search.clearHighlights();
     updateAriaExpanded();
+    if (prefs.data.quickDrawerOpen) applyQuickDrawerOpen(false);
     if (_lastPanelTrigger) {
       _lastPanelTrigger.focus();
       _lastPanelTrigger = null;
@@ -553,7 +554,13 @@ export function init(options = {}) {
 
   // ---------- Input ----------
   const input = new InputHandler(state, els, pagination, {
-    toggleChrome: () => chrome.toggle(),
+    toggleChrome: () => {
+      if (document.body.classList.contains('drawer-preview')) {
+        applyQuickDrawerOpen(false);
+      } else {
+        chrome.toggle();
+      }
+    },
     dismissCoach,
     closePanels,
     dismissSelBar: () => selection.dismiss(),
@@ -1005,6 +1012,7 @@ export function init(options = {}) {
     if (els.readerDrawerHandle) {
       els.readerDrawerHandle.setAttribute('aria-label', open ? 'Close quick settings' : 'Show quick settings');
     }
+    document.body.classList.toggle('drawer-preview', open);
     prefs.data.quickDrawerOpen = open;
     prefs.save();
   }
