@@ -130,4 +130,6 @@ async function switchMode(targetMode, posInfo) {
 const fileInput = document.getElementById('fileInput');
 if (fileInput) fileInput.setAttribute('accept', acceptString());
 
-switchMode('read');
+const modeParam = urlParams.get('mode');
+const initialMode = modeParam === 'rsvp' ? 'rsvp' : modeParam === 'tts' ? 'tts' : 'read';
+switchMode(initialMode);
