@@ -5,6 +5,7 @@ import {
 } from '../core/constants.js';
 import * as perf from '../core/perf.js';
 import { isSettingsScreenOpen } from '../settings/settings-screen.js';
+import { wordRange } from '../model/geometry.js';
 
 function pinchDist(touches) {
   const dx = touches[1].clientX - touches[0].clientX;
@@ -49,6 +50,18 @@ export class InputHandler {
     // Double-tap to reset zoom
     this._lastTapTime = 0;
 
+    // Stylus (Pointer Events) state. A pen is handled on the pointer* layer; the
+    // touch* handlers below bail while a pen is in contact (_penActive) so the
+    // pen's touch-compatibility events never turn the page. With penTurnsPage off
+    // (default) a pen selects words instead of navigating.
+    this._penActive = false;
+    this._penNavigating = false;
+    this._penAnchorWord = -1;
+    this._penStartX = 0;
+    this._penStartY = 0;
+    this._penStartT = 0;
+    this._penMoved = false;
+
     // Fix zoom transform anchor at the top-left of contentClip so all math uses
     // a consistent origin. offsetLeft/Top give the natural (untransformed) position.
     if (els.contentClip) els.contentClip.style.transformOrigin = '0 0';
@@ -61,6 +74,7 @@ export class InputHandler {
     const signal = this._signal;
 
     viewport.addEventListener("touchstart", (e) => {
+      if (this._penActive) return; // pen is driving via the pointer* handlers
       // ── Two-finger pinch: start zoom ──────────────────────────────────────
       if (e.touches.length === 2 && !this.state.isScrollMode) {
         this._dragging = false;
@@ -108,6 +122,7 @@ export class InputHandler {
     }, { passive: true, signal });
 
     viewport.addEventListener("touchmove", (e) => {
+      if (this._penActive) return;
       // ── Pinch: update scale keeping the pinch centre fixed ────────────────
       if (this._pinching && e.touches.length >= 2) {
         e.preventDefault();
@@ -157,6 +172,7 @@ export class InputHandler {
     }, { passive: false, signal });
 
     viewport.addEventListener("touchend", (e) => {
+      if (this._penActive) return;
       // ── Pinch end ─────────────────────────────────────────────────────────
       if (this._pinching) {
         this._pinching = false;
@@ -206,11 +222,138 @@ export class InputHandler {
     }, { passive: true, signal });
 
     viewport.addEventListener("touchcancel", () => {
+      if (this._penActive) return;
       this._pinching = false;
       this._zoomPanning = false;
       this._dragging = false;
       this._decided = null;
     }, { passive: true, signal });
+
+    // ── Stylus (Pointer Events) ─────────────────────────────────────────────
+    // pointerdown fires before the compatibility touchstart, so setting
+    // _penActive here makes the touch* handlers above bail for this contact.
+    viewport.addEventListener("pointerdown", (e) => {
+      if (e.pointerType !== "pen") return;
+      this._penActive = true;
+      this._penNavigating = this._penTurnsPage();
+      this._penAnchorWord = -1;
+      this._penMoved = false;
+      this._penStartX = e.clientX;
+      this._penStartY = e.clientY;
+      this._penStartT = Date.now();
+      try { viewport.setPointerCapture(e.pointerId); } catch (_) {}
+
+      if (this._penNavigating) {
+        // Behave like a finger: arm the same drag state machine.
+        if (this.state.isScrollMode || this._zoomScale > 1) { this._dragging = false; return; }
+        const s = this.state;
+        const canSwipe = s.total > 1 ||
+          (s.windowed && s.chapWindows && (s.curChap > 0 || s.curChap < s.chapWindows.length - 1));
+        if (!canSwipe) return;
+        this._startX = e.clientX;
+        this._startY = e.clientY;
+        this._startT = Date.now();
+        this._baseTx = -(this.state.page * this.state.stride);
+        this._decided = null;
+        this._dragging = true;
+        return;
+      }
+
+      // Selection mode: anchor the word under the pen.
+      this._penAnchorWord = this._wordAtPoint(e.clientX, e.clientY);
+    }, { signal });
+
+    viewport.addEventListener("pointermove", (e) => {
+      if (e.pointerType !== "pen" || !this._penActive) return;
+
+      if (this._penNavigating) {
+        if (!this._dragging) return;
+        const dx = e.clientX - this._startX;
+        const dy = e.clientY - this._startY;
+        if (this._decided === null) {
+          if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) this._decided = "h";
+          else if (Math.abs(dy) > 12) this._decided = "v";
+        }
+        if (this._decided === "h") {
+          content.style.transition = "none";
+          e.preventDefault();
+          let tx = this._baseTx + dx;
+          const min = -((this.state.total - 1) * this.state.stride);
+          const max = 0;
+          if (tx > max) tx = max + (tx - max) * 0.3;
+          if (tx < min) tx = min + (tx - min) * 0.3;
+          content.style.setProperty("--page-offset", tx + "px");
+        }
+        return;
+      }
+
+      // Selection drag: extend a word-granular selection from the anchor.
+      const dx = e.clientX - this._penStartX;
+      const dy = e.clientY - this._penStartY;
+      if (!this._penMoved && Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      this._penMoved = true;
+      if (this._penAnchorWord < 0) this._penAnchorWord = this._wordAtPoint(e.clientX, e.clientY);
+      const focus = this._wordAtPoint(e.clientX, e.clientY);
+      if (this._penAnchorWord < 0 || focus < 0) return;
+      e.preventDefault();
+      this._selectWordRange(this._penAnchorWord, focus);
+    }, { passive: false, signal });
+
+    viewport.addEventListener("pointerup", (e) => {
+      if (e.pointerType !== "pen") return;
+      const wasActive = this._penActive;
+      this._penActive = false;
+      // Suppress the synthetic click that may follow (it would otherwise reach
+      // _handleTap and turn the page).
+      this._lastTouchEnd = Date.now();
+      try { viewport.releasePointerCapture(e.pointerId); } catch (_) {}
+      if (!wasActive) return;
+
+      if (this._penNavigating) {
+        this._penNavigating = false;
+        const wasDragging = this._dragging;
+        this._dragging = false;
+        const dx = e.clientX - this._startX;
+        const dy = e.clientY - this._startY;
+        if (wasDragging && this._decided === "h") {
+          const threshold = Math.min(SWIPE_THRESHOLD_MAX_PX, viewport.clientWidth * SWIPE_THRESHOLD_VP_FRACTION);
+          if (dx <= -threshold) perf.latencyToPaint("turn-latency", () => this.pagination.next(), { via: "pen", dir: "next" });
+          else if (dx >= threshold) perf.latencyToPaint("turn-latency", () => this.pagination.prev(), { via: "pen", dir: "prev" });
+          else this.pagination.goTo(this.state.page, true);
+        } else if (this._decided !== "v" && Math.abs(dx) < 10 && Math.abs(dy) < 10 && (Date.now() - this._startT) < TAP_TIMEOUT_MS) {
+          this._handleTap(e.clientX);
+        }
+        this._decided = null;
+        return;
+      }
+
+      // Selection mode. A tap (no drag) selects the single word under the pen.
+      if (!this._penMoved) {
+        const wi = this._penAnchorWord >= 0 ? this._penAnchorWord : this._wordAtPoint(e.clientX, e.clientY);
+        if (wi >= 0) this._selectWordRange(wi, wi);
+      }
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed) {
+        this.callbacks.showSelBar();
+      } else {
+        // Tap on empty space / between words: clear any standing selection.
+        if (sel) sel.removeAllRanges();
+        this.callbacks.dismissSelBar();
+        document.body.classList.remove("stylus-selecting");
+      }
+      this._penAnchorWord = -1;
+      this._penMoved = false;
+    }, { signal });
+
+    viewport.addEventListener("pointercancel", (e) => {
+      if (e.pointerType !== "pen") return;
+      this._penActive = false;
+      this._penNavigating = false;
+      this._dragging = false;
+      this._decided = null;
+      this._penAnchorWord = -1;
+      this._penMoved = false;
+    }, { signal });
 
     viewport.addEventListener("click", (e) => {
       if (Date.now() - this._lastTouchEnd < SYNTHETIC_CLICK_GUARD_MS) return;
@@ -258,6 +401,7 @@ export class InputHandler {
     if (sel && !sel.isCollapsed) {
       this.callbacks.dismissSelBar();
       sel.removeAllRanges();
+      document.body.classList.remove("stylus-selecting");
       return;
     }
     if (this.callbacks.activePopoverRef()) {
@@ -277,6 +421,61 @@ export class InputHandler {
     if (x < w * TAP_ZONE_LEFT) perf.latencyToPaint("turn-latency", () => this.pagination.prev(), { via: "tap", dir: "prev" });
     else if (x > w * TAP_ZONE_RIGHT) perf.latencyToPaint("turn-latency", () => this.pagination.next(), { via: "tap", dir: "next" });
     else this.callbacks.toggleChrome();
+  }
+
+  _penTurnsPage() {
+    return !!(this.state._prefs && this.state._prefs.data && this.state._prefs.data.penTurnsPage);
+  }
+
+  // Map a viewport point to a render-token (word) index, or -1. Uses the caret
+  // hit-test to find the text node + offset under the point, then resolves it
+  // against the doc model, scanning only the words in the containing block.
+  _wordAtPoint(x, y) {
+    const doc = this.state.doc;
+    if (!doc || !doc.words || !doc.words.length) return -1;
+    let node = null, offset = 0;
+    if (document.caretPositionFromPoint) {
+      const cp = document.caretPositionFromPoint(x, y);
+      if (cp) { node = cp.offsetNode; offset = cp.offset; }
+    } else if (document.caretRangeFromPoint) {
+      const r = document.caretRangeFromPoint(x, y);
+      if (r) { node = r.startContainer; offset = r.startOffset; }
+    }
+    if (!node || node.nodeType !== Node.TEXT_NODE) return -1;
+
+    // Bound the scan to the words in this block (O(words-in-block), not O(book)).
+    let lo = 0, hi = doc.words.length;
+    const blkEl = node.parentElement && node.parentElement.closest(".blk");
+    if (blkEl && doc.blocks) {
+      const bi = doc.blocks.findIndex(b => b.el === blkEl);
+      if (bi >= 0) { lo = doc.blocks[bi].wordStart; hi = doc.blocks[bi].wordEnd; }
+    }
+    let after = -1;
+    for (let i = lo; i < hi; i++) {
+      const w = doc.words[i];
+      if (w.node !== node) continue;
+      if (offset >= w.start && offset < w.end) return i;
+      if (offset === w.end) return i;            // on a word boundary → that word
+      if (after < 0 && w.start > offset) after = i; // first word past the point
+    }
+    return after;
+  }
+
+  // Set the window selection to span words [a..b] inclusive (order-independent),
+  // snapping both ends to word boundaries, and make it visible/selectable.
+  _selectWordRange(a, b) {
+    const lo = Math.min(a, b), hi = Math.max(a, b);
+    const r1 = wordRange(this.state, lo);
+    const r2 = wordRange(this.state, hi);
+    if (!r1 || !r2) return;
+    document.body.classList.add("stylus-selecting");
+    const range = document.createRange();
+    range.setStart(r1.startContainer, r1.startOffset);
+    range.setEnd(r2.endContainer, r2.endOffset);
+    const sel = window.getSelection();
+    if (!sel) return;
+    sel.removeAllRanges();
+    sel.addRange(range);
   }
 
   // Apply or clear the zoom transform on contentClip. When scale > 1 the clip's

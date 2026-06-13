@@ -365,6 +365,7 @@ function readTabHTML(p) {
     row('Images', seg('ss-images', 'data-images', [['true','On'],['false','Off']], String(p.images))),
     row('Note popovers', seg('ss-notepop', 'data-notepop', [['true','On'],['false','Off']], String(p.notePopovers))),
     row('Text selection', seg('ss-sel', 'data-sel', [['true','On'],['false','Off']], String(p.selection))),
+    row('Stylus turns page', seg('ss-pen', 'data-pen', [['false','Off'],['true','On']], String(p.penTurnsPage))),
 
     section('Typography'),
     row('Text size', counter('ss-sizeDown', 'ss-sizeDisplay', 'ss-sizeUp', p.size)),
@@ -392,6 +393,7 @@ function wireReadTab(prefs, liveApply) {
     { id: 'ss-images', attr: 'data-images', pref: 'images',       repag: true,  xform: v => v === 'true' },
     { id: 'ss-notepop',attr: 'data-notepop',pref: 'notePopovers', repag: false, xform: v => v === 'true' },
     { id: 'ss-sel',    attr: 'data-sel',    pref: 'selection',    repag: false, xform: v => v === 'true' },
+    { id: 'ss-pen',    attr: 'data-pen',    pref: 'penTurnsPage', repag: false, xform: v => v === 'true' },
   ];
 
   for (const s of SEGS) {

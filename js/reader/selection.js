@@ -19,6 +19,15 @@ export class SelectionManager {
     }, { signal: this._signal });
   }
 
+  // Show the bar immediately for the current selection, bypassing the
+  // `selection` pref and debounce. Used by the stylus path, where a pen tap/drag
+  // produces a selection that should always surface Copy/Define even when
+  // finger text-selection is turned off.
+  showNow() {
+    clearTimeout(this._timer);
+    this._show();
+  }
+
   _show() {
     this.dismiss();
     const sel = window.getSelection();

@@ -573,6 +573,7 @@ export function init(options = {}) {
     },
     closePanels,
     dismissSelBar: () => selection.dismiss(),
+    showSelBar: () => selection.showNow(),
     dismissNotePopover: () => footnotes.dismiss(),
     activePopoverRef: () => footnotes.activePopover,
   }, signal);

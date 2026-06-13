@@ -1,6 +1,7 @@
 /* Selection bar, search highlights */
 
-body.selection-on .reader-content {
+body.selection-on .reader-content,
+body.stylus-selecting .reader-content {
   user-select: text;
   -webkit-user-select: text;
 }
