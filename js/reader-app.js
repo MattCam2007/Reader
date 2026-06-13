@@ -83,7 +83,6 @@ export function init(options = {}) {
     qdFontSeg:     document.getElementById("qdFontSeg"),
     qdMarginSeg:   document.getElementById("qdMarginSeg"),
     qdAlignSeg:    document.getElementById("qdAlignSeg"),
-    qdBrightness:  document.getElementById("qdBrightness"),
   };
 
   // ---------- State & Prefs ----------
@@ -639,7 +638,6 @@ export function init(options = {}) {
     // Sync quick drawer display values
     if (els.qdSizeVal)    els.qdSizeVal.textContent = String(p.size);
     if (els.qdLhVal)      els.qdLhVal.textContent = Number(p.lineHeight).toFixed(1);
-    if (els.qdBrightness) els.qdBrightness.value = String(Math.round((p.brightness || 1) * 100));
     if (els.qdParaSeg) {
       els.qdParaSeg.querySelectorAll('[data-para]').forEach(btn => {
         btn.classList.toggle('is-active', btn.dataset.para === p.paraSpacing);
@@ -1162,13 +1160,6 @@ export function init(options = {}) {
       applyPrefAndRelayout();
     }, { signal });
   }
-  if (els.qdBrightness) {
-    els.qdBrightness.addEventListener('input', () => {
-      prefs.data.brightness = parseInt(els.qdBrightness.value, 10) / 100;
-      prefs.save(); applyPrefs();
-    }, { signal });
-  }
-
   // Book submenu
   if (els.bookBtn && els.bookMenu) {
     function closeBookMenu() {

@@ -88,12 +88,6 @@ export function readerTemplate() {
               </div>
             </div>
           </div>
-          <div class="reader-quick-row">
-            <div class="reader-quick-item reader-quick-item--wide">
-              <span class="reader-quick-label">Brightness</span>
-              <input class="reader-slider" id="qdBrightness" type="range" min="30" max="100" step="1" aria-label="Brightness">
-            </div>
-          </div>
         </div>
       </div>
     </div>
