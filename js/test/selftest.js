@@ -1,23 +1,36 @@
 import { wordRange, pageOfWord, wordAtPageStart } from '../model/geometry.js';
 import { toLocator, resolveLocator, exportTokens } from '../model/locator.js';
 import { deriveBookId, buildPosition, resolvePosition } from '../core/position.js';
-import { blocksFromDoc, sanitizeInline } from '../formats/epub/extractor.js';
+import { blocksFromDoc, sanitizeInline, safeAnchorHref } from '../formats/epub/extractor.js';
 import { EventBus } from '../core/events.js';
-import { FONT_MAP, SETTINGS, DEFAULT_PREFS } from '../core/constants.js';
+import { FONT_MAP, SETTINGS, DEFAULT_PREFS, EXTRACTABLE_BLOCK_TYPES, EXTRACTABLE_BLOCK_SELECTOR } from '../core/constants.js';
 import { PrefsManager } from '../core/prefs.js';
 import { buildDocModel } from '../model/doc-model.js';
 import { buildChapterIndex } from '../reader/chapters.js';
-import { countWords, splitWords } from '../core/book-session.js';
+import { countWords, splitWords, migrateBookKeys } from '../core/book-session.js';
+import { POS_KEY_PREFIX, saveStoredPosition, loadStoredPosition } from '../core/position.js';
+import { pruneLeastRecentPosition } from '../core/safe-storage.js';
+import { sentenceIndexForOrdinal } from '../tts/sentences.js';
+import { BOOKMARKS_KEY_PREFIX } from '../core/bookmarks.js';
 import { findHits, indexForOffset } from '../shared/search.js';
 import { renderSections, annotateInlineText } from '../shared/render.js';
 import { loadPageCache, savePageCache, PAGE_KEY_PREFIX } from '../core/page-cache.js';
+import { validateBookSrcUrl } from '../core/src-url.js';
+import {
+  checkArchiveEntry, isUnsafeArchivePath,
+  MAX_ARCHIVE_ENTRY_BYTES, MAX_ARCHIVE_TOTAL_BYTES,
+} from '../core/archive-guard.js';
 import { PageCounter } from '../reader/page-counter.js';
 import { makeCapabilities, FULL_CAPABILITIES, NO_CAPABILITIES, CAPABILITY_KEYS } from '../formats/capabilities.js';
 import { magicBytes, startsWith, ZIP_MAGIC } from '../formats/detect.js';
 import { listAdapters, getAdapterById, selectAdapter, acceptString } from '../formats/registry.js';
+import { MAX_PDF_PAGES } from '../formats/pdf/pdf-adapter.js';
 import '../formats/index.js'; // ensure adapters are registered for format tests
 
-export function runSelftest(state) {
+export function runSelftest(state, hooks) {
+  // Debug handle (selftest entry points only): lets a console / headless probe
+  // drive the same live-app closures the suite uses.
+  if (typeof window !== 'undefined') { window.__selftestState = state; window.__selftestHooks = hooks; }
   const results = [];
   const assert = (module, label, ok) => {
     results.push({ module, label, ok, display: (ok ? "PASS" : "FAIL") + ": [" + module + "] " + label });
@@ -153,6 +166,50 @@ export function runSelftest(state) {
     }
   }
 
+  // --- core/position: refineByText two-tier acceptance (A6) ---
+  {
+    // (a) Short-chapter case: a snippet with fewer than 2 real (normalisable)
+    // words cannot discriminate — the resolver must fall back cleanly to the
+    // numeric prediction, not assert a spurious match.
+    const tinyWords = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta', 'iota', 'kappa'];
+    const tinySecs = [{ href: 'c', wordStart: 0, wordCount: tinyWords.length }];
+    const tinyAt = (i) => tinyWords[i] || '';
+    const weakPos = { v: 1, href: 'c', wordInSec: 4, secWords: 10, ord: 4, words: 10, f: 4 / 9, t: ['—', '!!'] };
+    assert('position-refine', 'snippet with <2 real words falls back to numeric prediction',
+      resolvePosition(weakPos, tinySecs, tinyWords.length, tinyAt) === 4);
+    const onewordPos = { v: 1, href: 'c', wordInSec: 4, secWords: 10, ord: 4, words: 10, f: 4 / 9, t: ['beta', ''] };
+    assert('position-refine', 'snippet with 1 real word falls back to numeric prediction',
+      resolvePosition(onewordPos, tinySecs, tinyWords.length, tinyAt) === 4);
+
+    // (b) Verbatim-repeated passage (liturgical/boilerplate): the snippet
+    // matches perfectly in two places; the high tier must pick the copy
+    // nearest the numeric prediction.
+    const refrain = 'glory be to the father and to the son'.split(' ');
+    const filler = (n, tag) => Array.from({ length: n }, (_, i) => tag + i);
+    const repWords = [...filler(20, 'a'), ...refrain, ...filler(60, 'b'), ...refrain, ...filler(20, 'c')];
+    const repSecs = [{ href: 'r', wordStart: 0, wordCount: repWords.length }];
+    const repAt = (i) => repWords[i] || '';
+    const secondCopy = 20 + refrain.length + 60; // ordinal of the second refrain
+    const nearSecond = buildPosition(repSecs, repWords.length, secondCopy, repAt);
+    assert('position-refine', 'repeated passage resolves to the copy nearest the prediction',
+      resolvePosition(nearSecond, repSecs, repWords.length, repAt) === secondCopy);
+
+    // (c) The two-tier point: a PERFECT copy far away must not beat a
+    // near-perfect (>=80%) match at the predicted location. One word of the
+    // original was altered in place; the verbatim copy lives 100 words on.
+    const phrase = 'now is the winter of our discontent made'.split(' ');
+    const phraseNear = [...phrase.slice(0, 4), 'springtime', ...phrase.slice(5)]; // 7/8 match
+    const farWords = [...filler(10, 'x'), ...phraseNear, ...filler(100, 'y'), ...phrase, ...filler(10, 'z')];
+    const farSecs = [{ href: 'f', wordStart: 0, wordCount: farWords.length }];
+    const farAt = (i) => farWords[i] || '';
+    const nearOrd = 10; // where the altered phrase sits — and where we predict
+    const posAtNear = { v: 1, href: 'f', wordInSec: nearOrd, secWords: farWords.length,
+      ord: nearOrd, words: farWords.length, f: nearOrd / (farWords.length - 1),
+      t: phrase.map(w => w.toLowerCase()) };
+    assert('position-refine', 'near 7/8 match beats a verbatim copy 100 words away',
+      resolvePosition(posAtNear, farSecs, farWords.length, farAt) === nearOrd);
+  }
+
   // --- model/geometry ---
   if (doc.words.length > 0) {
     const range = wordRange(state, 0);
@@ -171,6 +228,48 @@ export function runSelftest(state) {
   assert("extractor", "sanitizeInline strips <script>", tempDiv.querySelector("script") === null);
   assert("extractor", "sanitizeInline keeps <a>", tempDiv.querySelector("a") !== null);
 
+  // --- epub/extractor: anchor href sanitisation (B1 — XSS via book anchors) ---
+  {
+    const dropped = [
+      'javascript:alert(1)',
+      'JaVaScRiPt:alert(1)',
+      ' javascript:alert(1)',
+      'java\nscript:alert(1)',          // URL parser strips \n — still javascript:
+      'java\tscript:alert(1)',
+      'javascript:alert(1)',
+      'data:text/html,<script>x</script>',
+      'vbscript:msgbox(1)',
+      '//evil.example.com/x',           // protocol-relative
+      'blob:https://x/y',
+      'file:///etc/passwd',
+    ];
+    assert('extractor', 'safeAnchorHref drops every dangerous scheme',
+      dropped.every(h => safeAnchorHref(h) === null));
+    const kept = ['#fn-12', 'chapter4.xhtml#anchor', '../text/ch01.xhtml',
+      'notes/note1.xhtml', 'http://example.com/a', 'https://example.com/a',
+      'foo/bar:baz.xhtml'];             // colon after a slash is not a scheme
+    assert('extractor', 'safeAnchorHref keeps fragments, relative paths, http(s)',
+      kept.every(h => safeAnchorHref(h) === h));
+    assert('extractor', 'safeAnchorHref empty/missing href drops',
+      safeAnchorHref('') === null && safeAnchorHref(null) === null && safeAnchorHref('   ') === null);
+
+    // End-to-end: a malicious fixture through sanitizeInline comes out inert.
+    const evil = document.createElement('div');
+    evil.innerHTML = '<a href="javascript:alert(1)">x</a><a href="#fn1">ok</a>';
+    // Build the second link's href via DOM to embed a real newline in the scheme.
+    const sneak = document.createElement('a');
+    sneak.setAttribute('href', 'java\nscript:alert(2)');
+    sneak.textContent = 'y';
+    evil.appendChild(sneak);
+    const out = document.createElement('div');
+    out.appendChild(sanitizeInline(evil));
+    const anchors = [...out.querySelectorAll('a')];
+    assert('extractor', 'sanitizeInline strips javascript: hrefs (fixture inert)',
+      anchors.length === 3 && !anchors[0].hasAttribute('href') && !anchors[2].hasAttribute('href'));
+    assert('extractor', 'sanitizeInline keeps the fragment href',
+      anchors[1].getAttribute('href') === '#fn1');
+  }
+
   // --- epub/extractor: blocksFromDoc ---
   const testDoc = document.createElement("div");
   testDoc.innerHTML = '<p>Hello world</p><h1>Title</h1><p>Paragraph</p>';
@@ -178,6 +277,138 @@ export function runSelftest(state) {
   assert("extractor", "blocksFromDoc returns blocks", blocks.length >= 2);
   assert("extractor", "blocksFromDoc has h1", blocks.some(b => b.type === "h1"));
   assert("extractor", "blocksFromDoc has p", blocks.some(b => b.type === "p"));
+
+  // --- core/src-url: ?src= fetch guard (B2) ---
+  {
+    const bad = ['javascript:alert(1)', 'data:text/plain,x', 'file:///etc/passwd',
+      'ftp://host/x.epub', 'blob:https://x/y', 'http://user:pass@host/x.epub',
+      'https://:secret@host/x.epub'];
+    assert('src-url', 'validateBookSrcUrl rejects non-http(s) and credential URLs',
+      bad.every(u => validateBookSrcUrl(u) === null));
+    assert('src-url', 'validateBookSrcUrl rejects empty/missing',
+      validateBookSrcUrl('') === null && validateBookSrcUrl(null) === null);
+    assert('src-url', 'validateBookSrcUrl accepts absolute https',
+      validateBookSrcUrl('https://example.com/b.epub') === 'https://example.com/b.epub');
+    // Same-origin relative library paths resolve against the page URL.
+    const rel = validateBookSrcUrl('books/Fiction/x.epub');
+    assert('src-url', 'validateBookSrcUrl resolves same-origin relative paths',
+      typeof rel === 'string' && rel.endsWith('/books/Fiction/x.epub'));
+  }
+
+  // --- tts/sentences: binary-search sentence lookup with floor semantics (A5) ---
+  {
+    const sents = [{ wordOffset: 0 }, { wordOffset: 5 }, { wordOffset: 12 }, { wordOffset: 30 }];
+    // Reference: the old linear scan ("last sentence whose offset <= ord").
+    const linear = (ord) => {
+      let idx = 0;
+      for (let i = 0; i < sents.length; i++) { if (sents[i].wordOffset <= ord) idx = i; else break; }
+      return idx;
+    };
+    let matches = true;
+    for (let ord = 0; ord <= 40; ord++) {
+      if (sentenceIndexForOrdinal(sents, ord) !== linear(ord)) { matches = false; break; }
+    }
+    assert('tts-sentences', 'binary search matches the linear reference for every ordinal', matches);
+    assert('tts-sentences', 'mid-sentence ordinal floors to the containing sentence (re-read, not skip)',
+      sentenceIndexForOrdinal(sents, 7) === 1 && sentenceIndexForOrdinal(sents, 29) === 2);
+    assert('tts-sentences', 'sentence-start ordinal maps to that sentence',
+      sentenceIndexForOrdinal(sents, 12) === 2);
+    assert('tts-sentences', 'past-the-end ordinal clamps to the last sentence',
+      sentenceIndexForOrdinal(sents, 9999) === 3);
+    assert('tts-sentences', 'empty sentence list returns 0',
+      sentenceIndexForOrdinal([], 5) === 0);
+  }
+
+  // --- core/safe-storage: quota pruning by last-accessed time (C3) ---
+  {
+    const ids = ['__st_old__', '__st_mid__', '__st_new__'];
+    const keys = ids.map(id => POS_KEY_PREFIX + id);
+    const cleanup = () => keys.forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });
+    cleanup();
+    localStorage.setItem(keys[0], JSON.stringify({ f: 0.1, la: 1000 }));
+    localStorage.setItem(keys[1], JSON.stringify({ f: 0.2, la: 2000 }));
+    localStorage.setItem(keys[2], JSON.stringify({ f: 0.3, la: 3000 }));
+    assert('safe-storage', 'prune removes the least-recently-read position',
+      pruneLeastRecentPosition(null) === true && localStorage.getItem(keys[0]) === null
+      && localStorage.getItem(keys[1]) !== null && localStorage.getItem(keys[2]) !== null);
+    // The key being written is never the victim, even when it is oldest.
+    assert('safe-storage', 'prune never evicts the key being written',
+      pruneLeastRecentPosition(keys[1]) === true && localStorage.getItem(keys[1]) !== null
+      && localStorage.getItem(keys[2]) === null);
+    cleanup();
+    // An entry without `la` (pre-update data) counts as oldest.
+    localStorage.setItem(keys[0], JSON.stringify({ f: 0.1 }));
+    localStorage.setItem(keys[1], JSON.stringify({ f: 0.2, la: 50 }));
+    pruneLeastRecentPosition(null);
+    assert('safe-storage', 'entries without la are pruned first',
+      localStorage.getItem(keys[0]) === null && localStorage.getItem(keys[1]) !== null);
+    cleanup();
+    // saveStoredPosition stamps last-accessed on every write.
+    saveStoredPosition(ids[0], { f: 0.5 });
+    const stamped = loadStoredPosition(ids[0]);
+    assert('safe-storage', 'saveStoredPosition stamps a lastAccessed timestamp',
+      !!stamped && typeof stamped.la === 'number' && Date.now() - stamped.la < 60_000);
+    cleanup();
+  }
+
+  // --- core/book-session: bookId hash migration (B5) ---
+  {
+    const oldId = '__selftest_mig__';
+    const newId = '__selftest_mig__:abcd1234';
+    const prefixes = [POS_KEY_PREFIX, PAGE_KEY_PREFIX, BOOKMARKS_KEY_PREFIX];
+    const cleanup = () => prefixes.forEach(p => {
+      try { localStorage.removeItem(p + oldId); localStorage.removeItem(p + newId); } catch (_) {}
+    });
+    cleanup();
+    // Seed data under the old (pre-hash) keys, as a pre-update session left it.
+    prefixes.forEach((p, i) => localStorage.setItem(p + oldId, 'v' + i));
+    migrateBookKeys(oldId, newId);
+    assert('book-id', 'migration moves every per-book key to the hashed id',
+      prefixes.every((p, i) => localStorage.getItem(p + newId) === 'v' + i));
+    assert('book-id', 'migration removes the old keys',
+      prefixes.every(p => localStorage.getItem(p + oldId) === null));
+    // A value already present under the new key must never be overwritten.
+    localStorage.setItem(POS_KEY_PREFIX + oldId, 'stale');
+    localStorage.setItem(POS_KEY_PREFIX + newId, 'current');
+    migrateBookKeys(oldId, newId);
+    assert('book-id', 'migration never overwrites existing data under the new id',
+      localStorage.getItem(POS_KEY_PREFIX + newId) === 'current');
+    assert('book-id', 'migration is a no-op for identical ids — keys intact',
+      (migrateBookKeys(oldId, oldId), localStorage.getItem(POS_KEY_PREFIX + oldId) === 'stale'));
+    cleanup();
+  }
+
+  // --- core/archive-guard: decompression limits (B3) ---
+  {
+    assert('archive-guard', 'isUnsafeArchivePath flags .. traversal',
+      ['../x.png', 'a/../x.png', 'a\\..\\x.png', '..'].every(isUnsafeArchivePath));
+    assert('archive-guard', 'isUnsafeArchivePath keeps normal names',
+      ['x.png', 'dir/x.png', 'my..file.png', 'a.b/c.png'].every(n => !isUnsafeArchivePath(n)));
+
+    const totals = { bytes: 0 };
+    let threw = null;
+    try { checkArchiveEntry('big.png', MAX_ARCHIVE_ENTRY_BYTES + 1, totals); } catch (e) { threw = e; }
+    assert('archive-guard', 'oversize entry throws a user-facing error',
+      threw instanceof Error && /too large/.test(threw.message));
+
+    // Entries at the per-entry limit accumulate to exactly the total cap…
+    const t2 = { bytes: 0 };
+    let threwTotal = null;
+    try {
+      const n = Math.floor(MAX_ARCHIVE_TOTAL_BYTES / MAX_ARCHIVE_ENTRY_BYTES);
+      for (let i = 0; i < n; i++) checkArchiveEntry('e' + i + '.png', MAX_ARCHIVE_ENTRY_BYTES, t2);
+    } catch (e) { threwTotal = e; }
+    assert('archive-guard', 'entries up to the total cap pass', threwTotal === null);
+    // …and the next entry crosses it.
+    try { checkArchiveEntry('over.png', 2, t2); } catch (e) { threwTotal = e; }
+    assert('archive-guard', 'running total cap throws on the entry that crosses it',
+      threwTotal instanceof Error && /too large/.test(threwTotal.message));
+
+    const okTotals = { bytes: 0 };
+    let safeOk = true;
+    try { checkArchiveEntry('ok.png', 1024, okTotals); } catch (_) { safeOk = false; }
+    assert('archive-guard', 'normal-size entries pass', safeOk && okTotals.bytes === 1024);
+  }
 
   // --- core/prefs ---
   {
@@ -337,6 +568,73 @@ export function runSelftest(state) {
       console.warn("chapters:selftest", e);
     } finally {
       document.body.removeChild(chapContent);
+    }
+  }
+
+  // --- block-types: the shared EXTRACTABLE_BLOCK_TYPES enumeration (A1) ---
+  // The Reader (doc-model walks all .blk), TTS (selector derived from the
+  // enumeration) and RSVP (type filter derived from it) must count identical
+  // words or cross-mode restores drift cumulatively. This converts that silent
+  // drift class into a test failure.
+  {
+    const figFrag = document.createDocumentFragment();
+    figFrag.appendChild(document.createElement('img'));
+    const figCap = document.createElement('figcaption');
+    figCap.textContent = 'A caption of five words';
+    figFrag.appendChild(figCap);
+    const synth = [
+      { href: 's1', blocks: [
+        { type: 'h1', text: 'Title Words Here' },
+        { type: 'p', text: 'One two three four five.' },
+        { type: 'blockquote', text: 'Quoted words, with punctuation!' },
+        { type: 'li', text: 'list item words' },
+      ] },
+      { href: 's2', blocks: [
+        { type: 'pre', text: 'preformatted code words' },
+        { type: 'table-wrap', text: 'cell one cell two' },
+        { type: 'figure', text: 'A caption of five words', frag: figFrag },
+        { type: 'p', text: 'Closing paragraph.' },
+      ] },
+    ];
+    const host = document.createElement('div');
+    renderSections(host, synth, {});
+    annotateInlineText(host);
+    const st = { sectionBlockStart: [], doc: { words: [], blocks: [], sections: [], text: '', wordCharStart: [], tokenToWs: [], wsToToken: [] } };
+    buildDocModel(st, host);
+    const readerCount = st.doc.wsToToken.length;
+    let ttsCount = 0;
+    host.querySelectorAll(EXTRACTABLE_BLOCK_SELECTOR).forEach(el => { ttsCount += countWords(el.textContent.trim()); });
+    const typeSet = new Set(EXTRACTABLE_BLOCK_TYPES);
+    let rsvpCount = 0;
+    synth.forEach(sec => sec.blocks.forEach(b => {
+      if (typeSet.has(b.type) && b.text && b.text.trim()) rsvpCount += countWords(b.text);
+    }));
+    assert('block-types', 'synthetic book: reader == tts word count (' + readerCount + ')', readerCount > 0 && readerCount === ttsCount);
+    assert('block-types', 'synthetic book: reader == rsvp word count (' + rsvpCount + ')', readerCount === rsvpCount);
+
+    // The extractor must emit only enumerated types (a new type would silently
+    // escape TTS/RSVP counting otherwise).
+    const probeDoc = document.createElement('div');
+    probeDoc.innerHTML = '<h3>H</h3><p>p</p><div>d</div><dd>dd</dd><dt>dt</dt>' +
+      '<blockquote>q</blockquote><li>li</li><pre>code</pre>' +
+      '<table><tbody><tr><td>t</td></tr></tbody></table>' +
+      '<figure><img src="x.png"><figcaption>cap</figcaption></figure>';
+    const probeBlocks = blocksFromDoc(probeDoc, []);
+    assert('block-types', 'extractor emits only EXTRACTABLE_BLOCK_TYPES',
+      probeBlocks.length > 0 && probeBlocks.every(b => typeSet.has(b.type)));
+
+    // Live book: the TTS selector over the real rendered sections must count the
+    // doc-model's exact whitespace-word total (works windowed — section els are
+    // live references even when detached).
+    if (doc.sections.length) {
+      let liveTts = 0;
+      doc.sections.forEach(sec => {
+        sec.el.querySelectorAll(EXTRACTABLE_BLOCK_SELECTOR).forEach(el => {
+          liveTts += countWords(el.textContent.trim());
+        });
+      });
+      assert('block-types', 'live book: TTS selector count equals doc-model ws count',
+        liveTts === doc.wsToToken.length);
     }
   }
 
@@ -532,6 +830,12 @@ export function runSelftest(state) {
     }
   }
 
+  // --- formats: PDF page cap (B4) ---
+  {
+    assert('formats', 'PDF: MAX_PDF_PAGES is a sane positive cap',
+      Number.isInteger(MAX_PDF_PAGES) && MAX_PDF_PAGES >= 500 && MAX_PDF_PAGES <= 10000);
+  }
+
   // --- formats: EPUB adapter capabilities ---
   {
     const epub = getAdapterById('epub');
@@ -601,6 +905,16 @@ export function runSelftest(state) {
     }
   }
 
+  // --- Live-app tests (need the real reader closures — see selftestHooks) ---
+  if (hooks && doc.wsToToken && doc.wsToToken.length) {
+    try {
+      runLiveTests(state, hooks, assert);
+    } catch (e) {
+      console.warn('selftest:live', e);
+      assert('live', 'live tests completed without exception (' + (e && e.message) + ')', false);
+    }
+  }
+
   // --- Report ---
   console.log("=== Reader Selftest ===");
   results.forEach(r => console.log(r.display));
@@ -614,7 +928,131 @@ export function runSelftest(state) {
   // UI report if visible
   showResults(results);
 
+  // Machine-readable handle for the headless harness (test/run-selftest.mjs).
+  if (typeof window !== 'undefined') window.__selftestResults = results;
+
   return results;
+}
+
+// Tests that drive the live reader app through its real closures: layout-mode
+// switches, bookmark add/check/navigate, and position restores across layout
+// changes. Only runs from the ?selftest=1 entry points, where reader-app
+// passes its hooks. Restores layout prefs and position when done.
+function runLiveTests(state, hooks, assert) {
+  const {
+    prefs, chrome, bookmarkManager, applyPrefs, relayout, seekToToken,
+    getBookmarkContext, navigateToBookmark, getCanonicalPosition,
+    applyCanonicalPosition, readerSections, totalWsWords, wsWordText,
+  } = hooks;
+  const doc = state.doc;
+  const totalWs = doc.wsToToken.length;
+  const origLayout = prefs.data.layout;
+  const origSize = prefs.data.size;
+  const origPos = getCanonicalPosition();
+  // Every bookmark the tests add, so the finally below can clean up even when
+  // a test throws mid-loop (remove() of an already-removed id is a no-op).
+  const addedBookmarkIds = [];
+
+  const setLayout = (layout, forceWindow) => {
+    prefs.data.layout = layout;
+    state.forceWindow = !!forceWindow;
+    applyPrefs();        // toggles the layout-scroll body class
+    relayout(null);      // explicit null: lay out without a position restore
+  };
+
+  const sampleOrds = [0.05, 0.3, 0.55, 0.8, 0.97]
+    .map(f => Math.round(f * (totalWs - 1)));
+
+  // --- A7: bookmark anchor / page-presence / navigate symmetry ---
+  // For each layout mode: bookmark a position, assert the presence check sees
+  // it where it was captured, navigate away and back via the bookmark, and
+  // assert the presence check sees it at the landing position. This is the
+  // invariant behind the quick-bookmark button: the three operations must
+  // agree by construction.
+  const layouts = [
+    ['paginated', false, 'paginated'],
+    ['paginated', true,  'windowed'],
+    ['scroll',    false, 'scroll'],
+  ];
+  try {
+    for (const [layout, force, name] of layouts) {
+      setLayout(layout, force);
+      if (name === 'windowed' && !state.windowed) {
+        assert('bookmark-symmetry', 'forceWindow enters windowed mode', false);
+        continue;
+      }
+      let ok = true, detail = '';
+      for (const ord of sampleOrds) {
+        seekToToken(doc.wsToToken[ord]);
+        const ctx = getBookmarkContext();
+        if (!ctx) { ok = false; detail = 'no context at ord ' + ord; break; }
+        const item = bookmarkManager.add(ctx);
+        addedBookmarkIds.push(item.id);
+        const here = chrome.getPageBookmarks(bookmarkManager.getAll()).some(b => b.id === item.id);
+        seekToToken(0);
+        navigateToBookmark(item);
+        const back = chrome.getPageBookmarks(bookmarkManager.getAll()).some(b => b.id === item.id);
+        bookmarkManager.remove(item.id);
+        if (!here || !back) {
+          ok = false;
+          detail = 'ord ' + ord + ': present-at-capture=' + here + ' present-after-navigate=' + back;
+          break;
+        }
+      }
+      assert('bookmark-symmetry', name + ': capture/check/navigate agree' + (ok ? '' : ' — ' + detail), ok);
+    }
+
+    // --- C2: scroll restore after a font-size change lands the same word ---
+    setLayout('scroll', false);
+    seekToToken(doc.wsToToken[Math.round(0.5 * (totalWs - 1))]);
+    const before = getCanonicalPosition();
+    prefs.data.size = origSize + 3;
+    applyPrefs();
+    relayout(before);
+    const after = getCanonicalPosition();
+    assert('position-live', 'scroll restore after font-size change lands within ±1 word',
+      !!before && !!after && Math.abs(after.ord - before.ord) <= 1);
+
+    // --- C2: cross-mode round-trip (reader → TTS counting rule → reader) ---
+    // Builds the TTS-rule section table + word list from the live DOM (the same
+    // derivation tts-app's segmentContent uses) and round-trips positions
+    // through it. A1 makes the counts equal; the text snap absorbs the rest.
+    {
+      const ttsWords = [];
+      const ttsSecs = [];
+      doc.sections.forEach(sec => {
+        const start = ttsWords.length;
+        sec.el.querySelectorAll(EXTRACTABLE_BLOCK_SELECTOR).forEach(el => {
+          for (const w of splitWords(el.textContent.trim())) ttsWords.push(w);
+        });
+        ttsSecs.push({ href: sec.href, wordStart: start, wordCount: ttsWords.length - start });
+      });
+      const ttsAt = (i) => ttsWords[i] || '';
+      const readerSecs = readerSections();
+      const totalR = totalWsWords();
+      let ok = true, detail = '';
+      for (const f of [0.1, 0.35, 0.6, 0.85]) {
+        const ord = Math.round(f * (totalR - 1));
+        const p1 = buildPosition(readerSecs, totalR, ord, wsWordText);
+        const tOrd = resolvePosition(p1, ttsSecs, ttsWords.length, ttsAt);
+        const p2 = buildPosition(ttsSecs, ttsWords.length, tOrd, ttsAt);
+        const back = resolvePosition(p2, readerSecs, totalR, wsWordText);
+        if (Math.abs(back - ord) > 1) { ok = false; detail = ord + ' -> ' + tOrd + ' -> ' + back; break; }
+      }
+      assert('position-live', 'reader → TTS-rule → reader round-trip within ±1 word' + (ok ? '' : ' — ' + detail), ok);
+    }
+  } finally {
+    // Restore the pre-test prefs, layout, position and bookmark set even when
+    // a test throws — without this, a mid-test exception left the reader in a
+    // forced-window/scroll layout with a leaked test bookmark.
+    for (const id of addedBookmarkIds) bookmarkManager.remove(id);
+    state.forceWindow = false;
+    prefs.data.layout = origLayout;
+    prefs.data.size = origSize;
+    applyPrefs();
+    relayout(null);
+    if (origPos) applyCanonicalPosition(origPos);
+  }
 }
 
 function showResults(results) {

@@ -1,4 +1,4 @@
-import { FONT_MAP, FONT_SERIF, GENERAL_DEFAULTS } from './core/constants.js';
+import { FONT_MAP, FONT_SERIF, GENERAL_DEFAULTS, EXTRACTABLE_BLOCK_SELECTOR } from './core/constants.js';
 import { PrefsManager } from './core/prefs.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
@@ -10,8 +10,10 @@ import { buildTOC, resolveHref } from './formats/epub/toc.js';
 import { TtsEngine } from './tts/engine.js';
 import { TtsHighlighter } from './tts/highlighter.js';
 import { TTS_DEFAULTS } from './tts/constants.js';
+import { sentenceIndexForOrdinal } from './tts/sentences.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 import { buildPosition, resolvePosition } from './core/position.js';
+import { validateBookSrcUrl } from './core/src-url.js';
 import * as perf from './core/perf.js';
 
 export function init(options = {}) {
@@ -134,8 +136,10 @@ export function init(options = {}) {
   function navigateTtsToBookmark(item) {
     engine.cancel();
     setPlaying(false);
-    if (item.position) applyCanonicalPosition(item.position);
-    else seekToSentence(Math.round((item.fraction || 0) * Math.max(sentences.length - 1, 0)));
+    // Legacy bookmarks (fraction only) resolve through the canonical pipeline:
+    // fraction → word ordinal → sentence. Scaling the sentence index directly
+    // drifted with sentence-length density.
+    applyCanonicalPosition(item.position || { f: item.fraction || 0 });
   }
 
   bmPanel.setCallbacks({
@@ -327,10 +331,11 @@ export function init(options = {}) {
   function segmentContent() {
     // Must cover EVERY block type the extractor emits, so TTS counts words the
     // same way the Reader (doc-model walks all .blk) and RSVP (all sec.blocks)
-    // do. Omitting pre/table/figure here made TTS's word ordinals drift behind
-    // the other modes cumulatively, throwing cross-mode restores off by a page.
-    const blockSel = '.blk-p, .blk-h1, .blk-h2, .blk-h3, .blk-h4, .blk-h5, .blk-h6, .blk-blockquote, .blk-li, .blk-pre, .blk-table-wrap, .blk-figure';
-    const blocks = Array.from(els.content.querySelectorAll(blockSel));
+    // do. The selector is derived from the shared EXTRACTABLE_BLOCK_TYPES
+    // enumeration — a hand-maintained copy here once omitted pre/table/figure
+    // and made TTS's word ordinals drift behind the other modes cumulatively,
+    // throwing cross-mode restores off by a page.
+    const blocks = Array.from(els.content.querySelectorAll(EXTRACTABLE_BLOCK_SELECTOR));
     const result = [];
     const sectionsMeta = [];
     ttsWords = [];
@@ -630,17 +635,12 @@ export function init(options = {}) {
   function restorePosition() {
     const pos = loadPosition(bookId);
     if (!pos) return 0;
-    return sentenceIndexForOrdinal(resolvePosition(pos, ttsSections, totalWords, wordAt));
+    return sentenceIndexForOrdinal(sentences, resolvePosition(pos, ttsSections, totalWords, wordAt));
   }
 
   // ---------- Canonical position ----------
-  function sentenceIndexForOrdinal(ord) {
-    let idx = 0;
-    for (let i = 0; i < sentences.length; i++) {
-      if (sentences[i].wordOffset <= ord) idx = i; else break;
-    }
-    return idx;
-  }
+  // Sentence lookup lives in tts/sentences.js (binary search, floor semantics:
+  // a mid-sentence ordinal re-reads that sentence rather than skipping ahead).
   // Raw word string at word ordinal `o`, for the text-anchored exact snap.
   function wordAt(o) { return ttsWords[o] || ''; }
   function getCanonicalPosition() {
@@ -658,7 +658,7 @@ export function init(options = {}) {
   }
   function applyCanonicalPosition(pos) {
     if (!sentences.length) return;
-    seekToSentence(sentenceIndexForOrdinal(resolvePosition(pos, ttsSections, totalWords, wordAt)));
+    seekToSentence(sentenceIndexForOrdinal(sentences, resolvePosition(pos, ttsSections, totalWords, wordAt)));
   }
 
 
@@ -873,8 +873,10 @@ export function init(options = {}) {
   loadAndDisplayVoices().then(() => restoreVoice());
 
   // Load sample or URL book
-  const srcUrl = urlParams.get('src');
-  if (srcUrl) {
+  const srcUrl = validateBookSrcUrl(urlParams.get('src'));
+  if (urlParams.get('src') && !srcUrl) {
+    showError("That book URL isn't allowed.");
+  } else if (srcUrl) {
     showLoading('Fetching book\u2026');
     fetch(srcUrl)
       .then(r => { if (!r.ok) throw new Error('Fetch failed: ' + r.status); return r.blob(); })

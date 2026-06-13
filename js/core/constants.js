@@ -16,13 +16,6 @@ export const MAX_SIZE = 30;
 // relayout overhead entirely. ~A short story; novels are far above it.
 export const WINDOW_MIN_WORDS = 6000;
 
-// Margins
-export const MARGINS = {
-  narrow: "1rem",
-  normal: "clamp(1.25rem, 6vw, 3rem)",
-  wide: "clamp(2rem, 10vw, 5rem)",
-};
-
 // Theme colors for meta tag
 export const THEME_COLORS = {
   dark:     "#1a1a1a",
@@ -50,6 +43,15 @@ export const TAP_TIMEOUT_MS = 400;
 // Search
 export const MAX_SEARCH_HITS = 200;
 
+// Position text-snap (core/position.js refineByText). A candidate matching at
+// least this fraction of the saved snippet's words is "high confidence":
+// among high-confidence candidates the one nearest the numeric prediction
+// wins, which keeps verbatim-repeated passages (liturgy, boilerplate) from
+// pulling a restore to a distant copy. Named so it can be tuned without
+// touching the algorithm; the 60% acceptance floor below it is the hard-coded
+// minimum and not configurable.
+export const REFINE_HIGH_MATCH_THRESHOLD = 0.8;
+
 // Debounce timings
 export const SAVE_DEBOUNCE_MS = 500;
 export const RESIZE_DEBOUNCE_MS = 150;
@@ -59,6 +61,20 @@ export const SELECTION_DEBOUNCE_MS = 200;
 export const RICH_INLINE = true;
 export const BLOCK_SEL = "h1,h2,h3,h4,h5,h6,p,div,blockquote,li,pre,dd,dt,figure,figcaption,table,img";
 export const SKIP_SEL = "script,style,nav,header,footer,aside,form";
+
+// Every block type the extractor can emit (shared/render renders each as a
+// `.blk blk-<type>` element). This is the single enumeration the three modes'
+// word counting derives from: the Reader doc-model walks all .blk, TTS selects
+// blocks via EXTRACTABLE_BLOCK_SELECTOR, and RSVP consumes every extracted
+// block with text. If these ever disagree, cross-mode word ordinals drift
+// cumulatively and restores land pages off (a past bug — see tts-app.js
+// segmentContent). A selftest asserts all three counts match.
+export const EXTRACTABLE_BLOCK_TYPES = [
+  "p", "h1", "h2", "h3", "h4", "h5", "h6",
+  "blockquote", "li", "pre", "table-wrap", "figure",
+];
+export const EXTRACTABLE_BLOCK_SELECTOR =
+  EXTRACTABLE_BLOCK_TYPES.map(t => ".blk-" + t).join(", ");
 export const INLINE_TAGS = new Set(["b","strong","i","em","u","sup","sub","small","a","span","br","code","img","table","thead","tbody","tfoot","tr","th","td","caption"]);
 export const SAFE_ATTRS = {
   a: new Set(["href"]),

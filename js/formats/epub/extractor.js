@@ -1,5 +1,23 @@
 import { RICH_INLINE, BLOCK_SEL, SKIP_SEL, INLINE_TAGS, SAFE_ATTRS } from '../../core/constants.js';
 
+// Anchor hrefs from book content execute on click if they carry a
+// script-running scheme (javascript:, data:, vbscript:). Allow only what books
+// legitimately use: fragment links (footnotes/TOC), relative archive paths,
+// and absolute http(s) URLs. Returns the href to keep, or null to drop it.
+export function safeAnchorHref(raw) {
+  const href = (raw || '').trim();
+  if (!href) return null;
+  // Scheme-detect against a copy with control chars and whitespace stripped:
+  // the HTML URL parser ignores them, so "java\nscript:" IS javascript: to the
+  // browser even though a naive prefix check misses it.
+  const probe = href.replace(/[\u0000-\u0020\u007f]+/g, '').toLowerCase();
+  if (probe.startsWith('#')) return href;
+  if (probe.startsWith('http:') || probe.startsWith('https:')) return href;
+  if (probe.startsWith('//')) return null; // protocol-relative
+  if (/^[a-z][a-z0-9+.-]*:/.test(probe)) return null; // any other scheme
+  return href; // relative archive path
+}
+
 export function sanitizeInline(srcNode) {
   const frag = document.createDocumentFragment();
   for (const child of srcNode.childNodes) {
@@ -15,6 +33,11 @@ export function sanitizeInline(srcNode) {
           for (const attr of allowed) {
             if (child.hasAttribute(attr)) el.setAttribute(attr, child.getAttribute(attr));
           }
+        }
+        if (tag === "a" && el.hasAttribute("href")) {
+          const safe = safeAnchorHref(el.getAttribute("href"));
+          if (safe === null) el.removeAttribute("href");
+          else el.setAttribute("href", safe);
         }
         if (tag === "img" && el.hasAttribute("src")) {
           el.dataset.origSrc = el.getAttribute("src");
@@ -133,6 +156,7 @@ export async function extractSections(book, onProgress) {
   const sections = [];
   const allImgUrls = [];
   const idSeed = { n: 0 }; // shared counter — keeps synthetic toc-N ids unique book-wide
+  let skipped = 0;
   for (let i = 0; i < items.length; i++) {
     const section = items[i];
     if (onProgress) onProgress("Parsing\u2026 " + (i + 1) + " / " + items.length);
@@ -150,6 +174,7 @@ export async function extractSections(book, onProgress) {
         sections.push({ href: base, blocks });
       }
     } catch (err) {
+      skipped++;
       console.warn("Skipping section:", section && section.href, err);
     } finally {
       if (section && typeof section.unload === "function") {
@@ -157,7 +182,17 @@ export async function extractSections(book, onProgress) {
       }
     }
   }
-  return { sections, allImgUrls };
+  // Keep the resilience (a bad spine item must not kill the whole book), but
+  // make the loss visible: report it through the overlay/progress channel and
+  // return it so the session carries the warning for any later UI use.
+  const warnings = [];
+  if (skipped > 0) {
+    const msg = "Loaded " + (items.length - skipped) + " of " + items.length +
+      " chapters (" + skipped + " could not be read)";
+    warnings.push(msg);
+    if (onProgress) onProgress(msg);
+  }
+  return { sections, allImgUrls, warnings };
 }
 
 /* ── Plain-text extraction for RSVP speed reader ── */

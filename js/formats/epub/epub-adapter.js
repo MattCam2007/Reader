@@ -56,7 +56,7 @@ export const epubAdapter = {
       toc = flattenToc(nav && nav.toc, 0, []);
     } catch (e) { console.warn('epub:toc', e); }
 
-    const { sections, allImgUrls } = await perf.timeAsync('session:extract', () =>
+    const { sections, allImgUrls, warnings } = await perf.timeAsync('session:extract', () =>
       extractSections(book, onProgress));
 
     const chars = sections.reduce((n, s) =>
@@ -79,7 +79,7 @@ export const epubAdapter = {
 
     try { if (typeof book.destroy === 'function') book.destroy(); } catch (e) { console.warn('epub:destroy', e); }
 
-    return { sections, toc, title, metaTitle, blobUrls, cover: null };
+    return { sections, toc, title, metaTitle, blobUrls, cover: null, warnings: warnings || [] };
   },
 };
 

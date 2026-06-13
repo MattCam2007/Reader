@@ -1,3 +1,5 @@
+import { safeSetItem } from './safe-storage.js';
+
 export const PAGE_KEY_PREFIX = 'book:pages:';
 
 // Stored shape: { v: 1, sig: string, counts: number[] }
@@ -14,6 +16,6 @@ export function loadPageCache(bookId) {
 
 export function savePageCache(bookId, sig, counts) {
   if (!bookId) return;
-  try { localStorage.setItem(PAGE_KEY_PREFIX + bookId, JSON.stringify({ v: 1, sig, counts })); }
+  try { safeSetItem(PAGE_KEY_PREFIX + bookId, JSON.stringify({ v: 1, sig, counts })); }
   catch (_) {}
 }

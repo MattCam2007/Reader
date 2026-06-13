@@ -25,7 +25,23 @@ function getOrCreatePrefs(ref, opts) {
   return ref;
 }
 
+// Every settings-screen element lives inside _screen, so lookups are scoped to
+// it rather than document.getElementById. Book content is rendered earlier in
+// DOM order and the sanitiser preserves element ids (TOC/footnote targets), so
+// a book element carrying a matching id would otherwise shadow a control (DOM
+// clobbering). Scoped queries are the defence — no global id prefixing, which
+// would break epub.js-provided TOC fragment hrefs.
+function byId(id) {
+  return _screen ? _screen.querySelector('#' + (window.CSS && CSS.escape ? CSS.escape(id) : id)) : null;
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
+
+// True while the settings screen is open. Callers must use this instead of
+// document.getElementById('settingsScreen'), which book content can shadow.
+export function isSettingsScreenOpen() {
+  return !!_screen;
+}
 
 export function openSettingsScreen(config = {}) {
   if (_screen) return;
@@ -89,7 +105,7 @@ export function openSettingsScreen(config = {}) {
       rsvpPickers = null;
     }
 
-    const body = document.getElementById('sscreenBody');
+    const body = byId('sscreenBody');
     if (!body) return;
 
     if (tab === 'general') {
@@ -230,9 +246,9 @@ function wireGeneralTab(prefs, liveApply) {
     if (liveApply) liveApply('theme', val);
   });
 
-  const fileInput = document.getElementById('ss-bg-file');
-  const clearBtn  = document.getElementById('ss-bgClear');
-  const opacityRow = document.getElementById('ss-bgOpacityRow');
+  const fileInput = byId('ss-bg-file');
+  const clearBtn  = byId('ss-bgClear');
+  const opacityRow = byId('ss-bgOpacityRow');
 
   if (fileInput) {
     fileInput.addEventListener('change', () => {
@@ -329,7 +345,7 @@ function wireReadTab(prefs, liveApply) {
   ];
 
   for (const s of SEGS) {
-    const el = document.getElementById(s.id);
+    const el = byId(s.id);
     if (!el) continue;
     el.addEventListener('click', (e) => {
       const btn = e.target.closest(`[${s.attr}]`);
@@ -508,7 +524,7 @@ function wireSpeedTab(prefs, liveApply) {
 
   bindToggle('ss-training', (val) => {
     prefs.data.trainingEnabled = val; prefs.save();
-    const opts = document.getElementById('ss-trainingOpts');
+    const opts = byId('ss-trainingOpts');
     if (opts) {
       opts.hidden = !val;
       if (val) {
@@ -519,7 +535,7 @@ function wireSpeedTab(prefs, liveApply) {
     if (liveApply) liveApply('trainingEnabled', val);
   });
 
-  const resetBtn = document.getElementById('ss-resetStats');
+  const resetBtn = byId('ss-resetStats');
   if (resetBtn) {
     resetBtn.addEventListener('click', () => {
       if (liveApply) liveApply('_resetStats', true);
@@ -597,7 +613,7 @@ function wireListenTab(prefs, liveApply) {
 // ── Shared wiring helpers ────────────────────────────────────────────────────
 
 function wireSeg(id, attr, onChange) {
-  const el = document.getElementById(id);
+  const el = byId(id);
   if (!el) return;
   el.addEventListener('click', (e) => {
     const btn = e.target.closest(`[${attr}]`);
@@ -613,19 +629,19 @@ function wireSeg(id, attr, onChange) {
 }
 
 function bindSlider(id, onChange) {
-  const el = document.getElementById(id);
+  const el = byId(id);
   if (el) el.addEventListener('input', (e) => onChange(parseInt(e.target.value, 10)));
 }
 
 function bindToggle(id, onChange) {
-  const el = document.getElementById(id);
+  const el = byId(id);
   if (el) el.addEventListener('change', (e) => onChange(e.target.checked));
 }
 
 function bindCounter(downId, upId, displayId, getVal, setVal, downStep, upStep, min, max, fmt) {
-  const display = document.getElementById(displayId);
-  const downBtn = document.getElementById(downId);
-  const upBtn = document.getElementById(upId);
+  const display = byId(displayId);
+  const downBtn = byId(downId);
+  const upBtn = byId(upId);
   if (!downBtn || !upBtn) return;
   const format = fmt || ((v) => String(v));
   downBtn.addEventListener('click', () => {

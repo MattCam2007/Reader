@@ -8,9 +8,12 @@
 <meta name="build-version" content="__COMMIT_HASH__">
 <title>Reader</title>
 <!-- EPUB libs load deferred (not render-blocking); the service worker precaches
-     them so they're available offline and never gate first paint. -->
-<script defer src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+     them so they're available offline and never gate first paint. Vendored
+     (B7): pinned copies of the npm dist files served same-origin, removing the
+     first-load CDN dependency and the unpinned-supply-chain risk of executing
+     CDN-served script. Keep versions in sync with sw.js. -->
+<script defer src="vendor/jszip-3.10.1.min.js"></script>
+<script defer src="vendor/epub-0.3.93.min.js"></script>
 <link rel="stylesheet" href="css/reader.css">
 <link rel="stylesheet" href="css/rsvp.css">
 <link rel="stylesheet" href="css/tts.css">

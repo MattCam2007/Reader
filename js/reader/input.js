@@ -4,6 +4,7 @@ import {
   SYNTHETIC_CLICK_GUARD_MS, TAP_TIMEOUT_MS
 } from '../core/constants.js';
 import * as perf from '../core/perf.js';
+import { isSettingsScreenOpen } from '../settings/settings-screen.js';
 
 function pinchDist(touches) {
   const dx = touches[1].clientX - touches[0].clientX;
@@ -268,7 +269,7 @@ export class InputHandler {
       return;
     }
     if (!document.body.classList.contains("chrome-hidden") &&
-        (document.body.classList.contains("show-toc") || document.body.classList.contains("show-search") || document.getElementById("settingsScreen"))) {
+        (document.body.classList.contains("show-toc") || document.body.classList.contains("show-search") || isSettingsScreenOpen())) {
       this.callbacks.closePanels();
       return;
     }

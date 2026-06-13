@@ -7,6 +7,9 @@ import { makeCapabilities } from '../capabilities.js';
 import { startsWith } from '../detect.js';
 import { registerAdapter } from '../registry.js';
 import { isImageFile, buildComicIR } from './comic-utils.js';
+import {
+  checkArchiveEntry, isUnsafeArchivePath, withTimeout, ARCHIVE_EXTRACT_TIMEOUT_MS,
+} from '../../core/archive-guard.js';
 
 // npm package: "libarchive.js" (with a dot). Both dist files are ES modules.
 const LIB_VERSION    = '2.0.2';
@@ -85,7 +88,11 @@ export const cbrAdapter = {
 
     let extracted;
     try {
-      extracted = await archive.extractFiles();
+      // The WASM extractor can spin indefinitely on a hostile archive — bound it.
+      extracted = await withTimeout(
+        archive.extractFiles(),
+        ARCHIVE_EXTRACT_TIMEOUT_MS,
+        'This CBR took too long to extract — it may be corrupt.');
     } catch (e) {
       throw new Error('Failed to extract CBR archive: ' + (e.message || e));
     }
@@ -93,12 +100,18 @@ export const cbrAdapter = {
     // Flatten the directory tree returned by extractFiles() into a list of
     // { name, bytes } objects.  Leaf values with an arrayBuffer() method are
     // File-like objects; plain objects are subdirectories to recurse into.
+    // Names with `..` segments are skipped; sizes are checked against the
+    // per-entry/total caps BEFORE the bytes are read (File-like leaves carry
+    // .size) so a decompression bomb errors out gracefully.
     const entries = [];
+    const totals = { bytes: 0 };
     function flatten(obj) {
       if (!obj || typeof obj !== 'object') return;
       for (const [name, value] of Object.entries(obj)) {
         if (value && typeof value.arrayBuffer === 'function') {
-          if (isImageFile(name)) entries.push({ name, _file: value });
+          if (!isImageFile(name) || isUnsafeArchivePath(name)) continue;
+          checkArchiveEntry(name, value.size || 0, totals);
+          entries.push({ name, _file: value });
         } else if (value && typeof value === 'object') {
           flatten(value);
         }

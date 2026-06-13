@@ -13,7 +13,10 @@
 //
 // Storage key (shared by every mode): `book:pos:{bookId}`.
 
-export const POS_KEY_PREFIX = 'book:pos:';
+import { safeSetItem, POS_KEY_PREFIX } from './safe-storage.js';
+import { REFINE_HIGH_MATCH_THRESHOLD } from './constants.js';
+
+export { POS_KEY_PREFIX };
 
 // Text-anchor refinement. After the section/ordinal math lands us *near* the
 // right word, we snap to the exact word by matching a short snippet of the
@@ -37,8 +40,17 @@ function clamp(n, lo, hi) {
 
 // Snap `ord` to the best text match for `snippet` within REFINE_WINDOW words.
 // `wordAt(i)` returns the raw word string at global ordinal i in this mode.
-// Requires a strong majority of the snippet's real words to match, and breaks
-// ties toward the prediction, so repeated phrases don't pull us far away.
+//
+// Two-tier acceptance (A6):
+//   - High tier: candidates matching >= REFINE_HIGH_MATCH_THRESHOLD of the
+//     snippet's real words. All are credible; the one NEAREST the numeric
+//     prediction wins. This is the defence against verbatim-repeated passages
+//     (liturgical text, legal boilerplate): a perfect copy far away must not
+//     beat a near-perfect match at the predicted spot.
+//   - Low tier (only when no high-tier candidate exists): the hard 60% floor,
+//     best score first, ties toward the prediction — the original behaviour.
+// Fewer than 2 real snippet words can't discriminate; fall back to the
+// numeric prediction rather than asserting a spurious match.
 function refineByText(ord, snippet, wordAt, total) {
   if (!Array.isArray(snippet) || snippet.length < 2 || typeof wordAt !== 'function') return ord;
   const N = snippet.length;
@@ -50,19 +62,25 @@ function refineByText(ord, snippet, wordAt, total) {
   const maxMatch = snippet.filter(Boolean).length;
   if (maxMatch < 2) return ord;
   const need = Math.ceil(maxMatch * 0.6);
+  const needHigh = Math.ceil(maxMatch * REFINE_HIGH_MATCH_THRESHOLD);
 
-  let best = -1, bestScore = 0, bestDist = Infinity;
+  let bestHigh = -1, bestHighDist = Infinity;
+  let bestLow = -1, bestLowScore = 0, bestLowDist = Infinity;
   for (let i = 0; i + N <= tw.length; i++) {
     let score = 0;
     for (let j = 0; j < N; j++) { const a = tw[i + j]; if (a && a === snippet[j]) score++; }
-    if (score === 0) continue;
+    if (score < need) continue;
     const absI = lo + i;
     const d = Math.abs(absI - ord);
-    if (score > bestScore || (score === bestScore && d < bestDist)) {
-      bestScore = score; best = absI; bestDist = d;
+    if (score >= needHigh) {
+      if (d < bestHighDist) { bestHigh = absI; bestHighDist = d; }
+    } else if (score > bestLowScore || (score === bestLowScore && d < bestLowDist)) {
+      bestLow = absI; bestLowScore = score; bestLowDist = d;
     }
   }
-  return (best >= 0 && bestScore >= need) ? best : ord;
+  if (bestHigh >= 0) return bestHigh;
+  if (bestLow >= 0) return bestLow;
+  return ord;
 }
 
 // Derive a book identifier that is identical across every mode, so the shared
@@ -85,6 +103,30 @@ export function deriveBookId(urlId, metaTitle, fileName) {
   // all current and planned extensions.
   const name = (fileName || '').trim().replace(/\.[a-z]{1,5}$/i, '').trim();
   return name || 'untitled';
+}
+
+// Short content fingerprint for derived (title/filename) book ids: SHA-256 of
+// the first 4 KB plus the total byte length, first 8 hex chars. Two different
+// books that share a title or filename otherwise share every book:* storage
+// key and poison each other's saved positions. The byte length is mixed in
+// because same-pipeline EPUBs can share their entire first 4 KB (the mimetype
+// entry is identical by spec, container.xml is usually identical, and the
+// first content entry is often a common stylesheet). Returns '' when hashing
+// is unavailable (no crypto.subtle — e.g. an insecure context), in which case
+// callers keep the un-hashed id and behaviour is unchanged.
+export async function contentHashId(buffer) {
+  try {
+    if (!buffer || typeof crypto === 'undefined' || !crypto.subtle) return '';
+    const head = new Uint8Array(buffer.slice(0, 4096));
+    const data = new Uint8Array(head.length + 8);
+    data.set(head, 0);
+    new DataView(data.buffer).setFloat64(head.length, buffer.byteLength);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    return [...new Uint8Array(digest)].slice(0, 4)
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch (_) {
+    return '';
+  }
 }
 
 // Build a canonical position object.
@@ -196,6 +238,10 @@ export function loadStoredPosition(bookId) {
 
 export function saveStoredPosition(bookId, pos) {
   if (!bookId || !pos) return;
-  try { localStorage.setItem(POS_KEY_PREFIX + bookId, JSON.stringify(pos)); }
+  // `la` (last-accessed, unix ms) rides inside the position object — one extra
+  // field, zero schema change — so safe-storage can prune by recency when
+  // localStorage fills instead of silently dropping the save.
+  pos.la = Date.now();
+  try { safeSetItem(POS_KEY_PREFIX + bookId, JSON.stringify(pos)); }
   catch (_) {}
 }

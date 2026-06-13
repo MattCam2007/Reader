@@ -6,6 +6,11 @@ prioritized modifications I want to land before taking ownership of this codebas
 **Ground rules:** every existing feature is preserved; no visible UI/UX changes;
 refactoring, upgrading, and rearchitecting only. UX/product suggestions are
 collected in §8 as recommendations, not work items.
+**Status:** ✅ **Implemented** — every P0–P3 work item landed on
+`claude/stewardship-plan-wz738v`, one commit per lettered item (see §9). The
+browser selftest suite (199 assertions on the sample book + 203 against a real
+EPUB through the full parse pipeline) is green headlessly via
+`node test/run-selftest.mjs`, which also runs in CI on every push/PR.
 
 ---
 
@@ -470,6 +475,63 @@ after) the behavior they protect.
 - Adopt the C1 headless selftest as a pre-merge gate; it's the single highest
   leverage process change available.
 - Re-run Lighthouse after P2 and commit the scores next to PERFORMANCE.md's tables.
+
+---
+
+## 9. Implementation record (claude/stewardship-plan-wz738v)
+
+One commit per lettered item, in phase order. Each landed with its selftests
+and a green run of the full suite (sample book + a real EPUB through the
+complete jszip/epub.js extraction pipeline, headless Chromium).
+
+| Item | Commit subject |
+|---|---|
+| B1 | strip script-running schemes from book anchor hrefs |
+| B2 | validate ?src= URLs before fetching |
+| A1 | centralize the extractable block-type enumeration |
+| A2 | retire the fraction as a bookmark navigation input |
+| A3 | scroll anchor is the first whole word at/below the viewport top |
+| A8 | relayout on fullscreen transitions, preserving the position |
+| A7 | bookmark anchor/check/navigate symmetry, tested across all three layouts |
+| C1 | headless selftest harness + CI gate (`test/run-selftest.mjs`, GitHub Actions) |
+| B3 | decompression limits for comic archives |
+| B4 | cap PDF parsing at MAX_PDF_PAGES |
+| B5 | content-hash suffix for derived book ids, with mandatory key migration |
+| B6 | DOM clobbering — scope settings-screen lookups, drop live id queries |
+| B8 | count and surface skipped spine sections |
+| C3 | quota-aware storage writes that prune by last-accessed time |
+| A4 | don't persist provisional-layout positions when image settle is aborted |
+| A5 | TTS sentence lookup — binary search with documented floor semantics |
+| A6 | two-tier text-snap acceptance in refineByText |
+| B7 | vendor jszip and epub.js (supersedes SRI: same-origin, pinned, offline-capable) |
+| C4 | dead code sweep + docs debt (PERFORMANCE.md after-table, MODULES.md) |
+| D1 | bookmark-set generation counter replaces per-turn id-string join |
+| D2 | hoist column layout out of the page-counter's per-chapter measure |
+| D3 | perf spans: chrome:bm-markers, chrome:quick-bm, reader:locator |
+
+C2's tests landed with the items they protect: cross-mode count equality (A1),
+three-layout bookmark symmetry + scroll restore after font change + cross-mode
+round-trip (A7), malicious-href fixture (B1), archive caps (B3), sentence
+lookup (A5), text-snap adversarial cases (A6), prune-by-recency (C3),
+key migration (B5).
+
+Two bugs were found and fixed *by* the new real-book test page, validating C1's
+premise:
+
+1. **Scroll-mode jumps landed short while the chrome was visible** —
+   `scrollToWord` added a scaled rect delta to the unscaled `scrollTop`
+   (~1600 px short on a 10k-px jump in a 133k-word novel); the same de-scaling
+   was applied to `getPageBookmarks`' scroll margin. The sample book's jumps
+   were too short to expose it.
+2. **First-visit service-worker reload** — `controllerchange` reloaded the page
+   unconditionally, so a fresh worker's `clients.claim()` yanked the page
+   seconds after first load. Now reloads only on a genuine update takeover.
+
+Notes against the original spec: A7's audit also found the plain-paginated
+`getPageBookmarks` branch estimating the page as fraction × pages; it now
+measures `pageOfWord` like the windowed branch. B7 chose vendoring over SRI
+(the plan's stated preference). The epubjs 0.4.x evaluation remains an open
+spike, and §8's recommendations remain open for the owner.
 
 ---
 

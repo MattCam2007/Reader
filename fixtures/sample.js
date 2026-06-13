@@ -26,14 +26,38 @@ This was invitation enough.
 
 "Oh! Single, my dear, to be sure! A single man of large fortune; four or five thousand a year. What a fine thing for our girls!"`;
 
+// The sample book is only ever loaded under ?selftest=1. It is split into
+// three sections so the selftest suite can exercise multi-chapter behaviour
+// (windowed rendering, cross-section positions, bookmark symmetry) — a
+// single-section book can't enter windowed mode at all.
 export function buildSample() {
-  const blocks = [
-    { type: "h1", text: "Pride and Prejudice" },
-    { type: "h2", text: "Chapter I" },
+  const paras = SAMPLE_TEXT.split(/\n{2,}/)
+    .map((p) => p.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const third = Math.ceil(paras.length / 3);
+  const toBlocks = (texts) => texts.map((t) => ({ type: "p", text: t }));
+  return [
+    {
+      href: "sample-1",
+      blocks: [
+        { type: "h1", text: "Pride and Prejudice" },
+        { type: "h2", text: "Chapter I" },
+        ...toBlocks(paras.slice(0, third)),
+      ],
+    },
+    {
+      href: "sample-2",
+      blocks: [
+        { type: "h2", text: "Chapter II" },
+        ...toBlocks(paras.slice(third, third * 2)),
+      ],
+    },
+    {
+      href: "sample-3",
+      blocks: [
+        { type: "h2", text: "Chapter III" },
+        ...toBlocks(paras.slice(third * 2)),
+      ],
+    },
   ];
-  SAMPLE_TEXT.split(/\n{2,}/).forEach((p) => {
-    const t = p.replace(/\s+/g, " ").trim();
-    if (t) blocks.push({ type: "p", text: t });
-  });
-  return [{ href: "sample", blocks }];
 }

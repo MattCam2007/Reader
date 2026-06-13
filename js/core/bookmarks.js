@@ -1,9 +1,16 @@
-const KEY_PREFIX = 'reader:bookmarks:';
+import { safeSetItem } from './safe-storage.js';
+
+export const BOOKMARKS_KEY_PREFIX = 'reader:bookmarks:';
+const KEY_PREFIX = BOOKMARKS_KEY_PREFIX;
 
 export class BookmarkManager {
   constructor() {
     this.bookId = null;
     this._items = [];
+    // Bumped on every mutation (load/add/remove/color/position). Consumers
+    // that cache derived bookmark state (chrome marker dots) compare this
+    // instead of re-deriving an id-string on every page turn.
+    this.generation = 0;
   }
 
   setBook(bookId) {
@@ -13,6 +20,7 @@ export class BookmarkManager {
 
   load() {
     if (!this.bookId) return;
+    this.generation++;
     try {
       const raw = localStorage.getItem(KEY_PREFIX + this.bookId);
       this._items = raw ? JSON.parse(raw) : [];
@@ -24,9 +32,10 @@ export class BookmarkManager {
   }
 
   _save() {
+    this.generation++;
     if (!this.bookId) return;
     try {
-      localStorage.setItem(KEY_PREFIX + this.bookId, JSON.stringify(this._items));
+      safeSetItem(KEY_PREFIX + this.bookId, JSON.stringify(this._items));
     } catch (e) {
       console.warn('bookmarks:save', e);
     }
@@ -57,6 +66,14 @@ export class BookmarkManager {
   updateColor(id, color) {
     const item = this._items.find(i => i.id === id);
     if (item) { item.color = color || ''; this._save(); }
+  }
+
+  // Migrate-on-read: legacy bookmarks (fraction only) get a canonical position
+  // written back the first time they are navigated to, so the fraction stops
+  // being a navigation input (it remains the display/marker metric).
+  updatePosition(id, position) {
+    const item = this._items.find(i => i.id === id);
+    if (item) { item.position = position || null; this._save(); }
   }
 
   remove(id) {

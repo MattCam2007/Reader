@@ -133,7 +133,6 @@ FONT_MAP      // { serif, sans, dyslexic, mono } → stack string
 ```js
 COLUMN_GAP              // 40 (px between columns)
 MIN_SIZE / MAX_SIZE     // 14 / 30 (font size bounds)
-MARGINS                 // { narrow, normal, wide } → CSS value
 ```
 
 **Theme colors** (for `<meta name="theme-color">`):
@@ -164,6 +163,10 @@ BLOCK_SEL   // "h1,h2,...,p,div,blockquote,li,pre,dd,dt,figure,figcaption,table,
 SKIP_SEL    // "script,style,nav,header,footer,aside,form"
 INLINE_TAGS // Set of tag names treated as inline (b, strong, i, em, a, span, ...)
 SAFE_ATTRS  // Per-tag allowlist of safe HTML attributes
+EXTRACTABLE_BLOCK_TYPES    // every block type the extractor emits — the single
+                           // enumeration all three modes' word counting derives from
+EXTRACTABLE_BLOCK_SELECTOR // ".blk-p, .blk-h1, ..." derived from the above (TTS)
+REFINE_HIGH_MATCH_THRESHOLD // 0.8 — position text-snap high-confidence tier
 ```
 
 **Default preferences:**
@@ -386,6 +389,34 @@ add(loc, fraction, note?): void   // Add a new bookmark
 remove(id: string): void          // Remove by ID
 getAll(): Bookmark[]              // Return all bookmarks
 ```
+
+---
+
+### `js/core/src-url.js`
+
+**`validateBookSrcUrl(raw)`** → resolved absolute URL string, or `null`.
+Guard for the `?src=` URL all three shells pass to `fetch()`: http(s) only, no
+embedded credentials. Same-origin relative library paths resolve naturally.
+
+---
+
+### `js/core/archive-guard.js`
+
+Decompression guards for archive formats (CBZ/CBR): per-entry (50 MB) and
+total (500 MB) uncompressed caps via **`checkArchiveEntry(name, size, totals)`**
+(throws a user-facing "file too large" error), **`isUnsafeArchivePath(name)`**
+(`..` traversal), and **`withTimeout(promise, ms, message)`** around the CBR
+WASM extraction.
+
+---
+
+### `js/core/safe-storage.js`
+
+**`safeSetItem(key, value)`** — quota-aware `localStorage.setItem`: logs once
+per session and, on quota error, prunes the `book:pos:*` entry with the oldest
+`la` (last-accessed) timestamp via **`pruneLeastRecentPosition(excludeKey)`**
+and retries. Owns `POS_KEY_PREFIX` (re-exported by `position.js`). Pruning is
+strictly by recency, never by key name.
 
 ---
 
@@ -1100,6 +1131,15 @@ MAX_RATE          // 2.0
 HIGHLIGHT_MODES   // ['word', 'sentence', 'paragraph']
 DEFAULT_HIGHLIGHT // 'sentence'
 ```
+
+---
+
+### `js/tts/sentences.js`
+
+**`sentenceIndexForOrdinal(sentences, ord)`** → index of the last sentence
+whose `wordOffset <= ord` (binary search). Floor semantics are deliberate: a
+mid-sentence ordinal re-reads the containing sentence on return to TTS rather
+than skipping ahead.
 
 ---
 

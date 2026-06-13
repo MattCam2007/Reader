@@ -1,10 +1,12 @@
 import { pageOfWord, wordRange, layoutScale } from '../model/geometry.js';
+import * as perf from '../core/perf.js';
 
 export class ChromeManager {
   constructor(state, els) {
     this.state = state;
     this.els = els;
     this._lastBmIds = null;
+    this._lastBmGen = null;
     this._lastBmLayoutSig = null;
   }
 
@@ -48,15 +50,34 @@ export class ChromeManager {
     }
   }
 
-  updateBookmarkMarkers(items, navigateFn) {
+  // Perf spans (?perf=1) keep the accuracy work on these paths provably cheap:
+  // both run on the page-turn / scroll path.
+  updateBookmarkMarkers(items, navigateFn, gen) {
+    perf.time('chrome:bm-markers', () => this._updateBookmarkMarkers(items, navigateFn, gen), { n: items.length });
+  }
+
+  refreshQuickBmState(items) {
+    perf.time('chrome:quick-bm', () => this._refreshQuickBmState(items), { n: items.length });
+  }
+
+  _updateBookmarkMarkers(items, navigateFn, gen) {
     const { bmMarkersEl, quickBmBtnEl } = this.els;
 
-    // (Re)build marker buttons only when the bookmark set changes (ids + colors).
+    // (Re)build marker buttons only when the bookmark set changes. With a
+    // BookmarkManager generation counter (`gen`) that's one integer compare;
+    // the id+color string join survives only as a fallback for callers that
+    // don't pass one — it used to run on every page turn.
     if (bmMarkersEl) {
-      const ids = items.map(i => i.id + (i.color || '')).join(',');
-      const rebuilt = ids !== this._lastBmIds;
-      if (rebuilt) {
+      let rebuilt;
+      if (gen != null) {
+        rebuilt = gen !== this._lastBmGen;
+        this._lastBmGen = gen;
+      } else {
+        const ids = items.map(i => i.id + (i.color || '')).join(',');
+        rebuilt = ids !== this._lastBmIds;
         this._lastBmIds = ids;
+      }
+      if (rebuilt) {
         bmMarkersEl.innerHTML = '';
         if (items.length) {
           const frag = document.createDocumentFragment();
@@ -91,13 +112,13 @@ export class ChromeManager {
     }
 
     // Update quick-bm button color to match the bookmark on this page
-    this.refreshQuickBmState(items);
+    this._refreshQuickBmState(items);
   }
 
   // Light the quick-bookmark button iff a bookmark sits on the current
   // page/screen. Split from updateBookmarkMarkers so scroll mode can re-check
   // on scroll without rebuilding or repositioning the marker dots.
-  refreshQuickBmState(items) {
+  _refreshQuickBmState(items) {
     const { quickBmBtnEl } = this.els;
     if (!quickBmBtnEl) return;
     const pageItems = items.length > 0 ? this.getPageBookmarks(items) : [];
@@ -179,13 +200,17 @@ export class ChromeManager {
       const totalWs = wsToToken.length;
       if (!totalWs) return [];
       const vpTop = els.viewport.getBoundingClientRect().top;
+      // clientHeight is unscaled; rect deltas are scaled while the chrome
+      // transform is active — de-scale the delta so the threshold means the
+      // same fraction of a screen with and without the chrome visible.
+      const scale = layoutScale(els.content);
       const margin = els.viewport.clientHeight * 0.55;
       return items.filter(item => {
         const tok = wsToToken[Math.round((item.fraction || 0) * (totalWs - 1))];
         if (tok == null) return false;
         const range = wordRange(state, tok);
         if (!range) return false;
-        return Math.abs(range.getBoundingClientRect().top - vpTop) < margin;
+        return Math.abs((range.getBoundingClientRect().top - vpTop) / scale) < margin;
       });
     }
     if (state.windowed) {
@@ -200,9 +225,19 @@ export class ChromeManager {
         return tok != null && pageOfWord(state, els.content, tok) === state.page;
       });
     }
-    const total = state.total;
-    if (total <= 0) return [];
-    return items.filter(item => Math.round(item.fraction * (total - 1)) === state.page);
+    // Paginated: measure the bookmark word's real page, exactly like the
+    // windowed branch. Estimating the page as fraction × pages assumes uniform
+    // word density per page, which drifts (headings, images, short chapters)
+    // and breaks the anchor/check/navigate symmetry the quick-bookmark button
+    // depends on: navigation lands on the word's measured page, so presence
+    // must be measured the same way.
+    const wsToToken = state.doc.wsToToken;
+    const totalWs = wsToToken.length;
+    if (state.total <= 0 || !totalWs) return [];
+    return items.filter(item => {
+      const tok = wsToToken[Math.round((item.fraction || 0) * (totalWs - 1))];
+      return tok != null && pageOfWord(state, els.content, tok) === state.page;
+    });
   }
 
   currentChapterLabel() { return this._currentChapterLabel(); }

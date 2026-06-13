@@ -6,6 +6,7 @@ import { makeCapabilities } from '../capabilities.js';
 import { startsWith, ZIP_MAGIC } from '../detect.js';
 import { registerAdapter } from '../registry.js';
 import { isImageFile, buildComicIR } from './comic-utils.js';
+import { checkArchiveEntry, isUnsafeArchivePath } from '../../core/archive-guard.js';
 
 export const cbzAdapter = {
   id: 'cbz',
@@ -45,14 +46,19 @@ export const cbzAdapter = {
 
     const zip = await new globalThis.JSZip().loadAsync(buffer);
     const entries = [];
+    const totals = { bytes: 0 };
 
     for (const [path, file] of Object.entries(zip.files)) {
-      if (!file.dir && isImageFile(path)) {
-        const bytes = await file.async('uint8array');
-        // Use basename only so natural sort ignores directory prefixes.
-        const name = path.split('/').pop().split('\\').pop();
-        entries.push({ name, bytes });
-      }
+      if (file.dir || !isImageFile(path)) continue;
+      // Skip names that escape the archive root; cap per-entry and total
+      // decompressed size so a zip bomb errors gracefully instead of
+      // exhausting the tab's memory (see core/archive-guard.js).
+      if (isUnsafeArchivePath(path)) continue;
+      const bytes = await file.async('uint8array');
+      checkArchiveEntry(path, bytes.length, totals);
+      // Use basename only so natural sort ignores directory prefixes.
+      const name = path.split('/').pop().split('\\').pop();
+      entries.push({ name, bytes });
     }
 
     return buildComicIR(entries, fileName, onProgress);

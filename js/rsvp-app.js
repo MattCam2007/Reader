@@ -1,4 +1,4 @@
-import { FONT_MAP, FONT_MONO, GENERAL_DEFAULTS } from './core/constants.js';
+import { FONT_MAP, FONT_MONO, GENERAL_DEFAULTS, EXTRACTABLE_BLOCK_TYPES } from './core/constants.js';
 import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
@@ -18,6 +18,7 @@ import { StatsTracker } from './rsvp/stats.js';
 import { TrainingManager } from './rsvp/training.js';
 import { createPicker } from './shared/picker.js';
 import { buildPosition, resolvePosition } from './core/position.js';
+import { validateBookSrcUrl } from './core/src-url.js';
 import * as perf from './core/perf.js';
 
 // Convert extractSections() output to the plain-text format the tokenizer expects.
@@ -30,13 +31,18 @@ import * as perf from './core/perf.js';
 // lets the RSVP TOC seek to the precise heading word even when it isn't the first
 // block in its spine file (a quote/epigraph/section-break before it would
 // otherwise leave the seek a page early — section start != heading).
+const RSVP_BLOCK_TYPES = new Set(EXTRACTABLE_BLOCK_TYPES);
+
 function sectionsToText(sections) {
   const parts = [];
   const chapters = [];
   const blockOffsets = new Map();
   let wordOffset = 0;
   for (const sec of sections) {
-    const usable = sec.blocks.filter(b => b.text && b.text.trim());
+    // Type filter derived from the shared EXTRACTABLE_BLOCK_TYPES enumeration —
+    // the same list TTS's selector and (via .blk rendering) the Reader's
+    // doc-model count from, so the three modes count identical words.
+    const usable = sec.blocks.filter(b => RSVP_BLOCK_TYPES.has(b.type) && b.text && b.text.trim());
     if (!usable.length) continue;
     const secStart = wordOffset;
     // Count words block-by-block so each block id maps to its first word's
@@ -140,8 +146,9 @@ export function init(options = {}) {
     if (state.playState === 'playing') playback.pause();
     else if (state.playState === 'countdown') playback.cancelCountdown();
     if (!state.totalWords) return;
-    if (item.position) applyCanonicalPosition(item.position);
-    else playback.seekTo(state.ordinalToIdx(Math.round((item.fraction || 0) * (state.totalWords - 1))));
+    // Legacy bookmarks (fraction only) resolve through the same canonical
+    // pipeline as full positions (resolvePosition handles fraction-only input).
+    applyCanonicalPosition(item.position || { f: item.fraction || 0 });
   }
 
   bmPanel.setCallbacks({
@@ -716,8 +723,10 @@ export function init(options = {}) {
   applyOsThemeFallback(generalPrefs, (name) => { generalPrefs.save(); applyTheme(name); });
 
   // ---------- Init ----------
-  const srcUrl = urlParams.get('src');
-  if (srcUrl) {
+  const srcUrl = validateBookSrcUrl(urlParams.get('src'));
+  if (urlParams.get('src') && !srcUrl) {
+    showLoadError(new Error("That book URL isn't allowed."));
+  } else if (srcUrl) {
     state.setPlayState('loading');
     els.statusMsg.classList.remove('error');
     els.statusRetryBtn.hidden = true;

@@ -1,6 +1,6 @@
 import { FONT_MAP, FONT_SERIF, RESIZE_DEBOUNCE_MS, GENERAL_DEFAULTS, WINDOW_MIN_WORDS, MIN_SIZE, MAX_SIZE } from './core/constants.js';
 import { applyTheme, applyOsThemeFallback, applyBgSettings } from './base-reader-app.js';
-import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
+import { openSettingsScreen, closeSettingsScreen, isSettingsScreenOpen } from './settings/settings-screen.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
 import { PrefsManager } from './core/prefs.js';
@@ -12,6 +12,7 @@ import { buildTOC, resolveHref } from './formats/epub/toc.js';
 import { toLocator, resolveLocator } from './model/locator.js';
 import { currentLocator, pageOfElement, pageOfWord, wordAtPageStart, wordAtPageStartRange } from './model/geometry.js';
 import { buildPosition, resolvePosition } from './core/position.js';
+import { validateBookSrcUrl } from './core/src-url.js';
 import { buildChapterIndex } from './reader/chapters.js';
 import { PaginationEngine } from './reader/pagination.js';
 import { PageCounter } from './reader/page-counter.js';
@@ -112,24 +113,18 @@ export function init(options = {}) {
   }
 
   function navigateToBookmark(item) {
-    if (item.position && state.doc.words.length) {
-      applyCanonicalPosition(item.position);
-      return;
+    if (!state.doc.words.length) return;
+    let pos = item.position;
+    if (!pos) {
+      // Legacy bookmark with only a fraction: resolve it through the canonical
+      // pipeline (fraction → word ordinal → seekToToken) instead of scaling
+      // pages/scrollTop, which drifted with word density. Then migrate the
+      // resolved position onto the bookmark so the legacy path decays to zero.
+      const ord = resolvePosition({ f: item.fraction || 0 }, readerSections(), totalWsWords(), wsWordText);
+      pos = buildPosition(readerSections(), totalWsWords(), ord, wsWordText);
+      bookmarkManager.updatePosition(item.id, pos);
     }
-    // Legacy bookmark without a canonical position — fall back to a fraction.
-    if (state.windowed) {
-      const n = state.chapWindows.length || 1;
-      const sec = Math.max(0, Math.min(n - 1, Math.floor((item.fraction || 0) * n)));
-      pagination.attachChap(sec);
-      pagination.paginateWindow(false);
-      const within = (item.fraction || 0) * n - sec;
-      pagination.goTo(Math.round(within * (state.total - 1)), false);
-    } else if (state.isScrollMode) {
-      const sh = els.viewport.scrollHeight - els.viewport.clientHeight;
-      els.viewport.scrollTop = Math.round((item.fraction || 0) * sh);
-    } else {
-      pagination.goTo(Math.round((item.fraction || 0) * (state.total - 1)), false);
-    }
+    applyCanonicalPosition(pos);
   }
 
   // ---------- Chrome ----------
@@ -139,12 +134,15 @@ export function init(options = {}) {
     getContext: getBookmarkContext,
     onNavigate: navigateToBookmark,
     closePanel: () => { document.body.classList.remove('show-bookmarks'); updateAriaExpanded(); },
-    onBookmarksChange: () => chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark),
+    onBookmarksChange: () => chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark, bookmarkManager.generation),
   });
 
   // ---------- Helpers ----------
   function currentLocatorFn() {
-    return currentLocator(state, els.content, els.viewport, (wi) => toLocator(state, wi));
+    // Span (?perf=1): this is the scroll-mode save path — the A3 anchor change
+    // must stay provably cheap.
+    return perf.time('reader:locator', () =>
+      currentLocator(state, els.content, els.viewport, (wi) => toLocator(state, wi)));
   }
   function buildChapterIndexFn() { buildChapterIndex(state, els.content); }
   function savePosMain() { storage.savePos(getCanonicalPosition); }
@@ -155,7 +153,7 @@ export function init(options = {}) {
     }
     if (state.windowed) updateWindowedProgress();
     else chrome.updateProgress();
-    chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
+    chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark, bookmarkManager.generation);
   }
 
   // Cheap global progress for windowed mode: chapter index + page-within-chapter,
@@ -361,12 +359,26 @@ export function init(options = {}) {
     const settle = () => {
       if (done || imgs.some(im => !im.complete)) return;
       done = true;
-      if (state.page !== landedPage || (state.windowed && state.curChap !== landedChap)) return;
+      perf.mark("reader:image-settle");
+      if (state.page !== landedPage || (state.windowed && state.curChap !== landedChap)) {
+        // The reader turned away while images decoded — don't yank them back.
+        // But the debounced save running since they turned was measured against
+        // the provisional (images-collapsed) layout; re-save from the settled
+        // one so the stored position matches what is actually on screen,
+        // instead of persisting the provisional capture.
+        storage.savePos(getCanonicalPosition);
+        perf.measure("reader:image-settle", { aborted: true });
+        return;
+      }
       // refresh stride/total against the final layout (windowed = current chapter only)
       if (state.windowed) pagination.paginateWindow(false);
       else pagination.paginate(false);
+      // The reseek target is a ws-ordinal position (layout-independent), so
+      // seeking with it is safe; the post-seek save inside goTo re-captures
+      // against the settled layout.
       if (reseek) applyCanonicalPosition(reseek);
       else storage.restorePos(applyCanonicalPosition);
+      perf.measure("reader:image-settle", { imgs: imgs.length });
     };
     imgs.forEach(im => {
       im.addEventListener("load", settle, { once: true, signal });
@@ -443,7 +455,9 @@ export function init(options = {}) {
 
   function updateAriaExpanded() {
     els.tocBtn.setAttribute("aria-expanded", String(document.body.classList.contains("show-toc")));
-    els.settingsBtn.setAttribute("aria-expanded", String(!!document.getElementById("settingsScreen")));
+    // Stored module state, not a live document.getElementById — book content
+    // can carry an id="settingsScreen" element and shadow the lookup (B6).
+    els.settingsBtn.setAttribute("aria-expanded", String(isSettingsScreenOpen()));
     els.searchBtn.setAttribute("aria-expanded", String(document.body.classList.contains("show-search")));
     if (els.bookmarksBtn) els.bookmarksBtn.setAttribute("aria-expanded", String(document.body.classList.contains("show-bookmarks")));
   }
@@ -636,7 +650,9 @@ export function init(options = {}) {
   function shouldWindow() {
     return !state.isScrollMode
       && state.doc.sections.length > 1
-      && state.doc.wsToToken.length >= WINDOW_MIN_WORDS;
+      // forceWindow is a test-only override (selftest drives all three layout
+      // modes on the small sample book, which never crosses WINDOW_MIN_WORDS).
+      && (state.forceWindow === true || state.doc.wsToToken.length >= WINDOW_MIN_WORDS);
   }
 
   // Re-lay-out in place (resize, font/margin change, or a layout-mode toggle),
@@ -672,7 +688,7 @@ export function init(options = {}) {
     // unchanged. Paginated turns refresh via goTo->updateProgressFn, but a scroll
     // seek doesn't, so refresh here to cover every mode. The layout-signature
     // gate inside makes this a no-op when nothing actually moved.
-    chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
+    chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark, bookmarkManager.generation);
   }
 
   // Live-apply a re-paginating pref change (quick drawer) while preserving the
@@ -751,7 +767,7 @@ export function init(options = {}) {
       } catch (e) { console.warn("reader:layout", e); }
       clearOverlay();
       if (urlParams.get("selftest") === "1") {
-        requestAnimationFrame(() => runSelftest(state));
+        requestAnimationFrame(() => runSelftest(state, selftestHooks));
       }
     } catch (err) {
       console.error("book render failed:", err);
@@ -760,13 +776,15 @@ export function init(options = {}) {
   }
 
   async function loadFromUrl(url) {
+    const safeUrl = validateBookSrcUrl(url);
+    if (!safeUrl) { showError("That book URL isn't allowed."); return; }
     showLoading("Fetching book\u2026");
     closePanels();
     try {
-      const resp = await fetch(url);
+      const resp = await fetch(safeUrl);
       if (!resp.ok) throw new Error("Fetch failed: " + resp.status);
       const blob = await resp.blob();
-      const filename = url.split("/").pop() || "book.epub";
+      const filename = safeUrl.split("/").pop() || "book.epub";
       const file = new File([blob], filename, { type: "application/epub+zip" });
       await loadEpub(file);
     } catch (err) {
@@ -848,7 +866,7 @@ export function init(options = {}) {
         if (!ctx) return;
         bookmarkManager.add(ctx);
         bmPanel.render();
-        chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
+        chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark, bookmarkManager.generation);
         els.quickBmBtnEl.classList.add("bm-flash");
         setTimeout(() => els.quickBmBtnEl.classList.remove("bm-flash"), 600);
       }
@@ -860,7 +878,7 @@ export function init(options = {}) {
         if (deleteBtn) {
           chrome.getPageBookmarks(bookmarkManager.getAll()).forEach(bm => bookmarkManager.remove(bm.id));
           bmPanel.render();
-          chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
+          chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark, bookmarkManager.generation);
           _closeColorPopover();
           return;
         }
@@ -876,7 +894,7 @@ export function init(options = {}) {
           if (ctx) bookmarkManager.add({ ...ctx, color });
         }
         bmPanel.render();
-        chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark);
+        chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark, bookmarkManager.generation);
         _closeColorPopover();
       }, { signal });
 
@@ -893,8 +911,14 @@ export function init(options = {}) {
     if (!document.fullscreenEnabled) {
       els.fullscreenBtnEl.hidden = true;
     } else {
+      // Position captured BEFORE the fullscreen toggle reflows the viewport —
+      // the same pre-capture pattern as applyPrefAndRelayout. A capture taken
+      // after the change reads the new geometry with stale stride/page state
+      // and loses the place.
+      let fsPos = null;
       els.fullscreenBtnEl.addEventListener('click', (e) => {
         e.stopPropagation();
+        fsPos = (state.docModelBuilt && state.doc.words.length) ? getCanonicalPosition() : null;
         if (document.fullscreenElement) document.exitFullscreen();
         else document.documentElement.requestFullscreen();
       }, { signal });
@@ -902,6 +926,13 @@ export function init(options = {}) {
         const isFs = !!document.fullscreenElement;
         document.body.classList.toggle('fs-active', isFs);
         els.fullscreenBtnEl.setAttribute('aria-label', isFs ? 'Exit fullscreen' : 'Toggle fullscreen');
+        // Desktop browsers fire a resize here (debounced relayout); some mobile
+        // browsers do not, leaving the column flow — and the position — stale
+        // until the next explicit resize. Relayout now, restoring the position
+        // captured at the click (Esc-exit has no capture; fall back to a fresh
+        // capture, same as the resize path).
+        if (state.docModelBuilt) relayout(fsPos || undefined);
+        fsPos = null;
       }, { signal });
     }
   }
@@ -1113,6 +1144,18 @@ export function init(options = {}) {
     setTimeout(dismissCoach, 6000);
   }
 
+  // Live-app hooks handed to the selftest suite (?selftest=1 only). They let
+  // the suite drive the real layout/bookmark/navigation paths — the bookmark
+  // anchor/check/navigate symmetry invariant can only be tested against the
+  // live closures, not pure functions.
+  const selftestHooks = {
+    els, prefs, chrome, bookmarkManager, pagination,
+    getBookmarkContext, navigateToBookmark,
+    getCanonicalPosition, applyCanonicalPosition, seekToToken,
+    relayout, applyPrefs,
+    readerSections, totalWsWords, wsWordText,
+  };
+
   const srcUrl = urlParams.get("src");
   if (srcUrl) {
     loadFromUrl(srcUrl);
@@ -1124,7 +1167,7 @@ export function init(options = {}) {
     requestAnimationFrame(() => {
       if (_suppressSampleLayout) return;
       finalizeLayout([], null);
-      requestAnimationFrame(() => runSelftest(state));
+      requestAnimationFrame(() => runSelftest(state, selftestHooks));
     });
   } else {
     showWelcome();
