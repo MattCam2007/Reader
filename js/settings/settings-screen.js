@@ -3,6 +3,7 @@ import { RSVP_DEFAULTS } from '../rsvp/constants.js';
 import { TTS_DEFAULTS } from '../tts/constants.js';
 import { PrefsManager } from '../core/prefs.js';
 import { createPicker } from '../shared/picker.js';
+import { renderFontPickerHTML, mountFontPicker } from '../shared/font-picker.js';
 import { BG_IMAGE_STORAGE_KEY, applyBgSettings, clearBgImage } from '../base-reader-app.js';
 
 let _screen = null;
@@ -116,7 +117,13 @@ export function openSettingsScreen(config = {}) {
   document.body.appendChild(_screen);
   requestAnimationFrame(() => _screen && _screen.classList.add('sscreen--open'));
 
-  let rsvpPickers = null;
+  let rsvpPickers   = null;
+  let fontPickerHandle = null;
+
+  function destroyTabHandles() {
+    if (rsvpPickers) { rsvpPickers.forEach(p => p && p.destroy && p.destroy()); rsvpPickers = null; }
+    if (fontPickerHandle) { fontPickerHandle.destroy(); fontPickerHandle = null; }
+  }
 
   function showTab(tab) {
     _screen.querySelectorAll('.sscreen-tab').forEach(t => {
@@ -125,10 +132,7 @@ export function openSettingsScreen(config = {}) {
       t.setAttribute('aria-selected', String(active));
     });
 
-    if (rsvpPickers) {
-      rsvpPickers.forEach(p => p && p.destroy && p.destroy());
-      rsvpPickers = null;
-    }
+    destroyTabHandles();
 
     const body = byId('sscreenBody');
     if (!body) return;
@@ -138,13 +142,15 @@ export function openSettingsScreen(config = {}) {
       wireGeneralTab(generalPrefs, onGeneralChange);
     } else if (tab === 'read') {
       body.innerHTML = readTabHTML(readerPrefs.data);
-      wireReadTab(readerPrefs, currentMode === 'read' ? onReaderChange : null);
+      fontPickerHandle = wireReadTab(readerPrefs, currentMode === 'read' ? onReaderChange : null);
     } else if (tab === 'rsvp') {
       body.innerHTML = speedTabHTML(rsvpPrefs.data);
-      rsvpPickers = wireSpeedTab(rsvpPrefs, currentMode === 'rsvp' ? onRsvpChange : null);
+      const result = wireSpeedTab(rsvpPrefs, currentMode === 'rsvp' ? onRsvpChange : null);
+      rsvpPickers = result.pickers;
+      fontPickerHandle = result.fontHandle;
     } else if (tab === 'tts') {
       body.innerHTML = listenTabHTML(ttsPrefs.data);
-      wireListenTab(ttsPrefs, currentMode === 'tts' ? onTtsChange : null);
+      fontPickerHandle = wireListenTab(ttsPrefs, currentMode === 'tts' ? onTtsChange : null);
     }
   }
 
@@ -161,7 +167,7 @@ export function openSettingsScreen(config = {}) {
 
   _cleanup = () => {
     document.removeEventListener('keydown', onKey);
-    if (rsvpPickers) { rsvpPickers.forEach(p => p && p.destroy && p.destroy()); rsvpPickers = null; }
+    destroyTabHandles();
   };
 }
 
@@ -340,7 +346,7 @@ function readTabHTML(p) {
     row('Brightness', slider('ss-brightness', 30, 100, Math.round((p.brightness || 1) * 100))),
     row('Warmth', slider('ss-warmth', 0, 100, Math.round((p.warmth || 0) * 100))),
     row('Text size', counter('ss-sizeDown', 'ss-sizeDisplay', 'ss-sizeUp', p.size)),
-    row('Typeface', seg('ss-font', 'data-font', [['serif','Serif'],['sans','Sans'],['dyslexic','Dyslexic']], p.font)),
+    row('Typeface', renderFontPickerHTML('ss-font', p.font)),
 
     section('Layout'),
     row('Margins', seg('ss-margin', 'data-margin', [['fine','Fine'],['narrow','Narrow'],['normal','Normal'],['wide','Wide']], p.margin)),
@@ -359,8 +365,12 @@ function readTabHTML(p) {
 }
 
 function wireReadTab(prefs, liveApply) {
+  const fontHandle = mountFontPicker(byId('ss-font'), (val) => {
+    prefs.data.font = val; prefs.save();
+    if (liveApply) liveApply('font', val, true);
+  });
+
   const SEGS = [
-    { id: 'ss-font',   attr: 'data-font',   pref: 'font',         repag: true,  preview: true  },
     { id: 'ss-margin', attr: 'data-margin', pref: 'margin',       repag: true  },
     { id: 'ss-para',   attr: 'data-para',   pref: 'paraSpacing',  repag: true  },
     { id: 'ss-align',  attr: 'data-align',  pref: 'align',        repag: true  },
@@ -447,6 +457,8 @@ function wireReadTab(prefs, liveApply) {
     -0.1, 0.1, 1.0, 2.4,
     (v) => v.toFixed(1)
   );
+
+  return fontHandle;
 }
 
 // ── Speed tab (RSVP) ─────────────────────────────────────────────────────────
@@ -454,7 +466,7 @@ function wireReadTab(prefs, liveApply) {
 function speedTabHTML(p) {
   return [
     section('Appearance'),
-    row('Font', seg('ss-rsvp-font', 'data-font', [['sans','Sans'],['serif','Serif'],['mono','Mono'],['dyslexic','Dyslexic']], p.font)),
+    row('Font', renderFontPickerHTML('ss-rsvp-font', p.font)),
 
     section('Display'),
     row('Flash size', seg('ss-chunk', 'data-chunk', [['1','1 word'],['2','2 words'],['3','3 words']], String(p.chunkSize))),
@@ -487,7 +499,7 @@ function speedTabHTML(p) {
 function wireSpeedTab(prefs, liveApply) {
   const pickers = [];
 
-  wireSeg('ss-rsvp-font', 'data-font', (val) => {
+  const fontHandle = mountFontPicker(byId('ss-rsvp-font'), (val) => {
     prefs.data.font = val; prefs.save();
     if (liveApply) liveApply('font', val);
   });
@@ -602,7 +614,7 @@ function wireSpeedTab(prefs, liveApply) {
     });
   }
 
-  return pickers;
+  return { pickers, fontHandle };
 }
 
 // ── Listen tab (TTS) ─────────────────────────────────────────────────────────
@@ -613,7 +625,7 @@ function listenTabHTML(p) {
     row('Brightness', slider('ss-tts-brightness', 30, 100, Math.round((p.brightness || 1) * 100))),
     row('Warmth', slider('ss-tts-warmth', 0, 100, Math.round((p.warmth || 0) * 100))),
     row('Text size', counter('ss-tts-sizeDown', 'ss-tts-sizeDisplay', 'ss-tts-sizeUp', p.size)),
-    row('Typeface', seg('ss-tts-font', 'data-font', [['serif','Serif'],['sans','Sans'],['dyslexic','Dyslexic']], p.font)),
+    row('Typeface', renderFontPickerHTML('ss-tts-font', p.font)),
 
     section('Layout'),
     row('Margins', seg('ss-tts-margin', 'data-margin', [['fine','Fine'],['narrow','Narrow'],['normal','Normal'],['wide','Wide']], p.margin || 'normal')),
@@ -626,7 +638,7 @@ function listenTabHTML(p) {
 }
 
 function wireListenTab(prefs, liveApply) {
-  wireSeg('ss-tts-font', 'data-font', (val) => {
+  const fontHandle = mountFontPicker(byId('ss-tts-font'), (val) => {
     prefs.data.font = val; prefs.save();
     if (liveApply) liveApply('font', val);
   });
@@ -668,6 +680,8 @@ function wireListenTab(prefs, liveApply) {
     prefs.data.autoScroll = val; prefs.save();
     if (liveApply) liveApply('autoScroll', val);
   });
+
+  return fontHandle;
 }
 
 // ── Shared wiring helpers ────────────────────────────────────────────────────

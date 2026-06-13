@@ -1,4 +1,6 @@
 import { FONT_MAP, FONT_SERIF, RESIZE_DEBOUNCE_MS, GENERAL_DEFAULTS, WINDOW_MIN_WORDS, MIN_SIZE, MAX_SIZE } from './core/constants.js';
+import { FONT_REGISTRY, fontByKey } from './core/fonts.js';
+import { mountFontPicker } from './shared/font-picker.js';
 import { applyTheme, applyOsThemeFallback, applyBgSettings } from './base-reader-app.js';
 import { openSettingsScreen, closeSettingsScreen, isSettingsScreenOpen } from './settings/settings-screen.js';
 import { BookmarkManager } from './core/bookmarks.js';
@@ -79,10 +81,31 @@ export function init(options = {}) {
     qdLhUp:        document.getElementById("qdLhUp"),
     qdLhVal:       document.getElementById("qdLhVal"),
     qdParaSeg:     document.getElementById("qdParaSeg"),
-    qdFontSeg:     document.getElementById("qdFontSeg"),
+    qdFontPicker:  document.getElementById("qdFontPicker"),
     qdMarginSeg:   document.getElementById("qdMarginSeg"),
     qdAlignSeg:    document.getElementById("qdAlignSeg"),
   };
+
+  // Populated here; mounted below once prefs is in scope.
+  let qdFontHandle = null;
+  if (els.qdFontPicker) {
+    const panel = els.qdFontPicker.querySelector('.font-picker-panel');
+    if (panel) {
+      const items = [];
+      let addedSep = false;
+      for (const f of FONT_REGISTRY) {
+        if (!addedSep && f.group === 'named') {
+          items.push('<hr class="font-picker-sep" role="separator" aria-hidden="true">');
+          addedSep = true;
+        }
+        items.push(
+          `<button class="font-picker-item" role="option" data-font="${f.key}" ` +
+          `style="font-family:${f.stack}" aria-selected="false" type="button">${f.label}</button>`
+        );
+      }
+      panel.innerHTML = items.join('');
+    }
+  }
 
   // ---------- State & Prefs ----------
   const prefs = new PrefsManager();
@@ -644,11 +667,7 @@ export function init(options = {}) {
         btn.classList.toggle('is-active', btn.dataset.para === p.paraSpacing);
       });
     }
-    if (els.qdFontSeg) {
-      els.qdFontSeg.querySelectorAll('[data-font]').forEach(btn => {
-        btn.classList.toggle('is-active', btn.dataset.font === (p.font || 'serif'));
-      });
-    }
+    if (qdFontHandle) qdFontHandle.update(p.font || 'serif');
     if (els.qdMarginSeg) {
       els.qdMarginSeg.querySelectorAll('[data-margin]').forEach(btn => {
         btn.classList.toggle('is-active', btn.dataset.margin === (p.margin || 'normal'));
@@ -1137,13 +1156,11 @@ export function init(options = {}) {
       applyPrefAndRelayout();
     }, { signal });
   }
-  if (els.qdFontSeg) {
-    els.qdFontSeg.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-font]');
-      if (!btn) return;
-      prefs.data.font = btn.dataset.font; prefs.save();
+  if (els.qdFontPicker) {
+    qdFontHandle = mountFontPicker(els.qdFontPicker, (key) => {
+      prefs.data.font = key; prefs.save();
       applyPrefAndRelayout();
-    }, { signal });
+    });
   }
   if (els.qdMarginSeg) {
     els.qdMarginSeg.addEventListener('click', (e) => {

@@ -52,10 +52,12 @@ export function readerTemplate() {
           <div class="reader-quick-row">
             <div class="reader-quick-item reader-quick-item--wide">
               <span class="reader-quick-label">Typeface</span>
-              <div class="reader-seg reader-seg--fill" id="qdFontSeg">
-                <button class="reader-seg-btn" data-font="serif" type="button">Serif</button>
-                <button class="reader-seg-btn" data-font="sans" type="button">Sans</button>
-                <button class="reader-seg-btn" data-font="dyslexic" type="button">Dyslexic</button>
+              <div class="font-picker" id="qdFontPicker">
+                <button class="font-picker-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
+                  <span class="font-picker-label">Serif</span>
+                  <svg class="font-picker-chevron" viewBox="0 0 10 6" width="10" height="6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1,1 5,5 9,1"/></svg>
+                </button>
+                <div class="font-picker-panel" role="listbox" hidden></div>
               </div>
             </div>
           </div>
