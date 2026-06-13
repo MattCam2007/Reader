@@ -5,6 +5,17 @@
   gap: 0.45rem;
   align-items: center;
 }
+/* Buttons share width equally — use inside fixed-width containers */
+.reader-seg--fill {
+  width: 100%;
+}
+.reader-seg--fill .reader-seg-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  text-align: center;
+}
 .reader-seg-btn {
   background: transparent;
   border: 1px solid var(--border);

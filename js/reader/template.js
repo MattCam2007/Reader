@@ -51,11 +51,40 @@ export function readerTemplate() {
           </div>
           <div class="reader-quick-row">
             <div class="reader-quick-item reader-quick-item--wide">
+              <span class="reader-quick-label">Typeface</span>
+              <div class="reader-seg reader-seg--fill" id="qdFontSeg">
+                <button class="reader-seg-btn" data-font="serif" type="button">Serif</button>
+                <button class="reader-seg-btn" data-font="sans" type="button">Sans</button>
+                <button class="reader-seg-btn" data-font="dyslexic" type="button">Dyslexic</button>
+              </div>
+            </div>
+          </div>
+          <div class="reader-quick-row">
+            <div class="reader-quick-item reader-quick-item--wide">
               <span class="reader-quick-label">Paragraphs</span>
-              <div class="reader-seg" id="qdParaSeg">
+              <div class="reader-seg reader-seg--fill" id="qdParaSeg">
                 <button class="reader-seg-btn" data-para="indent" type="button">Indented</button>
                 <button class="reader-seg-btn" data-para="spaced" type="button">Spaced</button>
                 <button class="reader-seg-btn" data-para="both" type="button">Both</button>
+              </div>
+            </div>
+          </div>
+          <div class="reader-quick-row">
+            <div class="reader-quick-item reader-quick-item--wide">
+              <span class="reader-quick-label">Margins</span>
+              <div class="reader-seg reader-seg--fill" id="qdMarginSeg">
+                <button class="reader-seg-btn" data-margin="narrow" type="button">Narrow</button>
+                <button class="reader-seg-btn" data-margin="normal" type="button">Normal</button>
+                <button class="reader-seg-btn" data-margin="wide" type="button">Wide</button>
+              </div>
+            </div>
+          </div>
+          <div class="reader-quick-row">
+            <div class="reader-quick-item reader-quick-item--wide">
+              <span class="reader-quick-label">Alignment</span>
+              <div class="reader-seg reader-seg--fill" id="qdAlignSeg">
+                <button class="reader-seg-btn" data-align="justify" type="button">Justify</button>
+                <button class="reader-seg-btn" data-align="left" type="button">Left</button>
               </div>
             </div>
           </div>

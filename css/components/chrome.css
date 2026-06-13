@@ -139,7 +139,7 @@ body.chrome-hidden .reader-bottombar { opacity: 0; transform: translateY(100%); 
 }
 .reader-quick-panel {
   overflow: hidden;
-  max-height: 300px;
+  max-height: 520px;
   transition: max-height 240ms ease;
 }
 .reader-quick-panel.is-collapsed {

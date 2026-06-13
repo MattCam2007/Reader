@@ -80,6 +80,9 @@ export function init(options = {}) {
     qdLhUp:        document.getElementById("qdLhUp"),
     qdLhVal:       document.getElementById("qdLhVal"),
     qdParaSeg:     document.getElementById("qdParaSeg"),
+    qdFontSeg:     document.getElementById("qdFontSeg"),
+    qdMarginSeg:   document.getElementById("qdMarginSeg"),
+    qdAlignSeg:    document.getElementById("qdAlignSeg"),
     qdBrightness:  document.getElementById("qdBrightness"),
   };
 
@@ -642,6 +645,21 @@ export function init(options = {}) {
         btn.classList.toggle('is-active', btn.dataset.para === p.paraSpacing);
       });
     }
+    if (els.qdFontSeg) {
+      els.qdFontSeg.querySelectorAll('[data-font]').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.font === (p.font || 'serif'));
+      });
+    }
+    if (els.qdMarginSeg) {
+      els.qdMarginSeg.querySelectorAll('[data-margin]').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.margin === (p.margin || 'normal'));
+      });
+    }
+    if (els.qdAlignSeg) {
+      els.qdAlignSeg.querySelectorAll('[data-align]').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.align === (p.align || 'justify'));
+      });
+    }
   }
 
   // ---------- Rendering ----------
@@ -1078,6 +1096,30 @@ export function init(options = {}) {
       const btn = e.target.closest('[data-para]');
       if (!btn) return;
       prefs.data.paraSpacing = btn.dataset.para; prefs.save();
+      applyPrefAndRelayout();
+    }, { signal });
+  }
+  if (els.qdFontSeg) {
+    els.qdFontSeg.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-font]');
+      if (!btn) return;
+      prefs.data.font = btn.dataset.font; prefs.save();
+      applyPrefAndRelayout();
+    }, { signal });
+  }
+  if (els.qdMarginSeg) {
+    els.qdMarginSeg.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-margin]');
+      if (!btn) return;
+      prefs.data.margin = btn.dataset.margin; prefs.save();
+      applyPrefAndRelayout();
+    }, { signal });
+  }
+  if (els.qdAlignSeg) {
+    els.qdAlignSeg.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-align]');
+      if (!btn) return;
+      prefs.data.align = btn.dataset.align; prefs.save();
       applyPrefAndRelayout();
     }, { signal });
   }
