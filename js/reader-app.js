@@ -1,6 +1,5 @@
 import { FONT_MAP, FONT_SERIF, RESIZE_DEBOUNCE_MS, GENERAL_DEFAULTS, WINDOW_MIN_WORDS, MIN_SIZE, MAX_SIZE } from './core/constants.js';
-import { FONT_REGISTRY, fontByKey } from './core/fonts.js';
-import { mountFontPicker } from './shared/font-picker.js';
+import { mountFontPicker, fontPickerItemsHTML } from './shared/font-picker.js';
 import { applyTheme, applyOsThemeFallback, applyBgSettings } from './base-reader-app.js';
 import { openSettingsScreen, closeSettingsScreen, isSettingsScreenOpen } from './settings/settings-screen.js';
 import { BookmarkManager } from './core/bookmarks.js';
@@ -90,21 +89,7 @@ export function init(options = {}) {
   let qdFontHandle = null;
   if (els.qdFontPicker) {
     const panel = els.qdFontPicker.querySelector('.font-picker-panel');
-    if (panel) {
-      const items = [];
-      let addedSep = false;
-      for (const f of FONT_REGISTRY) {
-        if (!addedSep && f.group === 'named') {
-          items.push('<hr class="font-picker-sep" role="separator" aria-hidden="true">');
-          addedSep = true;
-        }
-        items.push(
-          `<button class="font-picker-item" role="option" data-font="${f.key}" ` +
-          `style="font-family:${f.stack}" aria-selected="false" type="button">${f.label}</button>`
-        );
-      }
-      panel.innerHTML = items.join('');
-    }
+    if (panel) panel.innerHTML = fontPickerItemsHTML('serif');
   }
 
   // ---------- State & Prefs ----------

@@ -2,7 +2,17 @@ import { FONT_REGISTRY, fontByKey } from '../core/fonts.js';
 
 const CHEVRON = `<svg class="font-picker-chevron" viewBox="0 0 10 6" width="10" height="6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1,1 5,5 9,1"/></svg>`;
 
-export function renderFontPickerHTML(id, currentKey) {
+// Font stacks contain double quotes (e.g. "SF Mono"). When embedded in a
+// double-quoted HTML attribute they must be entity-escaped or the inner quote
+// terminates the attribute early and the font-family is silently dropped.
+function escAttr(s) {
+  return String(s).replace(/"/g, '&quot;');
+}
+
+// The list of option buttons (with the serif/sans/mono → separator → A-Z order).
+// Each option is rendered IN ITS OWN typeface so the menu previews the font.
+// Shared by the settings screen and the reader quick drawer.
+export function fontPickerItemsHTML(currentKey) {
   const cur = fontByKey(currentKey);
   const items = [];
   let addedSep = false;
@@ -16,21 +26,25 @@ export function renderFontPickerHTML(id, currentKey) {
     items.push(
       `<button class="font-picker-item${active ? ' font-picker-item--active' : ''}" ` +
       `role="option" data-font="${f.key}" ` +
-      `style="font-family:${f.stack}" ` +
+      `style="font-family:${escAttr(f.stack)}" ` +
       `aria-selected="${active}" type="button">${f.label}</button>`
     );
   }
+  return items.join('');
+}
 
+export function renderFontPickerHTML(id, currentKey) {
+  const cur = fontByKey(currentKey);
   return (
     `<div class="font-picker" id="${id}">` +
       `<button class="font-picker-btn" type="button" ` +
       `aria-haspopup="listbox" aria-expanded="false" ` +
-      `style="font-family:${cur.stack}">` +
+      `style="font-family:${escAttr(cur.stack)}">` +
         `<span class="font-picker-label">${cur.label}</span>` +
         CHEVRON +
       `</button>` +
       `<div class="font-picker-panel" role="listbox" hidden>` +
-        items.join('') +
+        fontPickerItemsHTML(currentKey) +
       `</div>` +
     `</div>`
   );
@@ -44,6 +58,12 @@ export function mountFontPicker(el, onChange) {
   const btn   = el.querySelector('.font-picker-btn');
   const panel = el.querySelector('.font-picker-panel');
   if (!btn || !panel) return null;
+
+  // Relocate the panel to <body> so it can never be trapped/clipped by an
+  // ancestor that establishes a containing block for position:fixed — e.g. the
+  // quick drawer's backdrop-filter — or an overflow:hidden parent. It is
+  // positioned via fixed viewport coordinates computed from the button.
+  document.body.appendChild(panel);
 
   let isOpen = false;
 
@@ -120,7 +140,11 @@ export function mountFontPicker(el, onChange) {
     if (isOpen) position();
   }
 
-  const onOutside = (e) => { if (!el.contains(e.target)) close(); };
+  // The panel lives in <body>, so "outside" means outside BOTH the trigger and
+  // the panel itself; selections inside the panel are handled by its own click.
+  const onOutside = (e) => {
+    if (!el.contains(e.target) && !panel.contains(e.target)) close();
+  };
   const onScroll  = () => { if (isOpen) position(); };
 
   document.addEventListener('click',  onOutside, { capture: true });
@@ -134,6 +158,7 @@ export function mountFontPicker(el, onChange) {
       document.removeEventListener('scroll', onScroll,  { capture: true });
       window.removeEventListener('resize',   onScroll);
       close();
+      if (panel.parentNode) panel.parentNode.removeChild(panel);
     },
   };
 }
