@@ -70,6 +70,7 @@ export function init(options = {}) {
     bookMenu:      document.getElementById("bookMenu"),
     topbar:        document.getElementById("topbar"),
     bottombar:     document.getElementById("bottombar"),
+    readerQuickDrawer:  document.getElementById("readerQuickDrawer"),
     readerDrawerHandle: document.getElementById("readerDrawerHandle"),
     readerQuickPanel:   document.getElementById("readerQuickPanel"),
     qdSizeDown:    document.getElementById("qdSizeDown"),
@@ -555,7 +556,7 @@ export function init(options = {}) {
   // ---------- Input ----------
   const input = new InputHandler(state, els, pagination, {
     toggleChrome: () => {
-      if (document.body.classList.contains('drawer-preview')) {
+      if (prefs.data.quickDrawerOpen) {
         applyQuickDrawerOpen(false);
       } else {
         chrome.toggle();
@@ -1012,11 +1013,31 @@ export function init(options = {}) {
     if (els.readerDrawerHandle) {
       els.readerDrawerHandle.setAttribute('aria-label', open ? 'Close quick settings' : 'Show quick settings');
     }
-    document.body.classList.toggle('drawer-preview', open);
+    const drawer = els.readerQuickDrawer;
+    if (open) {
+      // Detach from the footer so the drawer isn't hidden by chrome-hidden's
+      // translateY(100%) transform. Append to #app (no transform ancestor)
+      // so position:fixed keeps it pinned at the bottom of the viewport.
+      if (drawer && !drawer.classList.contains('is-floating')) {
+        drawer.classList.add('is-floating');
+        document.getElementById('app').appendChild(drawer);
+      }
+      document.body.classList.add('chrome-hidden');
+      chrome.updateViewportScale();
+    } else {
+      // Reattach to footer before chrome-hidden is re-evaluated so the
+      // drawer doesn't flash in the wrong position.
+      if (drawer && drawer.classList.contains('is-floating')) {
+        drawer.classList.remove('is-floating');
+        els.bottombar.insertAdjacentElement('afterbegin', drawer);
+      }
+      // Leave chrome-hidden intentionally: user is now in full-screen
+      // reading mode and can tap the content to bring chrome back.
+    }
     prefs.data.quickDrawerOpen = open;
     prefs.save();
   }
-  applyQuickDrawerOpen(prefs.data.quickDrawerOpen ?? false);
+  applyQuickDrawerOpen(false); // always start closed; open state after close is chrome-hidden
 
   if (els.readerDrawerHandle) {
     els.readerDrawerHandle.addEventListener('click', (e) => {

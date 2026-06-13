@@ -8,7 +8,7 @@ import './formats/index.js'; // ensure all adapters are registered
 
 const READER_BODY_CLASSES = [
   'chrome-hidden', 'loading', 'error', 'welcome', 'show-toc', 'show-search', 'show-bookmarks',
-  'images-off', 'selection-on', 'layout-scroll', 'drawer-preview',
+  'images-off', 'selection-on', 'layout-scroll',
 ];
 const RSVP_BODY_CLASSES = [
   'rsvp', 'paused', 'loading', 'error', 'fs-hide-controls', 'show-toc', 'show-bookmarks',
