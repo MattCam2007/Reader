@@ -1002,6 +1002,59 @@ function runLiveTests(state, hooks, assert) {
       assert('bookmark-symmetry', name + ': capture/check/navigate agree' + (ok ? '' : ' — ' + detail), ok);
     }
 
+    // --- Position lock: a self-captured paginated relayout (viewport resize)
+    // restores the cached anchor instead of re-deriving it from a now-stale page
+    // number against an already-reflowed DOM. This reproduces the "switch between
+    // regular and extended view jumps several pages" bug: the address-bar
+    // collapse reflows the columns before the resize event fires.
+    setLayout('paginated', true); // windowed
+    if (!state.windowed) {
+      assert('position-live', 'paginated relayout test: forceWindow enters windowed mode', false);
+    } else {
+      const ordW = Math.round(0.4 * (totalWs - 1));
+      seekToToken(doc.wsToToken[ordW]);
+      // The first word actually on screen (a page-top word at/just before ordW).
+      const anchorOrd = resolvePosition(getCanonicalPosition(), readerSections(), totalWsWords(), wsWordText);
+      // Simulate the in-memory cache a live session keeps between page turns.
+      state._lastPos = getCanonicalPosition();
+      // Reflow WITHOUT re-paginating or re-capturing — exactly what a viewport
+      // resize leaves behind (DOM reflowed, state.page + _lastPos predate it).
+      prefs.data.size = origSize + 8;
+      applyPrefs();
+      // What the OLD self-capture path would have used: a stale page number read
+      // against the reflowed DOM (this is the several-pages jump).
+      const staleDerived = resolvePosition(getCanonicalPosition(), readerSections(), totalWsWords(), wsWordText);
+      // The fix: relayout() with no argument restores from the cached anchor.
+      relayout();
+      const afterOrd = resolvePosition(getCanonicalPosition(), readerSections(), totalWsWords(), wsWordText);
+      // Words-per-page in the landed chapter sets the tolerance: the restore lands
+      // the anchor's paragraph at the top, so the top word sits within ~a page of
+      // the original anchor (and far closer than the stale self-capture).
+      const sec = doc.sections[state.curChap];
+      const wpp = sec ? (sec.wsEnd - sec.wsStart) / Math.max(1, state.total) : totalWs;
+      const tol = Math.ceil(wpp * 2) + 5;
+      const ok = Math.abs(afterOrd - anchorOrd) <= tol;
+      assert('position-live',
+        'paginated resize keeps the anchor within ~1 page (was ' + anchorOrd +
+        ', stale self-capture ' + staleDerived + ', restored ' + afterOrd + ', tol ' + tol + ')',
+        ok);
+
+      // Paragraph-start glue: the first whole word on screen after the relayout is
+      // the start of its paragraph (the block was forced to begin a fresh column),
+      // i.e. the paragraph holding the reader's position is pinned to the top.
+      const afterTok = doc.wsToToken[Math.max(0, Math.min(afterOrd, doc.wsToToken.length - 1))];
+      const topBlk = doc.words[afterTok] ? doc.words[afterTok].block : -1;
+      const blockStartsAtTop = topBlk >= 0 && doc.blocks[topBlk].wordStart === afterTok;
+      assert('position-live',
+        'paragraph-start glue pins a paragraph start to the top of the page',
+        blockStartsAtTop);
+
+      // Restore for the rest of the suite.
+      prefs.data.size = origSize;
+      applyPrefs();
+      relayout(state._lastPos);
+    }
+
     // --- C2: scroll restore after a font-size change lands the same word ---
     setLayout('scroll', false);
     seekToToken(doc.wsToToken[Math.round(0.5 * (totalWs - 1))]);

@@ -145,7 +145,17 @@ export function init(options = {}) {
       currentLocator(state, els.content, els.viewport, (wi) => toLocator(state, wi)));
   }
   function buildChapterIndexFn() { buildChapterIndex(state, els.content); }
-  function savePosMain() { storage.savePos(getCanonicalPosition); }
+  function savePosMain() {
+    storage.savePos(() => {
+      const pos = getCanonicalPosition();
+      // Cache the anchor while the layout is intact. The debounced save only runs
+      // once the reader pauses, so this records the first word on screen at a
+      // stable moment — what relayout() restores after a viewport resize reflows
+      // the DOM out from under a now-stale page number. See relayout().
+      if (pos && !state.isScrollMode) state._lastPos = pos;
+      return pos;
+    });
+  }
   function updateProgressFn() {
     // The resume highlight lives until the page changes away from where it was set.
     if (state._resumeHlActive && !state.isScrollMode && state.page !== state._resumeHlPage) {
@@ -335,6 +345,31 @@ export function init(options = {}) {
     // TTS). It persists until the next page turn / scroll — see updateProgressFn.
     if (pos && pos.hl) setResumeHighlight(startWs, pos.hl);
     else clearResumeHighlight();
+  }
+
+  // ---------- Paragraph-start glue ----------
+  // Force `el` (a .blk block) to begin a fresh column so it lands at the top of
+  // the page after the next pagination. At most one block carries the class; this
+  // moves it. Pass null to clear (scroll layout, or no position to preserve).
+  // Purely a class toggle — it never touches the doc-model's node references.
+  function setGlueBlock(el) {
+    if (state._glueBlockEl === el) return;
+    if (state._glueBlockEl) state._glueBlockEl.classList.remove("glue-break");
+    state._glueBlockEl = el || null;
+    if (el) el.classList.add("glue-break");
+  }
+  // Glue the paragraph that holds the first word of `pos` (a canonical position).
+  // Resolving pos → word → block is layout-independent, so this can run *before*
+  // pagination, putting the forced column break in place when totals are computed.
+  function setGlueBlockForPos(pos) {
+    const { doc } = state;
+    if (!pos || !doc.wsToToken.length) { setGlueBlock(null); return; }
+    const ord = resolvePosition(pos, readerSections(), totalWsWords(), wsWordText);
+    const startWs = Math.max(0, Math.min(ord, doc.wsToToken.length - 1));
+    const tok = doc.wsToToken[startWs];
+    const w = doc.words[tok];
+    const blk = w ? doc.blocks[w.block] : null;
+    setGlueBlock(blk ? blk.el : null);
   }
 
   // Images in the freshly-rendered book decode asynchronously; until they do
@@ -606,6 +641,10 @@ export function init(options = {}) {
     perf.mark("reader:render");
     state.headingToc = [];
     state.docModelBuilt = false;
+    // Drop references into the outgoing book's DOM before it's replaced, so we
+    // don't pin a detached element or carry a stale anchor into the new book.
+    state._glueBlockEl = null;
+    state._lastPos = null;
     renderSections(els.content, sections, {
       sectionEls: state.sectionEls,
       onHeading: (h) => state.headingToc.push(h),
@@ -666,9 +705,24 @@ export function init(options = {}) {
   // as-is.
   function relayout(savedPos) {
     if (!state.docModelBuilt) return;
+    // For a self-captured relayout (resize / fullscreen toggle, savedPos ===
+    // undefined) in a paginated layout, restore the cached anchor rather than
+    // reading the position now: a viewport resize has already reflowed the DOM
+    // while state.page still describes the old layout, so re-deriving the anchor
+    // here jumps several pages. Scroll mode reads its position from live scrollTop
+    // (still correct after a reflow), so it keeps capturing fresh.
     const pos = savedPos !== undefined
       ? savedPos
-      : (state.doc.words.length ? getCanonicalPosition() : null);
+      : (state.doc.words.length
+          ? ((!state.isScrollMode && state._lastPos) ? state._lastPos : getCanonicalPosition())
+          : null);
+    // Paragraph-start glue: force the paragraph holding the first word on screen
+    // to begin a fresh column, so after the reflow it lands at the TOP of the page
+    // (the page fills below it) rather than partway down. Set before pagination so
+    // the new column boundary is in place when totals are computed. Cleared in
+    // scroll mode (no columns) and when there is no position to preserve.
+    if (pos && !state.isScrollMode) setGlueBlockForPos(pos);
+    else setGlueBlock(null);
     if (shouldWindow()) {
       if (!state.windowed) { pagination.setupWindow(state.curChap || 0); state.windowed = true; }
       pagination.paginateWindow(false);
@@ -683,6 +737,11 @@ export function init(options = {}) {
       pagination.paginate(false);
     }
     if (pos) applyCanonicalPosition(pos);
+    // Pin the cached anchor to the word we just restored, so a follow-up relayout
+    // (a second font tweak, a rotation right after another) preserves the SAME
+    // first word instead of re-reading from a stale page number in the window
+    // before the next debounced save refreshes it.
+    if (pos && !state.isScrollMode) state._lastPos = pos;
     // Marker dots are positioned against the live layout; a relayout (resize,
     // font/spacing change, mode switch) moves them even when the bookmark set is
     // unchanged. Paginated turns refresh via goTo->updateProgressFn, but a scroll
