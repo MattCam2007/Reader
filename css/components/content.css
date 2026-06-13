@@ -90,6 +90,14 @@ body:not(.chrome-hidden) .reader-viewport {
   break-before: column;
   -webkit-column-break-before: always;
 }
+/* Paragraph-start glue: force the paragraph holding the reader's first word to
+   begin a fresh column after a reflow (viewport resize, font/size/line-height
+   change) so it lands at the top of the page with the page filling below it.
+   At most one block carries this class at a time. See reader-app setGlueBlock(). */
+.reader-content .glue-break {
+  break-before: column;
+  -webkit-column-break-before: always;
+}
 
 .reader-content .blk-blockquote {
   margin: 0.8em 1.4em;

@@ -30,6 +30,14 @@ export class ReaderState {
     // a reflow), so it is left null there. See reader-app relayout()/savePosMain().
     this._lastPos = null;
 
+    // Paragraph-start glue (paginated only): the block element forced to begin a
+    // fresh column so that, after a reflow (viewport resize or a font/size/line-
+    // height change), the paragraph holding the reader's first word sits at the
+    // top of the page with the page filling below it — instead of partway down.
+    // At most one block carries the `glue-break` class; relayout() moves it to the
+    // current anchor's paragraph. See reader-app setGlueBlock().
+    this._glueBlockEl = null;
+
     // Whole-book page counts (windowed mode only). Measured lazily by PageCounter
     // during idle time and cached in localStorage keyed by layout signature so
     // the exact numbers are available instantly on subsequent loads with the same

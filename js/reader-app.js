@@ -347,6 +347,31 @@ export function init(options = {}) {
     else clearResumeHighlight();
   }
 
+  // ---------- Paragraph-start glue ----------
+  // Force `el` (a .blk block) to begin a fresh column so it lands at the top of
+  // the page after the next pagination. At most one block carries the class; this
+  // moves it. Pass null to clear (scroll layout, or no position to preserve).
+  // Purely a class toggle — it never touches the doc-model's node references.
+  function setGlueBlock(el) {
+    if (state._glueBlockEl === el) return;
+    if (state._glueBlockEl) state._glueBlockEl.classList.remove("glue-break");
+    state._glueBlockEl = el || null;
+    if (el) el.classList.add("glue-break");
+  }
+  // Glue the paragraph that holds the first word of `pos` (a canonical position).
+  // Resolving pos → word → block is layout-independent, so this can run *before*
+  // pagination, putting the forced column break in place when totals are computed.
+  function setGlueBlockForPos(pos) {
+    const { doc } = state;
+    if (!pos || !doc.wsToToken.length) { setGlueBlock(null); return; }
+    const ord = resolvePosition(pos, readerSections(), totalWsWords(), wsWordText);
+    const startWs = Math.max(0, Math.min(ord, doc.wsToToken.length - 1));
+    const tok = doc.wsToToken[startWs];
+    const w = doc.words[tok];
+    const blk = w ? doc.blocks[w.block] : null;
+    setGlueBlock(blk ? blk.el : null);
+  }
+
   // Images in the freshly-rendered book decode asynchronously; until they do
   // they occupy no space, so the column flow — and thus every word's page — is
   // wrong. Once any pending images settle, re-land on the same position. Guarded
@@ -616,6 +641,10 @@ export function init(options = {}) {
     perf.mark("reader:render");
     state.headingToc = [];
     state.docModelBuilt = false;
+    // Drop references into the outgoing book's DOM before it's replaced, so we
+    // don't pin a detached element or carry a stale anchor into the new book.
+    state._glueBlockEl = null;
+    state._lastPos = null;
     renderSections(els.content, sections, {
       sectionEls: state.sectionEls,
       onHeading: (h) => state.headingToc.push(h),
@@ -687,6 +716,13 @@ export function init(options = {}) {
       : (state.doc.words.length
           ? ((!state.isScrollMode && state._lastPos) ? state._lastPos : getCanonicalPosition())
           : null);
+    // Paragraph-start glue: force the paragraph holding the first word on screen
+    // to begin a fresh column, so after the reflow it lands at the TOP of the page
+    // (the page fills below it) rather than partway down. Set before pagination so
+    // the new column boundary is in place when totals are computed. Cleared in
+    // scroll mode (no columns) and when there is no position to preserve.
+    if (pos && !state.isScrollMode) setGlueBlockForPos(pos);
+    else setGlueBlock(null);
     if (shouldWindow()) {
       if (!state.windowed) { pagination.setupWindow(state.curChap || 0); state.windowed = true; }
       pagination.paginateWindow(false);

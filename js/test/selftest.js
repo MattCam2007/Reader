@@ -1028,7 +1028,8 @@ function runLiveTests(state, hooks, assert) {
       relayout();
       const afterOrd = resolvePosition(getCanonicalPosition(), readerSections(), totalWsWords(), wsWordText);
       // Words-per-page in the landed chapter sets the tolerance: the restore lands
-      // the anchor on its page (so it can sit up to ~a page from the page top).
+      // the anchor's paragraph at the top, so the top word sits within ~a page of
+      // the original anchor (and far closer than the stale self-capture).
       const sec = doc.sections[state.curChap];
       const wpp = sec ? (sec.wsEnd - sec.wsStart) / Math.max(1, state.total) : totalWs;
       const tol = Math.ceil(wpp * 2) + 5;
@@ -1037,6 +1038,17 @@ function runLiveTests(state, hooks, assert) {
         'paginated resize keeps the anchor within ~1 page (was ' + anchorOrd +
         ', stale self-capture ' + staleDerived + ', restored ' + afterOrd + ', tol ' + tol + ')',
         ok);
+
+      // Paragraph-start glue: the first whole word on screen after the relayout is
+      // the start of its paragraph (the block was forced to begin a fresh column),
+      // i.e. the paragraph holding the reader's position is pinned to the top.
+      const afterTok = doc.wsToToken[Math.max(0, Math.min(afterOrd, doc.wsToToken.length - 1))];
+      const topBlk = doc.words[afterTok] ? doc.words[afterTok].block : -1;
+      const blockStartsAtTop = topBlk >= 0 && doc.blocks[topBlk].wordStart === afterTok;
+      assert('position-live',
+        'paragraph-start glue pins a paragraph start to the top of the page',
+        blockStartsAtTop);
+
       // Restore for the rest of the suite.
       prefs.data.size = origSize;
       applyPrefs();
