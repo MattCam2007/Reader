@@ -588,7 +588,7 @@ export function init(options = {}) {
   function showWelcome() {
     document.body.classList.remove("loading", "error");
     document.body.classList.add("welcome");
-    els.overlayMsg.textContent = "Open an EPUB or PDF to start reading.";
+    els.overlayMsg.textContent = "Open an ebook to start reading.";
     els.overlayBtn.textContent = "Open a book";
     els.overlayBtn.hidden = false;
   }

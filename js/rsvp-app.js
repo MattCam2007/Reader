@@ -518,7 +518,7 @@ export function init(options = {}) {
     if (!state.chapters.length) {
       const empty = document.createElement('div');
       empty.className = 'reader-toc-empty';
-      empty.textContent = 'Load an EPUB to see chapters.';
+      empty.textContent = 'Load a book to see chapters.';
       tocList.appendChild(empty);
       return;
     }
@@ -706,7 +706,7 @@ export function init(options = {}) {
   function showWelcome() {
     document.body.classList.add('welcome');
     els.statusMsg.classList.remove('error');
-    els.statusMsg.textContent = 'Open an EPUB or PDF to start reading.';
+    els.statusMsg.textContent = 'Open an ebook to start reading.';
     els.statusRetryBtn.textContent = 'Open a book';
     els.statusRetryBtn.hidden = false;
   }
