@@ -2,7 +2,7 @@ import { FONT_MAP, FONT_SERIF, RESIZE_DEBOUNCE_MS, GENERAL_DEFAULTS, WINDOW_MIN_
 import { t } from './core/i18n.js';
 import { mountFontPicker, fontPickerItemsHTML } from './shared/font-picker.js';
 import { applyTheme, applyOsThemeFallback, applyBgSettings } from './base-reader-app.js';
-import { openSettingsScreen, closeSettingsScreen, isSettingsScreenOpen } from './settings/settings-screen.js';
+import { openSettingsScreen, closeSettingsScreen, isSettingsScreenOpen, consumePendingSettingsTab } from './settings/settings-screen.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { HighlightManager } from './core/highlights.js';
 import { HighlightController } from './reader/highlight-render.js';
@@ -912,7 +912,7 @@ export function init(options = {}) {
   els.searchBtn.addEventListener("click", () => { _lastPanelTrigger = els.searchBtn; search.open(); updateAriaExpanded(); }, { signal });
   els.searchInput.addEventListener("input", (e) => search.run(e.target.value.trim()), { signal });
   els.tocBtn.addEventListener("click", openTOC, { signal });
-  els.settingsBtn.addEventListener("click", openSettings, { signal });
+  els.settingsBtn.addEventListener("click", () => openSettings(), { signal });
   if (els.bookmarksBtn) {
     els.bookmarksBtn.addEventListener("click", () => {
       _lastPanelTrigger = els.bookmarksBtn;
@@ -1357,6 +1357,10 @@ export function init(options = {}) {
   } else {
     showWelcome();
   }
+
+  // Reopen settings after a language-change reload, on the tab the user left.
+  const _reopenTab = consumePendingSettingsTab();
+  if (_reopenTab) openSettings(_reopenTab);
 
   // ---------- Handle object ----------
   return {

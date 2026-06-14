@@ -11,6 +11,20 @@ import { t, getLang, setLang, availableLanguages } from '../core/i18n.js';
 let _screen = null;
 let _cleanup = null;
 
+// Survives the page reload triggered by a language change: holds the tab that
+// was open so the booting mode can reopen the settings screen there.
+const REOPEN_KEY = 'settings:reopenTab';
+
+// Returns the tab to reopen settings on after a language-change reload (and
+// clears it so it fires once), or null if no reopen is pending.
+export function consumePendingSettingsTab() {
+  try {
+    const v = sessionStorage.getItem(REOPEN_KEY);
+    if (v !== null) { sessionStorage.removeItem(REOPEN_KEY); return v || null; }
+  } catch (_) {}
+  return null;
+}
+
 // Live-preview state: set while settings screen is open.
 let _onPreviewStart = null;
 let _onPreviewEnd = null;
@@ -177,7 +191,12 @@ export function openSettingsScreen(config = {}) {
   const langSel = byId('ssLang');
   if (langSel) {
     langSel.addEventListener('change', () => {
-      if (langSel.value !== getLang() && setLang(langSel.value)) location.reload();
+      if (langSel.value === getLang()) return;
+      // Remember the open tab so boot can reopen the settings screen right where
+      // the user left it, instead of dropping them back to the book.
+      const activeTab = _screen.querySelector('.sscreen-tab--active');
+      try { sessionStorage.setItem(REOPEN_KEY, activeTab ? activeTab.dataset.tab : ''); } catch (_) {}
+      if (setLang(langSel.value)) location.reload();
     });
   }
 

@@ -12,7 +12,7 @@ import { TtsEngine } from './tts/engine.js';
 import { TtsHighlighter } from './tts/highlighter.js';
 import { TTS_DEFAULTS } from './tts/constants.js';
 import { sentenceIndexForOrdinal } from './tts/sentences.js';
-import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
+import { openSettingsScreen, closeSettingsScreen, consumePendingSettingsTab } from './settings/settings-screen.js';
 import { buildPosition, resolvePosition } from './core/position.js';
 import { validateBookSrcUrl } from './core/src-url.js';
 import * as perf from './core/perf.js';
@@ -177,10 +177,10 @@ export function init(options = {}) {
     if (first) first.focus();
   }
 
-  function openSettings() {
+  function openSettings(initialTab = 'tts') {
     closePanels();
     openSettingsScreen({
-      initialTab: 'tts',
+      initialTab,
       currentMode: 'tts',
       onGeneralChange(key, value) {
         generalPrefs.data[key] = value;
@@ -685,7 +685,7 @@ export function init(options = {}) {
 
   // Panel buttons
   if (els.ttsTocBtn) els.ttsTocBtn.addEventListener('click', openTOC, { signal });
-  if (els.ttsSettingsBtn) els.ttsSettingsBtn.addEventListener('click', openSettings, { signal });
+  if (els.ttsSettingsBtn) els.ttsSettingsBtn.addEventListener('click', () => openSettings(), { signal });
   function buildTtsSearchCache() {
     if (_ttsSearchCache) return _ttsSearchCache;
     let text = "";
@@ -889,6 +889,10 @@ export function init(options = {}) {
   } else {
     showWelcome();
   }
+
+  // Reopen settings after a language-change reload, on the tab the user left.
+  const _reopenTab = consumePendingSettingsTab();
+  if (_reopenTab) openSettings(_reopenTab);
 
   // ---------- Handle ----------
   return {

@@ -1,6 +1,6 @@
 import { FONT_MAP, FONT_MONO, GENERAL_DEFAULTS, EXTRACTABLE_BLOCK_TYPES } from './core/constants.js';
 import { t } from './core/i18n.js';
-import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
+import { openSettingsScreen, closeSettingsScreen, consumePendingSettingsTab } from './settings/settings-screen.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
 import { PrefsManager } from './core/prefs.js';
@@ -439,25 +439,25 @@ export function init(options = {}) {
 
   // Settings panel
   const settingsBtn = document.getElementById("settingsBtn");
+  function openSettings(initialTab = 'rsvp') {
+    document.body.classList.remove('show-toc', 'show-search');
+    if (tocBtn) tocBtn.setAttribute('aria-expanded', 'false');
+    if (searchBtn) searchBtn.setAttribute('aria-expanded', 'false');
+    openSettingsScreen({
+      initialTab,
+      currentMode: 'rsvp',
+      onGeneralChange(key, value) {
+        generalPrefs.data[key] = value;
+        if (key === 'theme') applyTheme(value);
+        applyBgSettings(generalPrefs);
+        applyComfortOverlay();
+      },
+      onRsvpChange: onRsvpSettingChange,
+    });
+    if (settingsBtn) settingsBtn.setAttribute('aria-expanded', 'true');
+  }
   if (settingsBtn) {
-    settingsBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      document.body.classList.remove('show-toc', 'show-search');
-      if (tocBtn) tocBtn.setAttribute('aria-expanded', 'false');
-      if (searchBtn) searchBtn.setAttribute('aria-expanded', 'false');
-      openSettingsScreen({
-        initialTab: 'rsvp',
-        currentMode: 'rsvp',
-        onGeneralChange(key, value) {
-          generalPrefs.data[key] = value;
-          if (key === 'theme') applyTheme(value);
-          applyBgSettings(generalPrefs);
-          applyComfortOverlay();
-        },
-        onRsvpChange: onRsvpSettingChange,
-      });
-      settingsBtn.setAttribute('aria-expanded', 'true');
-    }, { signal });
+    settingsBtn.addEventListener('click', (e) => { e.stopPropagation(); openSettings(); }, { signal });
   }
 
   // TOC panel
@@ -790,6 +790,10 @@ export function init(options = {}) {
     const pos = loadPosition(state.bookId);
     if (pos) applyCanonicalPosition(pos);
   }
+
+  // Reopen settings after a language-change reload, on the tab the user left.
+  const _reopenTab = consumePendingSettingsTab();
+  if (_reopenTab) openSettings(_reopenTab);
 
   return {
     teardown() {
