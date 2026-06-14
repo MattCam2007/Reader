@@ -13,6 +13,14 @@
   z-index: 1;
   transform-origin: center center;
   transition: transform 220ms ease;
+  /* Own all gestures so the browser never claims a drag for scroll/zoom and
+     cancels the pointer stream mid-gesture. Critical for pen selection: unlike
+     touchmove, preventDefault on pointermove does NOT stop scrolling — only
+     touch-action does — so without this an Android pen drag is interpreted as a
+     pan, fires pointercancel, and the multi-word selection drops. Finger
+     swipe/pinch are JS-driven (touch handlers preventDefault), so none is safe
+     here. Scroll mode needs native vertical scroll, so it relaxes to pan-y. */
+  touch-action: none;
 }
 
 body:not(.chrome-hidden) .reader-viewport {
@@ -256,6 +264,7 @@ body.layout-scroll .reader-content-clip {
 body.layout-scroll .reader-viewport {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y; /* allow native vertical scrolling in scroll mode */
 }
 body.layout-scroll .reader-content {
   height: auto;
