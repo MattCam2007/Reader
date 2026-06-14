@@ -107,6 +107,9 @@ export function openSettingsScreen(config = {}) {
         </svg>
       </button>
       <span class="sscreen-title">${t('settings.title')}</span>
+      <select class="sscreen-lang" id="ssLang" aria-label="${t('settings.language')}">
+        ${availableLanguages().map(l => `<option value="${l.code}"${l.code === getLang() ? ' selected' : ''}>${l.label}</option>`).join('')}
+      </select>
     </div>
     <nav class="sscreen-tabs" role="tablist" aria-label="${t('a11y.modeSettings')}">
       <button class="sscreen-tab" role="tab" data-tab="general" type="button">${t('tab.general')}</button>
@@ -167,6 +170,16 @@ export function openSettingsScreen(config = {}) {
   showTab(initialTab);
 
   _screen.querySelector('.sscreen-close').addEventListener('click', closeSettingsScreen);
+
+  // Language switch reloads the page: UI strings are baked into the mode
+  // templates at build time, so a reload is the simplest way to re-render every
+  // surface in the chosen language.
+  const langSel = byId('ssLang');
+  if (langSel) {
+    langSel.addEventListener('change', () => {
+      if (langSel.value !== getLang() && setLang(langSel.value)) location.reload();
+    });
+  }
 
   const onKey = (e) => { if (e.key === 'Escape') closeSettingsScreen(); };
   document.addEventListener('keydown', onKey);
@@ -248,11 +261,7 @@ function pickerEl(prefix, label, unit) {
 
 function generalTabHTML(p) {
   const hasBg = !!localStorage.getItem(BG_IMAGE_STORAGE_KEY);
-  const langOpts = availableLanguages().map(l => [l.code, l.label]);
   return [
-    section(t('settings.language')),
-    row(t('settings.language'), seg('ss-gen-lang', 'data-lang', langOpts, getLang())),
-
     section(t('sec.appearance')),
     row(t('lbl.theme'), seg('ss-gen-theme', 'data-theme', [
       ['dark', t('theme.dark')], ['sepia', t('theme.sepia')], ['light', t('theme.light')], ['oled', t('theme.oled')],
@@ -287,14 +296,6 @@ function generalTabHTML(p) {
 }
 
 function wireGeneralTab(prefs, liveApply) {
-  // Language switch reloads the page: UI strings are baked into the mode
-  // templates at build time, so a reload is the simplest way to re-render every
-  // surface in the chosen language. Persist first, then reload.
-  wireSeg('ss-gen-lang', 'data-lang', (val) => {
-    if (val === getLang()) return;
-    if (setLang(val)) location.reload();
-  });
-
   wireSeg('ss-gen-theme', 'data-theme', (val) => {
     prefs.data.theme = val; prefs.save();
     if (liveApply) liveApply('theme', val);
