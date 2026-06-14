@@ -54,6 +54,42 @@ body.pen-contact .reader-content {
 ::highlight(hl-blue)   { background-color: rgba(61, 156, 240, 0.36); color: inherit; }
 ::highlight(hl-pink)   { background-color: rgba(255, 110, 180, 0.38); color: inherit; }
 
+/* Highlights carrying a note get the same fill plus a dotted underline cue. */
+::highlight(hl-yellow-note) { background-color: rgba(255, 214, 10, 0.40); color: inherit; text-decoration: underline dotted; text-decoration-thickness: 2px; }
+::highlight(hl-green-note)  { background-color: rgba(46, 204, 113, 0.38); color: inherit; text-decoration: underline dotted; text-decoration-thickness: 2px; }
+::highlight(hl-blue-note)   { background-color: rgba(61, 156, 240, 0.36); color: inherit; text-decoration: underline dotted; text-decoration-thickness: 2px; }
+::highlight(hl-pink-note)   { background-color: rgba(255, 110, 180, 0.38); color: inherit; text-decoration: underline dotted; text-decoration-thickness: 2px; }
+
+/* Highlight note editor (reuses .note-popover chrome) */
+.hl-note-editor { display: flex; flex-direction: column; gap: 0.6rem; min-width: min(80vw, 18rem); }
+.hl-note-textarea {
+  width: 100%;
+  min-height: 4.5rem;
+  resize: vertical;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+.hl-note-actions { display: flex; gap: 0.4rem; justify-content: flex-end; }
+.hl-note-actions button {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+.hl-note-actions .hl-note-save { background: var(--accent, #3d9cf0); border-color: transparent; color: #fff; }
+.hl-note-actions button:active { opacity: 0.75; }
+
 /* Colour swatches in the highlight edit bar */
 .reader-hl-swatch {
   width: 1.5rem;

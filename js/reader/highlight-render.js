@@ -17,6 +17,7 @@ export class HighlightController {
     this.manager = manager;
     this._bar = null;       // edit bar for an existing highlight
     this._selBar = null;    // action bar for a live pen selection
+    this._notePop = null;   // { backdrop, popover } note editor
     this._penSel = null;    // { lo, hi } word indices of the live pen selection
     // Dismiss the edit bar on any tap outside it.
     document.addEventListener('pointerdown', (e) => {
@@ -46,32 +47,41 @@ export class HighlightController {
 
   // Re-resolve every stored highlight to a Range and publish one Highlight per
   // colour. Call after the first paginate and after every relayout/window turn.
+  // Highlights carrying a note are published under a second name (hl-<c>-note)
+  // so CSS can mark them (dotted underline) — a cue that moves with the text,
+  // unlike an absolutely-positioned marker.
   renderAll() {
     this.dismissBar();
+    this._dismissNotePopover();
     if (typeof CSS === 'undefined' || !CSS.highlights || typeof Highlight === 'undefined') return;
-    const groups = {};
-    for (const c of HL_COLORS) groups[c] = [];
+    const plain = {}, noted = {};
+    for (const c of HL_COLORS) { plain[c] = []; noted[c] = []; }
     for (const item of this.manager.getAll()) {
       const range = this._rangeFor(item);
       if (!range) continue;
       const color = HL_COLORS.includes(item.color) ? item.color : 'yellow';
-      groups[color].push(range);
+      (item.note ? noted : plain)[color].push(range);
     }
-    for (const c of HL_COLORS) {
-      const name = 'hl-' + c;
+    const publish = (name, ranges) => {
       try {
-        if (groups[c].length) CSS.highlights.set(name, new Highlight(...groups[c]));
+        if (ranges.length) CSS.highlights.set(name, new Highlight(...ranges));
         else CSS.highlights.delete(name);
       } catch (e) { console.warn('highlights:render', e); }
+    };
+    for (const c of HL_COLORS) {
+      publish('hl-' + c, plain[c]);
+      publish('hl-' + c + '-note', noted[c]);
     }
   }
 
   clearAll() {
     this.clearPenSelection();
     this.dismissBar();
+    this._dismissNotePopover();
     if (typeof CSS === 'undefined' || !CSS.highlights) return;
     for (const c of HL_COLORS) {
       try { CSS.highlights.delete('hl-' + c); } catch (_) {}
+      try { CSS.highlights.delete('hl-' + c + '-note'); } catch (_) {}
     }
   }
 
@@ -264,6 +274,15 @@ export class HighlightController {
       bar.appendChild(sw);
     }
 
+    const note = document.createElement('button');
+    note.type = 'button';
+    note.textContent = item.note ? 'Edit note' : 'Add note';
+    note.addEventListener('click', () => {
+      this.dismissBar();
+      this._showNoteEditor(item, x, y);
+    });
+    bar.appendChild(note);
+
     const del = document.createElement('button');
     del.type = 'button';
     del.textContent = 'Remove';
@@ -288,5 +307,85 @@ export class HighlightController {
 
   dismissBar() {
     if (this._bar) { this._bar.remove(); this._bar = null; }
+  }
+
+  // Read/edit a highlight's note in a popover (reuses the footnote popover
+  // chrome). Save writes through the store and re-renders (so the dotted-
+  // underline note cue updates); Delete clears the note text.
+  _showNoteEditor(item, x, y) {
+    this._dismissNotePopover();
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'note-popover-backdrop';
+    backdrop.addEventListener('click', () => this._dismissNotePopover());
+
+    const pop = document.createElement('div');
+    pop.className = 'note-popover hl-note-editor';
+
+    const ta = document.createElement('textarea');
+    ta.className = 'hl-note-textarea';
+    ta.placeholder = 'Add a note…';
+    ta.setAttribute('aria-label', 'Highlight note');
+    ta.value = item.note || '';
+    pop.appendChild(ta);
+
+    const actions = document.createElement('div');
+    actions.className = 'hl-note-actions';
+
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.className = 'hl-note-save';
+    save.textContent = 'Save';
+    save.addEventListener('click', () => {
+      this.manager.updateNote(item.id, ta.value.trim());
+      this.renderAll(); // dismisses the popover and refreshes the note cue
+    });
+    actions.appendChild(save);
+
+    if (item.note) {
+      const clear = document.createElement('button');
+      clear.type = 'button';
+      clear.className = 'hl-note-clear';
+      clear.textContent = 'Delete';
+      clear.addEventListener('click', () => {
+        this.manager.updateNote(item.id, '');
+        this.renderAll();
+      });
+      actions.appendChild(clear);
+    }
+
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'hl-note-cancel';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', () => this._dismissNotePopover());
+    actions.appendChild(cancel);
+
+    pop.appendChild(actions);
+
+    document.body.appendChild(backdrop);
+    document.body.appendChild(pop);
+    this._notePop = { backdrop, popover: pop };
+
+    const popRect = pop.getBoundingClientRect();
+    const vpW = window.innerWidth, vpH = window.innerHeight;
+    let top = y + 12;
+    let left = x - popRect.width / 2;
+    if (left < 8) left = 8;
+    if (left + popRect.width > vpW - 8) left = vpW - popRect.width - 8;
+    if (top + popRect.height > vpH - 8) top = Math.max(8, y - popRect.height - 12);
+    pop.style.top = top + 'px';
+    pop.style.left = left + 'px';
+
+    ta.focus();
+    ta.selectionStart = ta.selectionEnd = ta.value.length;
+  }
+
+  _dismissNotePopover() {
+    if (this._notePop) {
+      this._notePop.backdrop.remove();
+      this._notePop.popover.remove();
+      this._notePop = null;
+    }
   }
 }

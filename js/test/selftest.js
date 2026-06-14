@@ -1156,6 +1156,20 @@ function runLiveTests(state, hooks, assert) {
       assert('highlights', 'createFromWords maps to word locators',
         !!penItem && resolveLocator(state, penItem.start) === aWi && resolveLocator(state, penItem.end) === bWi);
       if (penItem) highlightManager.remove(penItem.id);
+
+      // Notes on highlights.
+      const noteItem = highlightManager.add({ start, end, color: 'yellow', text: 'n' });
+      if (noteItem) addedHighlightIds.push(noteItem.id);
+      highlightManager.updateNote(noteItem.id, 'my note');
+      assert('highlights', 'updateNote persists',
+        highlightManager.getAll().find(i => i.id === noteItem.id).note === 'my note');
+      let noteRenderOk = true;
+      try { highlights.renderAll(); } catch (_) { noteRenderOk = false; }
+      assert('highlights', 'renderAll with a noted highlight does not throw', noteRenderOk);
+      highlightManager.updateNote(noteItem.id, '');
+      assert('highlights', 'updateNote can clear a note',
+        highlightManager.getAll().find(i => i.id === noteItem.id).note === '');
+      highlightManager.remove(noteItem.id);
     }
   } finally {
     // Restore the pre-test prefs, layout, position and bookmark set even when
