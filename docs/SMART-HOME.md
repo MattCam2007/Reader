@@ -74,7 +74,7 @@ applicable to the current mode/book (always null-check in dashboards).
   "book": {
     "id": "pride-and-prejudice:9fa2",
     "title": "Pride and Prejudice",
-    "author": "Jane Austen",           // null if unknown
+    "author": "Jane Austen",           // epub only (requires extractor change P1); null for PDF/comic/sample
     "format": "epub",                  // "epub" | "pdf" | "cbz" | "cbr" | "sample"
     "totalWords": 122189,
     "totalChapters": 61
@@ -158,21 +158,26 @@ individually toggleable in the Smart tab (`smart:prefs.events`).
 
 ---
 
-## 5. Per-mode event mapping (bus event → canonical event)
+## 5. Per-mode event mapping (source signal → canonical event)
 
-This is the authoritative wiring table the implementation follows. "Bus event" =
-the event already (or newly) emitted on the mode's `EventBus` (`js/core/events.js`).
+This is the authoritative wiring table the implementation follows.
 
-### Reader (`js/reader-app.js`, `js/reader/*`)
+> **⚠ Modes are NOT uniform (verified).** Only **RSVP** has an `EventBus`
+> (`rsvp-app.js:121`); **Reader and TTS have no bus and emit nothing**. So the
+> controller is wired two ways: it **subscribes to RSVP's bus**, and Reader/TTS
+> call its methods **directly** at the hook points below. See
+> `plans/smart-home-mqtt.md` §2.2 / §6.5.
+
+### Reader (`js/reader-app.js`, `js/reader/*`) — direct controller calls (no bus)
 | Source signal | Where (file:hint) | Canonical event |
 |---|---|---|
 | Book load complete | `loadFromSession()` `reader-app.js:840` | `book.opened` |
-| Page turn / progress | `updateProgressFn` `reader-app.js:170` (add `bus.emit('page.turned', {...})`) | `reader.page.turned` + throttled `progress.updated` |
+| Page turn / progress | `updateProgressFn` `reader-app.js:170` → `smartHome.onPageTurned(pos, {...})` | `reader.page.turned` + throttled `progress.updated` |
 | Chapter label change | compare `chrome.currentChapterLabel()` `chrome.js:244` to last seen | `chapter.changed` / `reader.chapter.entered` |
 | Last page reached | pagination at `state.page === state.total-1` | `book.finished` + `reader.book.finished` |
 | Bookmark saved | bookmarks panel save handler | `bookmark.added` |
 
-### RSVP (`js/rsvp-app.js`, `js/rsvp/playback.js`)
+### RSVP (`js/rsvp-app.js`, `js/rsvp/playback.js`) — subscribe to its bus
 | Source signal (already emitted) | Location | Canonical event |
 |---|---|---|
 | `playStart` | `playback.js:20,88,130` | `reading.started` + `rsvp.play.started` |
@@ -183,7 +188,7 @@ the event already (or newly) emitted on the mode's `EventBus` (`js/core/events.j
 | `currentIdx >= total` | `playback.js` advance | `book.finished` + `rsvp.book.finished` |
 | chapter crossing | `rsvp-app.js:135` chapter loop | `chapter.changed` + `rsvp.chapter.changed` |
 
-### TTS (`js/tts-app.js`, `js/tts/engine.js`)
+### TTS (`js/tts-app.js`, `js/tts/engine.js`) — direct controller calls (no bus)
 | Source signal | Location | Canonical event |
 |---|---|---|
 | play start/resume | engine play | `reading.started` + `tts.play.started` |
@@ -287,8 +292,9 @@ mosquitto_sub -h localhost -t 'reader/#' -v
 # 3. Serve the app over localhost (ws:// allowed on localhost)
 python3 -m http.server   # http://localhost:8000/reader.html
 ```
-Then enable Smart Home in settings → host `localhost`, port `9001`, path `/mqtt`,
-TLS off → Test. Load a book, turn pages, switch modes, reach the end, close the tab
+Then enable Smart Home in settings → host `localhost`, port `9001`, **path empty/`/`**
+(Mosquitto serves WS at root — `/mqtt` is HiveMQ/EMQX), TLS off → Test. Load a book,
+turn pages, switch modes, reach the end, close the tab
 (LWT). Use **MQTT Explorer** to inspect retained `state/*` topics as a tree.
 
 ---
@@ -297,10 +303,16 @@ TLS off → Test. Load a book, turn pages, switch modes, reach the end, close th
 
 1. **Pointed at port 1883** → browsers can't speak TCP MQTT. Use the **WS** port.
 2. **`ws://` on an HTTPS page** → mixed-content block. Use **`wss://`**.
-3. **Duplicate clientId** → connect/disconnect flap loop. Keep `clientId` unique.
-4. **No `offline` ever** → that's the LWT; it fires only on *ungraceful* drop —
-   kill the tab to test.
-5. **Dashboard empty after restart** → read **retained `state/*`**, not events.
+3. **Wrong WS path** → WS connects, MQTT doesn't. Mosquitto = empty/`/`,
+   HiveMQ/EMQX = `/mqtt`. Match the broker.
+4. **Duplicate clientId** → flap loop. clientId must include a per-connection
+   random suffix (`prefix-deviceId-<rnd>`); the persisted `deviceId` is shared
+   across tabs and is NOT unique on its own.
+5. **Bad-password flap** → MQTT.js retries bad auth forever; the client stops on
+   CONNACK rc 4/5 and surfaces `auth-error`.
+6. **No `offline` ever** → the LWT fires only on *ungraceful* drop (kill the tab);
+   user-initiated disable publishes retained `offline` explicitly.
+7. **Dashboard empty after restart** → read **retained `state/*`**, not events.
 
 ---
 
@@ -311,4 +323,3 @@ reading (title/author), your position, and timing to the configured broker. Use 
 trusted broker, prefer `wss://`, and a dedicated least-privilege MQTT account.
 Credentials are stored unencrypted in the browser's localStorage — inherent to a
 static client app.
-</content>

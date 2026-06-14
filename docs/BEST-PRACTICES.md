@@ -52,10 +52,13 @@ These are load-bearing. Breaking one causes subtle, hard-to-trace bugs.
   subsystems in their own `js/core/<feature>/` folder (the Smart Home module does
   this) so they stay self-contained and individually testable.
 - **EventBus over ad-hoc callbacks** (`js/core/events.js`): `on()` returns an
-  unsubscribe fn; `emit()` also fires `"*"` wildcard listeners. Each mode owns its
-  bus — there is **no global cross-mode bus**. A subsystem that must span modes
-  (like Smart Home) is a singleton that *subscribes to each mode's bus* at that
-  mode's init, on the mode's signal.
+  unsubscribe fn; `emit()` also fires `"*"` wildcard listeners. There is **no
+  global cross-mode bus**, and the modes are **not uniform**: only **RSVP**
+  instantiates an `EventBus` (`rsvp-app.js:121`) — **Reader and TTS have no bus and
+  emit nothing**. A subsystem that must span modes (like Smart Home) is an
+  app-lifetime singleton that **subscribes to RSVP's bus** but is driven by
+  **direct method calls** from Reader/TTS at their hook points. Don't assume a
+  uniform per-mode bus — it doesn't exist.
 - **Prefs are scoped** (`js/core/prefs.js`): one `PrefsManager` per scope
   (`general:`, `reader:`, `rsvp:`, `tts:`, and new `smart:`). Defaults live in
   `js/core/constants.js` (or the feature's own `constants.js`). `.set()` emits the
@@ -93,7 +96,7 @@ tab via `consumePendingSettingsTab()`.
 Pattern, proven by `epub.js`, `jszip` (eager) and `pdf.js`, `libarchive.js`
 (lazy):
 1. Download a **pinned** version of the browser/UMD build into `vendor/`, with the
-   **version in the filename** (`epub-0.3.93.min.js`, `mqtt-5.10.1.min.js`).
+   **version in the filename** (`epub-0.3.93.min.js`, `mqtt-<verified-ver>.min.js`).
 2. **Eager** (needed at boot): `<script defer src="vendor/...">` in `reader.html`.
    **Lazy** (only when a feature/format is used): inject the `<script>` at runtime
    behind a memoised promise (see format adapters' `loadLibs`; the Smart Home
@@ -195,10 +198,12 @@ Pattern, proven by `epub.js`, `jszip` (eager) and `pdf.js`, `libarchive.js`
   *before* the resize event fires, so the live page number is stale during
   relayout — that's why Reader caches a stable anchor (`state._lastPos`). If you
   read geometry around a resize, beware the same hazard.
-- **Unique client identity matters for stateful external services:** a non-unique
-  MQTT `clientId` makes the broker kick the older session in a flap loop. Generate
-  + persist a random id (`smart:deviceId`), reuse it.
+- **Two kinds of identity for external services — don't conflate them.** A
+  *device* id (persisted in `localStorage`, stable, used in MQTT topics) is shared
+  across browser tabs, so it is **not** unique per connection. A *connection*
+  id (MQTT `clientId`) must be unique per live socket or the broker kicks the older
+  session in a flap loop. Use `prefix-<deviceId>-<per-connection-random>`: stable
+  device identity for topics, fresh randomness for the connection.
 - **Retained vs transient:** dashboards that connect *after* an event see nothing
   unless the value is published **retained**. Publish current state retained;
   publish happenings as transient events.
-</content>
