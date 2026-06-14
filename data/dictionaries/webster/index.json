@@ -1,0 +1,120 @@
+{
+  "id": "webster",
+  "name": "Webster's Unabridged (1913)",
+  "lang": "en-US",
+  "description": "Webster's Revised Unabridged Dictionary, 1913 edition. Classic, literary definitions in the public domain.",
+  "license": "Public domain",
+  "attribution": "Noah Webster (1913); digitised by matthewreagan/WebstersEnglishDictionary",
+  "buckets": {
+    "0": {
+      "words": 99,
+      "bytes": 11964
+    },
+    "a": {
+      "words": 7519,
+      "bytes": 604626
+    },
+    "b": {
+      "words": 5122,
+      "bytes": 517464
+    },
+    "c": {
+      "words": 9388,
+      "bytes": 921445
+    },
+    "d": {
+      "words": 6018,
+      "bytes": 544591
+    },
+    "e": {
+      "words": 4715,
+      "bytes": 377160
+    },
+    "f": {
+      "words": 3780,
+      "bytes": 405531
+    },
+    "g": {
+      "words": 3112,
+      "bytes": 304155
+    },
+    "h": {
+      "words": 3813,
+      "bytes": 345568
+    },
+    "i": {
+      "words": 4890,
+      "bytes": 381834
+    },
+    "j": {
+      "words": 751,
+      "bytes": 81725
+    },
+    "k": {
+      "words": 846,
+      "bytes": 72749
+    },
+    "l": {
+      "words": 3146,
+      "bytes": 321579
+    },
+    "m": {
+      "words": 5669,
+      "bytes": 463984
+    },
+    "n": {
+      "words": 1933,
+      "bytes": 156826
+    },
+    "o": {
+      "words": 2972,
+      "bytes": 219776
+    },
+    "p": {
+      "words": 9328,
+      "bytes": 796205
+    },
+    "q": {
+      "words": 580,
+      "bytes": 53995
+    },
+    "r": {
+      "words": 4476,
+      "bytes": 466936
+    },
+    "s": {
+      "words": 11375,
+      "bytes": 1138162
+    },
+    "t": {
+      "words": 5393,
+      "bytes": 520335
+    },
+    "u": {
+      "words": 2422,
+      "bytes": 150766
+    },
+    "v": {
+      "words": 1707,
+      "bytes": 169338
+    },
+    "w": {
+      "words": 2273,
+      "bytes": 286667
+    },
+    "x": {
+      "words": 139,
+      "bytes": 8125
+    },
+    "y": {
+      "words": 324,
+      "bytes": 31410
+    },
+    "z": {
+      "words": 427,
+      "bytes": 25623
+    }
+  },
+  "words": 102217,
+  "bytes": 9378539
+}

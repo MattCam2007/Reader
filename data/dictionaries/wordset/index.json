@@ -1,0 +1,116 @@
+{
+  "id": "wordset",
+  "name": "Wordset English Dictionary",
+  "lang": "en",
+  "description": "A modern, community-built English dictionary with parts of speech, synonyms and usage examples.",
+  "license": "CC BY-SA 4.0 (+ WordNet 3.0)",
+  "attribution": "Wordset, Inc. — wordset.org",
+  "buckets": {
+    "a": {
+      "words": 7069,
+      "bytes": 319586
+    },
+    "b": {
+      "words": 6784,
+      "bytes": 335992
+    },
+    "c": {
+      "words": 10679,
+      "bytes": 519515
+    },
+    "d": {
+      "words": 5666,
+      "bytes": 280701
+    },
+    "e": {
+      "words": 3803,
+      "bytes": 183922
+    },
+    "f": {
+      "words": 4792,
+      "bytes": 240021
+    },
+    "g": {
+      "words": 3798,
+      "bytes": 172820
+    },
+    "h": {
+      "words": 4332,
+      "bytes": 196508
+    },
+    "i": {
+      "words": 3769,
+      "bytes": 177026
+    },
+    "j": {
+      "words": 757,
+      "bytes": 48660
+    },
+    "k": {
+      "words": 880,
+      "bytes": 48000
+    },
+    "l": {
+      "words": 4025,
+      "bytes": 185588
+    },
+    "m": {
+      "words": 5874,
+      "bytes": 257877
+    },
+    "n": {
+      "words": 2533,
+      "bytes": 109795
+    },
+    "o": {
+      "words": 2667,
+      "bytes": 121072
+    },
+    "p": {
+      "words": 8944,
+      "bytes": 418718
+    },
+    "q": {
+      "words": 396,
+      "bytes": 28923
+    },
+    "r": {
+      "words": 4922,
+      "bytes": 261893
+    },
+    "s": {
+      "words": 12698,
+      "bytes": 617657
+    },
+    "t": {
+      "words": 5685,
+      "bytes": 278771
+    },
+    "u": {
+      "words": 2878,
+      "bytes": 113317
+    },
+    "v": {
+      "words": 1435,
+      "bytes": 81997
+    },
+    "w": {
+      "words": 3056,
+      "bytes": 144423
+    },
+    "x": {
+      "words": 105,
+      "bytes": 4102
+    },
+    "y": {
+      "words": 222,
+      "bytes": 15588
+    },
+    "z": {
+      "words": 169,
+      "bytes": 10730
+    }
+  },
+  "words": 107938,
+  "bytes": 5173202
+}

@@ -23,6 +23,7 @@ import { ChromeManager } from './reader/chrome.js';
 import { InputHandler } from './reader/input.js';
 import { SearchManager } from './reader/search.js';
 import { SelectionManager } from './reader/selection.js';
+import { DefinitionPopover } from './reader/definition.js';
 import { FootnoteManager } from './reader/footnotes.js';
 import { buildSample } from '../fixtures/sample.js';
 import { runSelftest } from './test/selftest.js';
@@ -489,9 +490,15 @@ export function init(options = {}) {
 
   const search = new SearchManager(state, els, goToLocator, closePanels);
 
+  // ---------- Definitions ----------
+  const definitionPopover = new DefinitionPopover(signal, {
+    onManage: () => openSettings('dict'),
+  });
+  const onDefine = (text, rect) => definitionPopover.show(text, rect);
+
   // ---------- Highlights ----------
   const highlightManager = new HighlightManager();
-  const highlights = new HighlightController(state, highlightManager, signal);
+  const highlights = new HighlightController(state, highlightManager, signal, { onDefine });
 
   // ---------- Selection ----------
   const selection = new SelectionManager(state, signal, {
@@ -500,6 +507,7 @@ export function init(options = {}) {
       const sel = window.getSelection();
       if (sel) sel.removeAllRanges();
     },
+    onDefine,
   });
 
   // ---------- Focus traps ----------
@@ -542,10 +550,10 @@ export function init(options = {}) {
 
   let _previewWasChromeHidden = false;
 
-  function openSettings() {
+  function openSettings(initialTab = 'read') {
     closePanels();
     openSettingsScreen({
-      initialTab: 'read',
+      initialTab,
       currentMode: 'read',
       onGeneralChange(key, value) {
         generalPrefs.data[key] = value;

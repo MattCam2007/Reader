@@ -31,6 +31,11 @@ export class SelectionManager {
     const rect = range.getBoundingClientRect();
     if (!rect.width && !rect.height) return;
 
+    // Capture the selected text now, while the selection is live. Clicking any
+    // bar button moves focus and collapses the selection, so reading it at click
+    // time can come back empty.
+    const selText = sel.toString();
+
     this._selBar = document.createElement("div");
     this._selBar.className = "reader-sel-bar";
 
@@ -38,7 +43,7 @@ export class SelectionManager {
     copyBtn.textContent = "Copy";
     copyBtn.type = "button";
     copyBtn.addEventListener("click", () => {
-      try { navigator.clipboard.writeText(sel.toString()); } catch (_) {
+      try { navigator.clipboard.writeText(selText); } catch (_) {
         document.execCommand("copy");
       }
       this.dismiss();
@@ -49,8 +54,13 @@ export class SelectionManager {
     defineBtn.textContent = "Define";
     defineBtn.type = "button";
     defineBtn.addEventListener("click", () => {
-      const text = sel.toString().trim().split(/\s+/)[0];
-      if (text) window.open("https://en.wiktionary.org/wiki/" + encodeURIComponent(text), "_blank");
+      if (this._hooks.onDefine) {
+        this._hooks.onDefine(selText, rect);
+      } else {
+        // No in-app dictionaries wired up — fall back to Wiktionary.
+        const word = selText.trim().split(/\s+/)[0];
+        if (word) window.open("https://en.wiktionary.org/wiki/" + encodeURIComponent(word), "_blank");
+      }
       this.dismiss();
     });
     this._selBar.appendChild(defineBtn);

@@ -12,9 +12,10 @@ export const HL_COLORS = ['yellow', 'green', 'blue', 'pink'];
 // live Range across repagination. When the Highlight API is unavailable the
 // store still works — highlights just don't paint (graceful degradation).
 export class HighlightController {
-  constructor(state, manager, signal) {
+  constructor(state, manager, signal, hooks = {}) {
     this.state = state;
     this.manager = manager;
+    this._hooks = hooks;    // { onDefine(text, rect) }
     this._bar = null;       // edit bar for an existing highlight
     this._selBar = null;    // action bar for a live pen selection
     this._notePop = null;   // { backdrop, popover } note editor
@@ -201,8 +202,13 @@ export class HighlightController {
     define.type = 'button';
     define.textContent = 'Define';
     define.addEventListener('click', () => {
-      const word = text.trim().split(/\s+/)[0];
-      if (word) window.open('https://en.wiktionary.org/wiki/' + encodeURIComponent(word), '_blank');
+      const rect = range.getBoundingClientRect();
+      if (this._hooks.onDefine) {
+        this._hooks.onDefine(text, rect);
+      } else {
+        const word = text.trim().split(/\s+/)[0];
+        if (word) window.open('https://en.wiktionary.org/wiki/' + encodeURIComponent(word), '_blank');
+      }
       this.clearPenSelection();
     });
     bar.appendChild(define);
