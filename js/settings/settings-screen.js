@@ -6,6 +6,7 @@ import { createPicker } from '../shared/picker.js';
 import { renderFontPickerHTML, mountFontPicker } from '../shared/font-picker.js';
 import { BG_IMAGE_STORAGE_KEY, applyBgSettings, clearBgImage } from '../base-reader-app.js';
 import { dictionaries, languageName } from '../core/dictionary.js';
+import { t, getLang, setLang, availableLanguages } from '../core/i18n.js';
 
 let _screen = null;
 let _cleanup = null;
@@ -97,22 +98,22 @@ export function openSettingsScreen(config = {}) {
   _screen.className = 'sscreen';
   _screen.setAttribute('role', 'dialog');
   _screen.setAttribute('aria-modal', 'true');
-  _screen.setAttribute('aria-label', 'Settings');
+  _screen.setAttribute('aria-label', t('a11y.settingsDialog'));
   _screen.innerHTML = `
     <div class="sscreen-header">
-      <button class="sscreen-close" type="button" aria-label="Close settings">
+      <button class="sscreen-close" type="button" aria-label="${t('a11y.closeSettings')}">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <polyline points="15,18 9,12 15,6"/>
         </svg>
       </button>
-      <span class="sscreen-title">Settings</span>
+      <span class="sscreen-title">${t('settings.title')}</span>
     </div>
-    <nav class="sscreen-tabs" role="tablist" aria-label="Mode settings">
-      <button class="sscreen-tab" role="tab" data-tab="general" type="button">General</button>
-      <button class="sscreen-tab" role="tab" data-tab="read" type="button">Read</button>
-      <button class="sscreen-tab" role="tab" data-tab="rsvp" type="button">Speed</button>
-      <button class="sscreen-tab" role="tab" data-tab="tts" type="button">Listen</button>
-      <button class="sscreen-tab" role="tab" data-tab="dict" type="button">Words</button>
+    <nav class="sscreen-tabs" role="tablist" aria-label="${t('a11y.modeSettings')}">
+      <button class="sscreen-tab" role="tab" data-tab="general" type="button">${t('tab.general')}</button>
+      <button class="sscreen-tab" role="tab" data-tab="read" type="button">${t('tab.read')}</button>
+      <button class="sscreen-tab" role="tab" data-tab="rsvp" type="button">${t('tab.speed')}</button>
+      <button class="sscreen-tab" role="tab" data-tab="tts" type="button">${t('tab.listen')}</button>
+      <button class="sscreen-tab" role="tab" data-tab="dict" type="button">${t('tab.words')}</button>
     </nav>
     <div class="sscreen-body" id="sscreenBody" role="tabpanel"></div>`;
 
@@ -154,7 +155,7 @@ export function openSettingsScreen(config = {}) {
       body.innerHTML = listenTabHTML(ttsPrefs.data);
       fontPickerHandle = wireListenTab(ttsPrefs, currentMode === 'tts' ? onTtsChange : null);
     } else if (tab === 'dict') {
-      body.innerHTML = `${section('Offline dictionaries')}<div class="ss-dict" id="ssDict"><div class="ss-dict-loading">Loading…</div></div>`;
+      body.innerHTML = `${section(t('sec.offlineDictionaries'))}<div class="ss-dict" id="ssDict"><div class="ss-dict-loading">${t('msg.loading')}</div></div>`;
       wireDictTab(byId('ssDict'));
     }
   }
@@ -247,41 +248,53 @@ function pickerEl(prefix, label, unit) {
 
 function generalTabHTML(p) {
   const hasBg = !!localStorage.getItem(BG_IMAGE_STORAGE_KEY);
+  const langOpts = availableLanguages().map(l => [l.code, l.label]);
   return [
-    section('Appearance'),
-    row('Theme', seg('ss-gen-theme', 'data-theme', [
-      ['dark','Dark'],['sepia','Sepia'],['light','Light'],['oled','OLED'],
-      ['terminal','Terminal'],['nebula','Nebula'],['forest','Forest'],
-      ['ember','Ember'],['nord','Nord'],
-    ], p.theme)),
-    row('Brightness', slider('ss-gen-brightness', 30, 100, Math.round((p.brightness || 1) * 100))),
-    row('Warmth', slider('ss-gen-warmth', 0, 100, Math.round((p.warmth || 0) * 100))),
+    section(t('settings.language')),
+    row(t('settings.language'), seg('ss-gen-lang', 'data-lang', langOpts, getLang())),
 
-    section('Background'),
+    section(t('sec.appearance')),
+    row(t('lbl.theme'), seg('ss-gen-theme', 'data-theme', [
+      ['dark', t('theme.dark')], ['sepia', t('theme.sepia')], ['light', t('theme.light')], ['oled', t('theme.oled')],
+      ['terminal', t('theme.terminal')], ['nebula', t('theme.nebula')], ['forest', t('theme.forest')],
+      ['ember', t('theme.ember')], ['nord', t('theme.nord')],
+    ], p.theme)),
+    row(t('lbl.brightness'), slider('ss-gen-brightness', 30, 100, Math.round((p.brightness || 1) * 100))),
+    row(t('lbl.warmth'), slider('ss-gen-warmth', 0, 100, Math.round((p.warmth || 0) * 100))),
+
+    section(t('sec.background')),
     `<div class="ss-row ss-bg-upload-row">
-      <span class="ss-label">Image</span>
+      <span class="ss-label">${t('lbl.image')}</span>
       <div class="ss-bg-actions">
         <label class="ss-bg-upload-btn" for="ss-bg-file">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          Upload
+          ${t('lbl.upload')}
         </label>
         <input type="file" id="ss-bg-file" style="display:none">
-        <button class="ss-bg-clear-btn" id="ss-bgClear" type="button"${hasBg ? '' : ' hidden'}>Clear</button>
+        <button class="ss-bg-clear-btn" id="ss-bgClear" type="button"${hasBg ? '' : ' hidden'}>${t('lbl.clear')}</button>
       </div>
     </div>`,
     `<div class="ss-bg-opacity-row" id="ss-bgOpacityRow"${hasBg ? '' : ' hidden'}>`,
-    row('Image opacity', slider('ss-bgOpacity', 0, 100, Math.round((p.bgImageOpacity ?? 1) * 100))),
+    row(t('lbl.imageOpacity'), slider('ss-bgOpacity', 0, 100, Math.round((p.bgImageOpacity ?? 1) * 100))),
     `</div>`,
-    row('Content opacity', slider('ss-contentOpacity', 0, 100, Math.round((p.contentOpacity ?? 1) * 100))),
+    row(t('lbl.contentOpacity'), slider('ss-contentOpacity', 0, 100, Math.round((p.contentOpacity ?? 1) * 100))),
 
-    section('Text'),
-    row('Outline', seg('ss-textOutline', 'data-outline', [
-      ['none', 'Off'], ['dark', 'Dark'], ['light', 'Light'],
+    section(t('sec.text')),
+    row(t('lbl.outline'), seg('ss-textOutline', 'data-outline', [
+      ['none', t('opt.off')], ['dark', t('opt.dark')], ['light', t('opt.light')],
     ], p.textOutline || 'none')),
   ].join('');
 }
 
 function wireGeneralTab(prefs, liveApply) {
+  // Language switch reloads the page: UI strings are baked into the mode
+  // templates at build time, so a reload is the simplest way to re-render every
+  // surface in the chosen language. Persist first, then reload.
+  wireSeg('ss-gen-lang', 'data-lang', (val) => {
+    if (val === getLang()) return;
+    if (setLang(val)) location.reload();
+  });
+
   wireSeg('ss-gen-theme', 'data-theme', (val) => {
     prefs.data.theme = val; prefs.save();
     if (liveApply) liveApply('theme', val);
@@ -296,7 +309,7 @@ function wireGeneralTab(prefs, liveApply) {
       const file = fileInput.files && fileInput.files[0];
       if (!file) return;
       if (!file.type.startsWith('image/')) {
-        alert('Please choose an image file (JPEG, PNG, WebP, etc.).');
+        alert(t('alert.chooseImage'));
         fileInput.value = '';
         return;
       }
@@ -306,7 +319,7 @@ function wireGeneralTab(prefs, liveApply) {
         try {
           localStorage.setItem(BG_IMAGE_STORAGE_KEY, dataUrl);
         } catch (_) {
-          alert('Image is too large to store. Try a smaller image.');
+          alert(t('alert.imageTooLarge'));
           fileInput.value = '';
           return;
         }
@@ -361,24 +374,24 @@ function wireGeneralTab(prefs, liveApply) {
 
 function readTabHTML(p) {
   return [
-    section('Layout'),
-    row('Layout', seg('ss-layout', 'data-layout', [['paginated','Paged'],['scroll','Scroll']], p.layout)),
-    row('Columns', seg('ss-cols', 'data-cols', [['auto','Auto'],['1','1'],['2','2']], String(p.columns))),
-    row('Page turn', seg('ss-anim', 'data-anim', [['slide','Slide'],['fade','Fade'],['none','None']], p.pageAnim)),
+    section(t('sec.layout')),
+    row(t('lbl.layout'), seg('ss-layout', 'data-layout', [['paginated', t('opt.paged')],['scroll', t('opt.scroll')]], p.layout)),
+    row(t('lbl.columns'), seg('ss-cols', 'data-cols', [['auto', t('opt.auto')],['1','1'],['2','2']], String(p.columns))),
+    row(t('lbl.pageTurn'), seg('ss-anim', 'data-anim', [['slide', t('opt.slide')],['fade', t('opt.fade')],['none', t('opt.none')]], p.pageAnim)),
 
-    section('Content'),
-    row('Images', seg('ss-images', 'data-images', [['true','On'],['false','Off']], String(p.images))),
-    row('Note popovers', seg('ss-notepop', 'data-notepop', [['true','On'],['false','Off']], String(p.notePopovers))),
-    row('Text selection', seg('ss-sel', 'data-sel', [['true','On'],['false','Off']], String(p.selection))),
-    row('Stylus turns page', seg('ss-pen', 'data-pen', [['false','Off'],['true','On']], String(p.penTurnsPage))),
+    section(t('sec.content')),
+    row(t('lbl.images'), seg('ss-images', 'data-images', [['true', t('opt.on')],['false', t('opt.off')]], String(p.images))),
+    row(t('lbl.notePopovers'), seg('ss-notepop', 'data-notepop', [['true', t('opt.on')],['false', t('opt.off')]], String(p.notePopovers))),
+    row(t('lbl.textSelection'), seg('ss-sel', 'data-sel', [['true', t('opt.on')],['false', t('opt.off')]], String(p.selection))),
+    row(t('lbl.stylusTurnsPage'), seg('ss-pen', 'data-pen', [['false', t('opt.off')],['true', t('opt.on')]], String(p.penTurnsPage))),
 
-    section('Typography'),
-    row('Text size', counter('ss-sizeDown', 'ss-sizeDisplay', 'ss-sizeUp', p.size)),
-    row('Typeface', renderFontPickerHTML('ss-font', p.font)),
-    row('Margins', seg('ss-margin', 'data-margin', [['fine','Fine'],['narrow','Narrow'],['normal','Normal'],['wide','Wide']], p.margin)),
-    row('Line spacing', counter('ss-lhDown', 'ss-lhDisplay', 'ss-lhUp', p.lineHeight.toFixed(1))),
-    row('Paragraphs', seg('ss-para', 'data-para', [['indent','Indented'],['spaced','Spaced'],['both','Both']], p.paraSpacing)),
-    row('Alignment', seg('ss-align', 'data-align', [['justify','Justify'],['left','Left']], p.align)),
+    section(t('sec.typography')),
+    row(t('lbl.textSize'), counter('ss-sizeDown', 'ss-sizeDisplay', 'ss-sizeUp', p.size)),
+    row(t('lbl.typeface'), renderFontPickerHTML('ss-font', p.font)),
+    row(t('lbl.margins'), seg('ss-margin', 'data-margin', [['fine', t('opt.fine')],['narrow', t('opt.narrow')],['normal', t('opt.normal')],['wide', t('opt.wide')]], p.margin)),
+    row(t('lbl.lineSpacing'), counter('ss-lhDown', 'ss-lhDisplay', 'ss-lhUp', p.lineHeight.toFixed(1))),
+    row(t('lbl.paragraphs'), seg('ss-para', 'data-para', [['indent', t('opt.indented')],['spaced', t('opt.spaced')],['both', t('opt.both')]], p.paraSpacing)),
+    row(t('lbl.alignment'), seg('ss-align', 'data-align', [['justify', t('opt.justify')],['left', t('opt.left')]], p.align)),
   ].join('');
 }
 
@@ -472,34 +485,34 @@ function wireReadTab(prefs, liveApply) {
 
 function speedTabHTML(p) {
   return [
-    section('Appearance'),
-    row('Font', renderFontPickerHTML('ss-rsvp-font', p.font)),
+    section(t('sec.appearance')),
+    row(t('lbl.font'), renderFontPickerHTML('ss-rsvp-font', p.font)),
 
-    section('Display'),
-    row('Flash size', seg('ss-chunk', 'data-chunk', [['1','1 word'],['2','2 words'],['3','3 words']], String(p.chunkSize))),
-    pickerEl('ss-fontSize', 'Font size', 'PX'),
+    section(t('sec.display')),
+    row(t('lbl.flashSize'), seg('ss-chunk', 'data-chunk', [['1', t('opt.word1')],['2', t('opt.words2')],['3', t('opt.words3')]], String(p.chunkSize))),
+    pickerEl('ss-fontSize', t('lbl.fontSize'), t('unit.px')),
 
-    section('Timing'),
-    pickerEl('ss-len', 'Long word scaling', 'STRENGTH'),
-    pickerEl('ss-comma', 'Comma pause', 'COMMA %'),
-    pickerEl('ss-period', 'Period pause', 'PERIOD %'),
-    pickerEl('ss-parapause', 'Paragraph pause', 'PARA %'),
+    section(t('sec.timing')),
+    pickerEl('ss-len', t('lbl.longWordScaling'), t('unit.strength')),
+    pickerEl('ss-comma', t('lbl.commaPause'), t('unit.commaPct')),
+    pickerEl('ss-period', t('lbl.periodPause'), t('unit.periodPct')),
+    pickerEl('ss-parapause', t('lbl.paragraphPause'), t('unit.paraPct')),
 
-    section('Behavior'),
-    toggleRow('ss-startPaused',  'Start paused on load',       p.startPaused),
-    toggleRow('ss-countdown',    'Countdown before resume',     p.countdownEnabled),
-    toggleRow('ss-context',      'Show context page',           p.contextEnabled),
-    toggleRow('ss-autoPause',    'Pause when tab hidden',       p.autoPauseEnabled),
+    section(t('sec.behavior')),
+    toggleRow('ss-startPaused',  t('toggle.startPaused'),  p.startPaused),
+    toggleRow('ss-countdown',    t('toggle.countdown'),    p.countdownEnabled),
+    toggleRow('ss-context',      t('toggle.contextPage'),  p.contextEnabled),
+    toggleRow('ss-autoPause',    t('toggle.pauseHidden'),  p.autoPauseEnabled),
 
-    section('Training'),
-    toggleRow('ss-training', 'WPM training ramp', p.trainingEnabled),
+    section(t('sec.training')),
+    toggleRow('ss-training', t('toggle.trainingRamp'), p.trainingEnabled),
     `<div class="ss-training-opts" id="ss-trainingOpts"${p.trainingEnabled ? '' : ' hidden'}>`,
-    pickerEl('ss-trainInc',  'WPM per bump',  'WPM / BUMP'),
-    pickerEl('ss-trainInt',  'Words per bump','WORDS / BUMP'),
-    pickerEl('ss-trainCeil', 'Max WPM',       'MAX WPM'),
+    pickerEl('ss-trainInc',  t('lbl.wpmPerBump'),   t('unit.wpmBump')),
+    pickerEl('ss-trainInt',  t('lbl.wordsPerBump'), t('unit.wordsBump')),
+    pickerEl('ss-trainCeil', t('lbl.maxWpm'),       t('unit.maxWpm')),
     `</div>`,
 
-    `<div class="ss-actions"><button class="ui-chip" id="ss-resetStats" type="button">Reset Session Stats</button></div>`,
+    `<div class="ss-actions"><button class="ui-chip" id="ss-resetStats" type="button">${t('btn.resetStats')}</button></div>`,
   ].join('');
 }
 
@@ -628,15 +641,15 @@ function wireSpeedTab(prefs, liveApply) {
 
 function listenTabHTML(p) {
   return [
-    section('Playback'),
-    row('Highlight', seg('ss-tts-hl', 'data-hl', [['word','Word'],['sentence','Sentence'],['paragraph','Para'],['off','Off']], p.highlightMode || 'sentence')),
-    toggleRow('ss-tts-autoScroll', 'Auto-scroll to highlighted text', p.autoScroll !== false),
+    section(t('sec.playback')),
+    row(t('lbl.highlight'), seg('ss-tts-hl', 'data-hl', [['word', t('opt.hlWord')],['sentence', t('opt.hlSentence')],['paragraph', t('opt.hlPara')],['off', t('opt.hlOff')]], p.highlightMode || 'sentence')),
+    toggleRow('ss-tts-autoScroll', t('toggle.autoScroll'), p.autoScroll !== false),
 
-    section('Typography'),
-    row('Text size', counter('ss-tts-sizeDown', 'ss-tts-sizeDisplay', 'ss-tts-sizeUp', p.size)),
-    row('Typeface', renderFontPickerHTML('ss-tts-font', p.font)),
-    row('Margins', seg('ss-tts-margin', 'data-margin', [['fine','Fine'],['narrow','Narrow'],['normal','Normal'],['wide','Wide']], p.margin || 'normal')),
-    row('Line spacing', counter('ss-tts-lhDown', 'ss-tts-lhDisplay', 'ss-tts-lhUp', p.lineHeight.toFixed(1))),
+    section(t('sec.typography')),
+    row(t('lbl.textSize'), counter('ss-tts-sizeDown', 'ss-tts-sizeDisplay', 'ss-tts-sizeUp', p.size)),
+    row(t('lbl.typeface'), renderFontPickerHTML('ss-tts-font', p.font)),
+    row(t('lbl.margins'), seg('ss-tts-margin', 'data-margin', [['fine', t('opt.fine')],['narrow', t('opt.narrow')],['normal', t('opt.normal')],['wide', t('opt.wide')]], p.margin || 'normal')),
+    row(t('lbl.lineSpacing'), counter('ss-tts-lhDown', 'ss-tts-lhDisplay', 'ss-tts-lhUp', p.lineHeight.toFixed(1))),
   ].join('');
 }
 
@@ -694,7 +707,7 @@ async function wireDictTab(root) {
   try {
     [catalog, installedSet] = await Promise.all([dictionaries.catalog(), dictionaries.installed()]);
   } catch (e) {
-    if (root.isConnected) root.innerHTML = `<div class="ss-dict-empty">Couldn't load the dictionary catalog.</div>`;
+    if (root.isConnected) root.innerHTML = `<div class="ss-dict-empty">${t('dict.cantLoadCatalog')}</div>`;
     return;
   }
   if (!root.isConnected) return;
@@ -715,9 +728,9 @@ async function wireDictTab(root) {
     const isBusy = busy.has(d.id);
     el.innerHTML = `
       <div class="ss-dict-info">
-        <div class="ss-dict-name">${d.name}${isIn ? ' <span class="ss-dict-badge">Downloaded</span>' : ''}</div>
+        <div class="ss-dict-name">${d.name}${isIn ? ` <span class="ss-dict-badge">${t('dict.downloaded')}</span>` : ''}</div>
         <div class="ss-dict-desc">${d.description || ''}</div>
-        <div class="ss-dict-meta">${(d.words || 0).toLocaleString()} words · ${fmtBytes(d.bytes)} · ${d.license || ''}</div>
+        <div class="ss-dict-meta">${t('dict.wordsMeta', { n: (d.words || 0).toLocaleString() })} · ${fmtBytes(d.bytes)} · ${d.license || ''}</div>
       </div>
       <div class="ss-dict-action"></div>`;
     const action = el.querySelector('.ss-dict-action');
@@ -730,14 +743,14 @@ async function wireDictTab(root) {
       const del = document.createElement('button');
       del.type = 'button';
       del.className = 'ss-dict-btn ss-dict-del';
-      del.textContent = 'Delete';
+      del.textContent = t('dict.delete');
       del.addEventListener('click', () => doRemove(d, el));
       action.appendChild(del);
     } else {
       const dl = document.createElement('button');
       dl.type = 'button';
       dl.className = 'ss-dict-btn ss-dict-dl';
-      dl.textContent = 'Download';
+      dl.textContent = t('dict.download');
       dl.addEventListener('click', () => doDownload(d, el));
       action.appendChild(dl);
     }
@@ -755,7 +768,7 @@ async function wireDictTab(root) {
       installed.add(d.id);
     } catch (e) {
       console.warn('dict:download', e);
-      if (el.isConnected) { const a = el.querySelector('.ss-dict-action'); if (a) a.textContent = 'Failed — retry'; }
+      if (el.isConnected) { const a = el.querySelector('.ss-dict-action'); if (a) a.textContent = t('dict.failedRetry'); }
     } finally {
       busy.delete(d.id);
       if (el.isConnected) render(el, d);
@@ -804,17 +817,16 @@ async function wireDictTab(root) {
 
   const foot = document.createElement('div');
   foot.className = 'ss-dict-foot';
-  foot.innerHTML = 'Dictionaries are stored on your device and work fully offline. ' +
-    'Sources &amp; licences are listed in <code>data/dictionaries/ATTRIBUTION.md</code>.';
+  foot.innerHTML = t('dict.foot');
   root.appendChild(foot);
 
   function syncDownloadAll() {
     const remaining = catalog.filter((d) => !installed.has(d.id) && !busy.has(d.id));
     const anyBusy = busy.size > 0;
     allBtn.disabled = anyBusy || remaining.length === 0;
-    allBtn.textContent = anyBusy ? 'Downloading…'
-      : remaining.length === 0 ? 'All downloaded'
-      : `Download all (${fmtBytes(remaining.reduce((s, d) => s + (d.bytes || 0), 0))})`;
+    allBtn.textContent = anyBusy ? t('dict.downloading')
+      : remaining.length === 0 ? t('dict.allDownloaded')
+      : t('dict.downloadAll', { size: fmtBytes(remaining.reduce((s, d) => s + (d.bytes || 0), 0)) });
   }
   allBtn.addEventListener('click', async () => {
     for (const d of catalog) {

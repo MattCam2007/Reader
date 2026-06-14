@@ -5,6 +5,7 @@
 import { SAMPLE } from './data.js';
 import { applyTheme } from '../base-reader-app.js';
 import { POS_KEY_PREFIX } from '../core/position.js';
+import { t } from '../core/i18n.js';
 
 
 // ---------- Sample library (used until data/library.json exists) ----------
@@ -121,7 +122,7 @@ function folderTile(name, prefix) {
   const tag = document.createElement("div"); tag.className = "folder-tag";
   tag.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
   const badge = document.createElement("div"); badge.className = "folder-badge";
-  badge.textContent = inside.length + (inside.length === 1 ? " book" : " books");
+  badge.textContent = t(inside.length === 1 ? "lib.book" : "lib.books", { n: inside.length });
   art.appendChild(tag); art.appendChild(badge);
   c.appendChild(art);
   const t = document.createElement("div"); t.className = "card-title"; t.textContent = name;
@@ -161,25 +162,25 @@ function render() {
     const cont = LIB.filter((b) => { const f = progressOf(b); return f > 0.001 && f < 0.999; })
                     .sort((a, b) => progressOf(b) - progressOf(a));
     if (cont.length) {
-      const s = section("Continue reading");
+      const s = section(t("lib.continueReading"));
       s.appendChild(railOf(cont, true));
       scroll.appendChild(s);
     }
     const recent = [...LIB].sort((a, b) => (b.addedAt || "").localeCompare(a.addedAt || "")).slice(0, 10);
-    const sr = section("Recently added");
+    const sr = section(t("lib.recentlyAdded"));
     sr.appendChild(railOf(recent, true));
     scroll.appendChild(sr);
   }
 
   if (subs.length || here.length) {
-    const s = section(path.length === 0 ? "Browse" : "In this shelf", (subs.length + here.length) + " items");
+    const s = section(path.length === 0 ? t("lib.browse") : t("lib.inThisShelf"), t("lib.items", { n: subs.length + here.length }));
     const g = gridEl();
     subs.forEach((name) => g.appendChild(folderTile(name, path)));
     here.forEach((b) => g.appendChild(bookCard(b, true)));
     s.appendChild(g);
     scroll.appendChild(s);
   } else if (path.length > 0) {
-    const e = document.createElement("div"); e.className = "empty"; e.textContent = "This shelf is empty.";
+    const e = document.createElement("div"); e.className = "empty"; e.textContent = t("lib.shelfEmpty");
     scroll.appendChild(e);
   }
 }
@@ -191,10 +192,10 @@ function renderSearch() {
     (b.author || "").toLowerCase().includes(q) ||
     (b.tags || []).some((t) => t.toLowerCase().includes(q)) ||
     (b.folders || []).some((f) => f.toLowerCase().includes(q)));
-  const s = section("Results", hits.length + (hits.length === 1 ? " match" : " matches"));
+  const s = section(t("lib.results"), t(hits.length === 1 ? "lib.match" : "lib.matches", { n: hits.length }));
   if (!hits.length) {
     const e = document.createElement("div"); e.className = "empty";
-    e.textContent = "No books match “" + query + "”.";
+    e.textContent = t("lib.noBooksMatch", { query });
     scroll.appendChild(e); return;
   }
   const g = gridEl();
@@ -207,7 +208,7 @@ function renderCrumbs() {
   crumbsEl.innerHTML = "";
   const root = document.createElement("button");
   root.className = "crumb" + (path.length ? " parent" : "");
-  root.textContent = "Library";
+  root.textContent = t("lib.library");
   root.addEventListener("click", () => { path = []; clearSearch(); render(); });
   crumbsEl.appendChild(root);
   path.forEach((name, i) => {
@@ -230,10 +231,10 @@ function openSheet(item) {
     ? `<div class="stars">${"★".repeat(item.rating)}<span class="off">${"★".repeat(5 - item.rating)}</span></div>` : "";
   const tags = (item.tags && item.tags.length)
     ? `<div class="tags">${item.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : "";
-  const series = item.series ? `<div class="sheet-sub">${esc(item.series)}${item.seriesIndex ? " · Book " + item.seriesIndex : ""}</div>` : "";
+  const series = item.series ? `<div class="sheet-sub">${esc(item.series)}${item.seriesIndex ? " · " + esc(t("lib.bookN", { n: item.seriesIndex })) : ""}</div>` : "";
   const where = (item.folders && item.folders.length)
-    ? `<div class="sheet-path">In: ${item.folders.map(esc).join(" › ")}</div>` : "";
-  const prog = (f > 0.001 && f < 0.999) ? `<div class="sheet-progress">${pct}% read</div>` : "";
+    ? `<div class="sheet-path">${esc(t("lib.in", { path: item.folders.join(" › ") }))}</div>` : "";
+  const prog = (f > 0.001 && f < 0.999) ? `<div class="sheet-progress">${esc(t("lib.pctRead", { pct }))}</div>` : "";
 
   const coverInner = item.cover
     ? `<img src="${esc(item.cover)}" alt="">`
@@ -246,7 +247,7 @@ function openSheet(item) {
        <div class="sheet-cover">${coverInner}</div>
        <div class="sheet-meta">
          <div class="sheet-title">${esc(item.title)}</div>
-         <div class="sheet-author">${esc(item.author || "Unknown author")}</div>
+         <div class="sheet-author">${esc(item.author || t("lib.unknownAuthor"))}</div>
          ${series}${stars}${tags}
        </div>
      </div>
@@ -255,11 +256,11 @@ function openSheet(item) {
      <div class="sheet-actions">
        <a class="btn primary" href="reader.html${params}">
          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h7v15H4zM13 5h7v15h-7z"/></svg>
-         ${f > 0.001 ? "Continue" : "Read"}
+         ${f > 0.001 ? t("lib.continue") : t("lib.read")}
        </a>
        <a class="btn" href="index.html${params}">
          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
-         Speed Read
+         ${t("lib.speedRead")}
        </a>
      </div>`;
   body().classList.add("show-sheet");
@@ -302,6 +303,12 @@ function esc(s) {
 }
 
 // ---------- Init: load real manifest if present, else sample ----------
+// library.html ships static English chrome; localise it once on boot.
+if (searchBtn) searchBtn.setAttribute("aria-label", t("a11y.search"));
+if (themeBtn) themeBtn.setAttribute("aria-label", t("a11y.theme"));
+if (searchInput) searchInput.setAttribute("placeholder", t("lib.searchPlaceholder"));
+if (sheet) sheet.setAttribute("aria-label", t("a11y.bookDetails"));
+
 try { theme = localStorage.getItem("library:theme") || "dark"; } catch (_) {}
 applyThemeLib();
 

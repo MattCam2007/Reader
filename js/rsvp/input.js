@@ -1,5 +1,6 @@
 import { RSVP } from './constants.js';
 import { stepFn, stepParagraph } from './navigation.js';
+import { t } from '../core/i18n.js';
 
 export class RsvpInput {
   constructor(state, prefs, playback, display, bus, els, signal) {
@@ -194,7 +195,7 @@ export class RsvpInput {
     }, { signal });
 
     // Granularity selector (settings grain buttons — keep in sync with cycle btn)
-    const UNIT_LABELS = { word: 'Word', sentence: 'Sent', paragraph: 'Para' };
+    const UNIT_LABELS = { word: t('rsvp.unitWord'), sentence: t('rsvp.unitSent'), paragraph: t('rsvp.unitPara') };
     const grainBtns = Array.from(document.querySelectorAll('[data-unit]'));
     grainBtns.forEach(btn => {
       btn.addEventListener('click', (e) => {

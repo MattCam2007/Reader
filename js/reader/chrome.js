@@ -1,5 +1,6 @@
 import { pageOfWord, wordRange, layoutScale } from '../model/geometry.js';
 import * as perf from '../core/perf.js';
+import { t } from '../core/i18n.js';
 
 export class ChromeManager {
   constructor(state, els) {
@@ -34,7 +35,7 @@ export class ChromeManager {
     if (state.isScrollMode) {
       const sh = els.viewport.scrollHeight - els.viewport.clientHeight;
       const pct = sh > 0 ? Math.round((els.viewport.scrollTop / sh) * 100) : 100;
-      progressLabel.textContent = pct + "% read";
+      progressLabel.textContent = t('reader.pctRead', { pct });
       if (bookSubEl) {
         const ch = this._currentChapterLabel();
         bookSubEl.textContent = ch ? ch + " \u00b7 " + pct + "%" : pct + "%";
@@ -43,7 +44,7 @@ export class ChromeManager {
     }
     progressEl.value = String(state.page);
     const pct = state.total > 1 ? Math.round((state.page / (state.total - 1)) * 100) : 100;
-    progressLabel.textContent = "Page " + (state.page + 1) + " of " + state.total;
+    progressLabel.textContent = t('reader.pageOf', { page: state.page + 1, total: state.total });
     if (bookSubEl) {
       const ch = this._currentChapterLabel();
       bookSubEl.textContent = ch ? ch + " \u00b7 " + pct + "%" : pct + "%";
@@ -86,7 +87,7 @@ export class ChromeManager {
             btn.type = 'button';
             btn.className = 'bm-marker';
             const pct = Math.round(item.fraction * 100);
-            btn.setAttribute('aria-label', `Go to bookmark: ${item.chapterLabel ? item.chapterLabel + ' · ' : ''}${pct}%`);
+            btn.setAttribute('aria-label', t('reader.goToBookmark', { label: `${item.chapterLabel ? item.chapterLabel + ' · ' : ''}${pct}%` }));
             btn.title = `${item.chapterLabel ? item.chapterLabel + ' · ' : ''}${pct}%`;
             if (item.color) btn.style.setProperty('--bm-color', `var(--bm-${item.color})`);
             btn.addEventListener('click', (e) => { e.stopPropagation(); navigateFn(item); });

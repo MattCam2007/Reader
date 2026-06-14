@@ -1,5 +1,6 @@
 import { resolveLocator, toLocator } from '../model/locator.js';
 import { wordIndexFromNodeOffset, wordAtPoint, wordRange } from '../model/geometry.js';
+import { t } from '../core/i18n.js';
 
 // Palette keys, in render order. Each has a matching ::highlight(hl-<key>) rule
 // in css/components/selection.css and a swatch colour below.
@@ -191,7 +192,7 @@ export class HighlightController {
 
     const copy = document.createElement('button');
     copy.type = 'button';
-    copy.textContent = 'Copy';
+    copy.textContent = t('btn.copy');
     copy.addEventListener('click', () => {
       try { navigator.clipboard.writeText(text); } catch (_) { document.execCommand('copy'); }
       this.clearPenSelection();
@@ -200,7 +201,7 @@ export class HighlightController {
 
     const define = document.createElement('button');
     define.type = 'button';
-    define.textContent = 'Define';
+    define.textContent = t('btn.define');
     define.addEventListener('click', () => {
       const rect = range.getBoundingClientRect();
       if (this._hooks.onDefine) {
@@ -217,7 +218,7 @@ export class HighlightController {
       const sw = document.createElement('button');
       sw.type = 'button';
       sw.className = 'reader-hl-swatch hl-' + c;
-      sw.setAttribute('aria-label', 'Highlight ' + c);
+      sw.setAttribute('aria-label', t('a11y.highlight', { color: c }));
       sw.addEventListener('click', () => {
         this.createFromWords(lo, hi, c);
         this.clearPenSelection();
@@ -289,7 +290,7 @@ export class HighlightController {
       const sw = document.createElement('button');
       sw.type = 'button';
       sw.className = 'reader-hl-swatch hl-' + c + (item.color === c ? ' active' : '');
-      sw.setAttribute('aria-label', 'Highlight colour ' + c);
+      sw.setAttribute('aria-label', t('a11y.highlightColor', { color: c }));
       sw.addEventListener('click', () => {
         this.manager.updateColor(item.id, c);
         this.renderAll();
@@ -299,7 +300,7 @@ export class HighlightController {
 
     const note = document.createElement('button');
     note.type = 'button';
-    note.textContent = item.note ? 'Edit note' : 'Add note';
+    note.textContent = item.note ? t('btn.editNote') : t('btn.addNote');
     note.addEventListener('click', () => {
       this.dismissBar();
       this._showNoteEditor(item, x, y);
@@ -308,7 +309,7 @@ export class HighlightController {
 
     const del = document.createElement('button');
     del.type = 'button';
-    del.textContent = 'Remove';
+    del.textContent = t('btn.remove');
     del.addEventListener('click', () => {
       this.manager.remove(item.id);
       this.renderAll();
@@ -348,8 +349,8 @@ export class HighlightController {
 
     const ta = document.createElement('textarea');
     ta.className = 'hl-note-textarea';
-    ta.placeholder = 'Add a note…';
-    ta.setAttribute('aria-label', 'Highlight note');
+    ta.placeholder = t('msg.addNotePlaceholder');
+    ta.setAttribute('aria-label', t('a11y.highlightNote'));
     ta.value = item.note || '';
     pop.appendChild(ta);
 
@@ -359,7 +360,7 @@ export class HighlightController {
     const save = document.createElement('button');
     save.type = 'button';
     save.className = 'hl-note-save';
-    save.textContent = 'Save';
+    save.textContent = t('btn.save');
     save.addEventListener('click', () => {
       this.manager.updateNote(item.id, ta.value.trim());
       this._dismissNotePopover();
@@ -371,7 +372,7 @@ export class HighlightController {
       const clear = document.createElement('button');
       clear.type = 'button';
       clear.className = 'hl-note-clear';
-      clear.textContent = 'Delete';
+      clear.textContent = t('btn.delete');
       clear.addEventListener('click', () => {
         this.manager.updateNote(item.id, '');
         this._dismissNotePopover();
@@ -383,7 +384,7 @@ export class HighlightController {
     const cancel = document.createElement('button');
     cancel.type = 'button';
     cancel.className = 'hl-note-cancel';
-    cancel.textContent = 'Cancel';
+    cancel.textContent = t('btn.cancel');
     cancel.addEventListener('click', () => this._dismissNotePopover());
     actions.appendChild(cancel);
 

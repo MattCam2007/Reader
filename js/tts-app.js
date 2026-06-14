@@ -1,4 +1,5 @@
 import { FONT_MAP, FONT_SERIF, GENERAL_DEFAULTS, EXTRACTABLE_BLOCK_SELECTOR } from './core/constants.js';
+import { t } from './core/i18n.js';
 import { PrefsManager } from './core/prefs.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
@@ -219,8 +220,8 @@ export function init(options = {}) {
   function showWelcome() {
     document.body.classList.remove('loading', 'error');
     document.body.classList.add('welcome');
-    els.overlayMsg.textContent = 'Open an ebook to start reading.';
-    els.overlayBtn.textContent = 'Open a book';
+    els.overlayMsg.textContent = t('app.openEbook');
+    els.overlayBtn.textContent = t('app.openBook');
     els.overlayBtn.hidden = false;
   }
   function clearOverlay() {
@@ -232,7 +233,7 @@ export function init(options = {}) {
     isPlaying = val;
     document.body.classList.toggle('tts-playing', val);
     if (els.ttsPlayBtn) {
-      els.ttsPlayBtn.setAttribute('aria-label', val ? 'Pause' : 'Play');
+      els.ttsPlayBtn.setAttribute('aria-label', val ? t('a11y.pause') : t('a11y.play'));
     }
   }
 
@@ -494,7 +495,7 @@ export function init(options = {}) {
     if (!voices.length) {
       const msg = document.createElement('div');
       msg.className = 'tts-voice-empty';
-      msg.textContent = 'No voices available.';
+      msg.textContent = t('tts.noVoices');
       els.ttsVoiceList.appendChild(msg);
       return;
     }
@@ -512,7 +513,7 @@ export function init(options = {}) {
       if (voice.localService) {
         const badge = document.createElement('span');
         badge.className = 'tts-voice-local';
-        badge.textContent = 'local';
+        badge.textContent = t('tts.local');
         btn.appendChild(badge);
       }
       btn.addEventListener('click', () => {
@@ -546,7 +547,7 @@ export function init(options = {}) {
     sentences = [];
     currentSentenceIdx = 0;
 
-    showLoading('Loading ' + file.name + '…');
+    showLoading(t('app.loadingFile', { name: file.name }));
     closePanels();
     try {
       const buffer = await file.arrayBuffer();
@@ -557,7 +558,7 @@ export function init(options = {}) {
       await loadFromSession(session, pos);
     } catch (err) {
       console.error('TTS EPUB load failed:', err);
-      showError(err && err.message ? err.message : "Couldn't read that file.");
+      showError(err && err.message ? err.message : t('app.cantReadFile'));
     }
   }
 
@@ -606,7 +607,7 @@ export function init(options = {}) {
       });
     } catch (err) {
       console.error('TTS render failed:', err);
-      showError(err && err.message ? err.message : "Couldn't read that file.");
+      showError(err && err.message ? err.message : t('app.cantReadFile'));
     }
   }
 
@@ -877,14 +878,14 @@ export function init(options = {}) {
   if (urlParams.get('src') && !srcUrl) {
     showError("That book URL isn't allowed.");
   } else if (srcUrl) {
-    showLoading('Fetching book\u2026');
+    showLoading(t('app.fetchingBook'));
     fetch(srcUrl)
       .then(r => { if (!r.ok) throw new Error('Fetch failed: ' + r.status); return r.blob(); })
       .then(blob => {
         const fn = srcUrl.split('/').pop() || 'book.epub';
         return loadEpub(new File([blob], fn, { type: 'application/epub+zip' }));
       })
-      .catch(err => showError(err && err.message ? err.message : "Couldn't fetch that book."));
+      .catch(err => showError(err && err.message ? err.message : t('app.cantFetchBook')));
   } else {
     showWelcome();
   }

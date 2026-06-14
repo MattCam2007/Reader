@@ -1,5 +1,6 @@
 import { RSVP } from './constants.js';
 import { PARAGRAPH_BREAK, orpIndex, lastIndexAtMost } from './tokenizer.js';
+import { t } from '../core/i18n.js';
 
 export class RsvpDisplay {
   constructor(state, prefs, els) {
@@ -84,7 +85,7 @@ export class RsvpDisplay {
 
     if (seekReadout) {
       seekReadout.textContent =
-        "word " + (total ? wOrd + 1 : 0).toLocaleString() + " / " + total.toLocaleString() +
+        t('rsvp.seekWord') + " " + (total ? wOrd + 1 : 0).toLocaleString() + " / " + total.toLocaleString() +
         "   \u00b7   \u00b6 " + (pi + 1) + " / " + state.paragraphs.length +
         "   \u00b7   " + Math.round(frac * 100) + "%" +
         "   \u00b7   " + etaStr;
@@ -104,7 +105,7 @@ export class RsvpDisplay {
     if (stepPrevBtn) stepPrevBtn.disabled = wOrd <= 0;
     if (stepNextBtn) stepNextBtn.disabled = wOrd >= total - 1;
     if (playLabel) {
-      playLabel.textContent = (state.playState === 'playing' || state.playState === 'countdown') ? "Pause" : "Play";
+      playLabel.textContent = (state.playState === 'playing' || state.playState === 'countdown') ? t('a11y.pause') : t('a11y.play');
     }
 
   }

@@ -1,4 +1,5 @@
 import { FONT_MAP, FONT_SERIF, RESIZE_DEBOUNCE_MS, GENERAL_DEFAULTS, WINDOW_MIN_WORDS, MIN_SIZE, MAX_SIZE } from './core/constants.js';
+import { t } from './core/i18n.js';
 import { mountFontPicker, fontPickerItemsHTML } from './shared/font-picker.js';
 import { applyTheme, applyOsThemeFallback, applyBgSettings } from './base-reader-app.js';
 import { openSettingsScreen, closeSettingsScreen, isSettingsScreenOpen } from './settings/settings-screen.js';
@@ -619,8 +620,8 @@ export function init(options = {}) {
   function showWelcome() {
     document.body.classList.remove("loading", "error");
     document.body.classList.add("welcome");
-    els.overlayMsg.textContent = "Open an ebook to start reading.";
-    els.overlayBtn.textContent = "Open a book";
+    els.overlayMsg.textContent = t('app.openEbook');
+    els.overlayBtn.textContent = t('app.openBook');
     els.overlayBtn.hidden = false;
   }
   function clearOverlay() {
@@ -818,7 +819,7 @@ export function init(options = {}) {
   // Build the mode-agnostic session (parse + extract + resolve images) once,
   // then render it. Switching modes later reuses the session via loadFromSession.
   async function loadEpub(file, pos) {
-    showLoading("Loading " + file.name + "\u2026");
+    showLoading(t('app.loadingFile', { name: file.name }));
     closePanels();
     try {
       const buffer = await file.arrayBuffer();
@@ -829,7 +830,7 @@ export function init(options = {}) {
       await loadFromSession(session, pos);
     } catch (err) {
       console.error("EPUB load failed:", err);
-      showError(err && err.message ? err.message : "Couldn't read that file.");
+      showError(err && err.message ? err.message : t('app.cantReadFile'));
     }
   }
 
@@ -857,7 +858,7 @@ export function init(options = {}) {
       // "Parsing\u2026" message, and the browser stays responsive between steps.
       const yieldFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
-      els.overlayMsg.textContent = "Rendering\u2026";
+      els.overlayMsg.textContent = t('app.rendering');
       await yieldFrame();
       renderBook(session.sections);
 
@@ -874,7 +875,7 @@ export function init(options = {}) {
       // Paginate and restore after a paint so layout (stride/total) is final
       // before we map a word ordinal to a page. The overlay stays up through this
       // step (no black screen) and is cleared once the position is applied.
-      els.overlayMsg.textContent = "Formatting\u2026";
+      els.overlayMsg.textContent = t('app.formatting');
       await yieldFrame();
       try {
         finalizeLayout(session.toc, pos);
@@ -885,14 +886,14 @@ export function init(options = {}) {
       }
     } catch (err) {
       console.error("book render failed:", err);
-      showError(err && err.message ? err.message : "Couldn't read that file.");
+      showError(err && err.message ? err.message : t('app.cantReadFile'));
     }
   }
 
   async function loadFromUrl(url) {
     const safeUrl = validateBookSrcUrl(url);
     if (!safeUrl) { showError("That book URL isn't allowed."); return; }
-    showLoading("Fetching book\u2026");
+    showLoading(t('app.fetchingBook'));
     closePanels();
     try {
       const resp = await fetch(safeUrl);
@@ -903,7 +904,7 @@ export function init(options = {}) {
       await loadEpub(file);
     } catch (err) {
       console.error("URL load failed:", err);
-      showError(err && err.message ? err.message : "Couldn't fetch that book.");
+      showError(err && err.message ? err.message : t('app.cantFetchBook'));
     }
   }
 

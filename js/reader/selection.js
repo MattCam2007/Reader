@@ -1,5 +1,6 @@
 import { SELECTION_DEBOUNCE_MS } from '../core/constants.js';
 import { HL_COLORS } from './highlight-render.js';
+import { t } from '../core/i18n.js';
 
 export class SelectionManager {
   constructor(state, signal, hooks = {}) {
@@ -40,7 +41,7 @@ export class SelectionManager {
     this._selBar.className = "reader-sel-bar";
 
     const copyBtn = document.createElement("button");
-    copyBtn.textContent = "Copy";
+    copyBtn.textContent = t('btn.copy');
     copyBtn.type = "button";
     copyBtn.addEventListener("click", () => {
       try { navigator.clipboard.writeText(selText); } catch (_) {
@@ -51,7 +52,7 @@ export class SelectionManager {
     this._selBar.appendChild(copyBtn);
 
     const defineBtn = document.createElement("button");
-    defineBtn.textContent = "Define";
+    defineBtn.textContent = t('btn.define');
     defineBtn.type = "button";
     defineBtn.addEventListener("click", () => {
       if (this._hooks.onDefine) {
@@ -70,7 +71,7 @@ export class SelectionManager {
         const sw = document.createElement("button");
         sw.type = "button";
         sw.className = "reader-hl-swatch hl-" + c;
-        sw.setAttribute("aria-label", "Highlight " + c);
+        sw.setAttribute("aria-label", t('a11y.highlight', { color: c }));
         sw.addEventListener("click", () => {
           this._hooks.onHighlight(c);
           this.dismiss();
