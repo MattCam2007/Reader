@@ -92,6 +92,13 @@ import { classifyPenSignal } from '../reader/pen-signals.js';
 — they print on failure. Group related asserts in a `{ }` block with a `// ---`
 header, matching the file's style.
 
+> ⚠️ **Top-level imports are all-or-nothing.** `selftest.js` imports every module
+> it tests at the top of the file. If you add `import { … } from
+> '../reader/new-module.js'` before that file exists (or the module throws at
+> import time), the **whole suite fails to load** — all assertions go red, not just
+> yours. Create the module first; keep pure modules free of import-time side
+> effects and DOM access.
+
 ---
 
 ## 4. Writing a FUNCTIONAL test (simulated S Pen gestures)
@@ -120,22 +127,21 @@ Use the existing pattern: push every created id to `addedHighlightIds` so the
 `finally` cleans up even if an assert throws. Operate only on the **currently
 attached chapter** (`state.curChap`) — off-window chapters are detached.
 
-### 4.2 Dispatching synthetic Pointer/`__spen` events from Playwright
+### 4.2 Dispatching synthetic Pointer/`__spen` events — **in-page (preferred)**
 
-For true end-to-end gesture coverage, drive `reader.html` (no `?selftest`) from a
-*new* Playwright spec and synthesise events with `page.evaluate`. A pen
-`pointermove` hover:
+`runLiveTests` already runs *inside the browser page*, so it can synthesise events
+directly on the live viewport and call the bridge receiver — **no Playwright spec
+needed, and `state`/`prefs`/`highlightManager` are in scope.** This is the path the
+S Pen phase sheets use. A pen `pointermove` hover:
 
 ```js
-await page.evaluate(() => {
-  const vp = document.querySelector('.reader-viewport');
-  const r = vp.getBoundingClientRect();
-  vp.dispatchEvent(new PointerEvent('pointermove', {
-    pointerType: 'pen', pressure: 0, buttons: 0,
-    clientX: r.left + r.width / 2, clientY: r.top + r.height / 2,
-    bubbles: true, cancelable: true,
-  }));
-});
+const vp = document.querySelector('.reader-viewport');
+const r = vp.getBoundingClientRect();
+vp.dispatchEvent(new PointerEvent('pointermove', {
+  pointerType: 'pen', pressure: 0, buttons: 0,
+  clientX: r.left + r.width / 2, clientY: r.top + r.height / 2,
+  bubbles: true, cancelable: true,
+}));
 ```
 
 A barrel-drag highlight = `pointerdown {buttons:2,pressure:.5}` → several
@@ -143,18 +149,23 @@ A barrel-drag highlight = `pointerdown {buttons:2,pressure:.5}` → several
 events at all** — inject a fake bridge and call the receiver:
 
 ```js
-await page.evaluate(() => {
-  window.SPenBridge = { isAvailable: () => true,
-    getCapabilities: () => ({ button: true, airMotion: false, detachEvents: true }) };
-  // app installs window.__spen; fire it:
-  window.__spen.onButtonClick();
-});
+window.SPenBridge = { isAvailable: () => true,
+  getCapabilities: () => ({ button: true, airMotion: false, detachEvents: true }) };
+window.__spen.onButtonClick();   // the app installed window.__spen at boot
 ```
 
-> **Where to put new Playwright specs:** extend `test/run-selftest.mjs` with an
-> additional page run, or (cleaner) add a sibling `test/spen.mjs` that reuses the
-> same `startServer` helper and is invoked from `npm test`. Keep the CI gate
-> (`selftest.yml`) running whatever entry you add.
+> **Mind the execution context.** Snippets in the phase sheets that use bare
+> `state`, `prefs`, `highlightManager` are **in-page (`runLiveTests`)** code. If you
+> ever move one into a Playwright `page.evaluate`, those identifiers are not
+> defined there — reach them via `window.__selftestState` /
+> `window.__selftestHooks` (set by `selftest.js`). Don't paste in-page snippets
+> into `page.evaluate` verbatim.
+
+> **A full Playwright spec is net-new infra.** Today the harness runs only the
+> in-browser selftest pages + the RSVP/TTS boot smokes — there is *no* per-gesture
+> Playwright spec yet. Only add one (e.g. a sibling `test/spen.mjs` reusing
+> `startServer`, invoked from `npm test`, kept in the `selftest.yml` gate) if you
+> truly need cross-page isolation that `runLiveTests` cannot give.
 
 ---
 
@@ -164,17 +175,18 @@ Each S Pen phase must assert its metric number (see `plans/spen-support.md` §3)
 The pattern: **count committed side-effects for a scripted gesture and compare to
 the baseline path.**
 
-Interaction-cost example (Phase 1 — definition needs 0 taps vs 3):
+Interaction-cost example (Phase 1 — definition needs 0 taps vs the baseline 2):
 
 ```js
-// Functional: hover a word, assert the definition popover appeared with ZERO
-// committing taps and within the latency budget.
-const t0 = Date.now();
-// ...dispatch the hover pointermove (Section 4.2)...
-await page.waitForSelector('.definition-popover', { timeout: 500 });
-const dt = Date.now() - t0;
-assert('pen-hover-metric', 'definition shown on hover with 0 taps', true);
-assert('pen-hover-metric', 'hover→preview latency ≤ 150ms (' + dt + ')', dt <= 150);
+// In-page (runLiveTests). Hover a word, assert the definition popover appeared
+// with ZERO committing taps. NOTE the real class is `.reader-def-popover`
+// (js/reader/definition.js), not `.definition-popover`.
+// ...dispatch the hover pointermove on the viewport (Section 4.2)...
+await new Promise(res => setTimeout(res, HOVER_SETTLE_MS + 30)); // let the settle timer fire
+assert('pen-hover-metric', 'definition shown on hover with 0 taps',
+  document.querySelector('.reader-def-popover') !== null);
+// Latency: assert the SETTLE CONSTANT, not a raced wall-clock through the runner.
+assert('pen-hover-metric', 'settle budget ≤ 150ms', HOVER_SETTLE_MS <= 150);
 ```
 
 Accidental-action-rate example (passive gesture must not mutate):

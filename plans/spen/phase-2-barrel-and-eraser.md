@@ -13,10 +13,10 @@ Read first: [`00-INDEX-AND-PROCEDURE.md`](00-INDEX-AND-PROCEDURE.md),
 
 | | |
 | --- | --- |
-| **Metric** | Interaction cost |
-| **Baseline (shipped)** | Highlight a passage: drag-select → lift → tap colour swatch = **3 committing actions**. Delete: tap highlight → menu opens → tap **Remove** = **3** (incl. 1 menu open). |
-| **Target (S Pen)** | Barrel+drag highlights = **1 action, 0 menus**. Eraser over a highlight deletes = **1 contact, 0 menus**. |
-| **Enforcing test** | Functional: barrel-drag gesture creates exactly one highlight with no swatch tap (`highlightManager.count()` +1, 0 `.reader-sel-bar` shown). Eraser gesture over a span removes exactly one with no edit-bar shown. |
+| **Metric** | Interaction cost (counting rule: `spen-support.md` §3.1 — a drag+lift is one action; a bar/menu *appearing* is not an action) |
+| **Baseline (shipped)** | Highlight a passage: drag-select+lift → tap a colour swatch = **2 actions**. Delete: tap highlight (shows the edit bar) → tap **Remove** = **2 actions**. |
+| **Target (S Pen)** | Barrel+drag highlights = **1 action, 0 swatch tap**. Eraser over a highlight deletes = **1 contact, 0 menu tap**. |
+| **Enforcing test** | Functional: barrel-drag gesture creates exactly one highlight with no swatch tap (`highlightManager.count()` +1, 0 `.reader-sel-bar` shown). Eraser gesture over a span removes exactly one with no edit-bar (`.reader-hl-edit`) shown. |
 
 ---
 
@@ -69,12 +69,18 @@ import { classifyPenSignal } from '../reader/pen-signals.js';
 
 ---
 
-## Step 4 — pref
+## Step 4 — prefs (two additions)
 
-`DEFAULT_PREFS`: `penBarrel: true` (safe: barrel/eraser require a deliberate
-button press; they cannot fire accidentally for finger users).
-`SETTINGS`: `{ seg: "penBarrelSeg", attr: "penbarrel", pref: "penBarrel", repaginate: false, transform: v => v === "true" }`.
-Add the `penBarrelSeg` toggle ("Pen button shortcuts — On/Off").
+1. **`penBarrel: true`** in `DEFAULT_PREFS` (safe: barrel/eraser require a
+   deliberate button press; they cannot fire accidentally for finger users).
+   `SETTINGS`: `{ seg: "penBarrelSeg", attr: "penbarrel", pref: "penBarrel", repaginate: false, transform: v => v === "true" }`.
+   Add the `penBarrelSeg` toggle ("Pen button shortcuts — On/Off").
+2. **`highlightColor: 'yellow'`** in `DEFAULT_PREFS` — **this pref does not exist
+   yet** (verified: only the `a11y.highlightColor` i18n strings exist). It is the
+   default-colour source for barrel-drag here *and* a dependency of Phase 3, so add
+   it now. No `SETTINGS` row is required unless you want a colour picker; a default
+   value is enough. (`createFromWords(... || 'yellow')` falls back safely if it is
+   somehow missing, but add it explicitly.)
 
 ---
 
@@ -120,8 +126,7 @@ penBarrelDrag: (a, b) => highlights.createFromWords(a, b, prefs.data.highlightCo
 penErase:      (x, y) => highlights.deleteHighlightAt(x, y),
 ```
 
-> Add a `highlightColor` pref (default `'yellow'`) now if not present — Phase 3
-> reuses it. It is the default-colour source for barrel-drag.
+(`prefs.data.highlightColor` was added in Step 4.2.)
 
 ---
 

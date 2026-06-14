@@ -39,14 +39,23 @@ Every phase sheet is organised so you can follow these steps top to bottom:
 3. **Unit-test the pure module.** Add the `import` + the `// ---` assert block to
    `js/test/selftest.js` exactly as the sheet lists. Run `node
    test/run-selftest.mjs`; the new asserts must pass before you wire anything.
+   ⚠️ **Create the module file *before* adding its `import`** — a top-level import
+   of a missing or throwing module hard-fails the **entire** suite (all 200+
+   assertions go red), not just the new ones. Keep pure modules free of
+   import-time side effects and DOM access.
 4. **Add the pref.** Follow [`CONTRIBUTING.md` §3](../../docs/CONTRIBUTING.md): add
    to `DEFAULT_PREFS` and the `SETTINGS` table in `js/core/constants.js`, with the
    exact key/default the sheet gives. Add the settings-screen control markup.
 5. **Wire it in.** Make the minimal edits the sheet lists to `js/reader/input.js`
    and/or `js/reader-app.js`, routing the hardware signal through a callback to the
    feature module. Keep the touch state machine untouched.
-6. **Functional-test the wiring.** Add the live/`runLiveTests` hook assertions
-   and/or the Playwright gesture spec the sheet specifies.
+6. **Functional-test the wiring.** Prefer **in-page** gesture tests inside
+   `runLiveTests` — it runs in the browser, so it can `dispatchEvent` real
+   `PointerEvent`s on the viewport and call `window.__spen.*` directly, with
+   `state`/`prefs`/`highlightManager` already in scope. A separate Playwright spec
+   is **net-new infra** (the harness today only runs the in-browser selftest + the
+   RSVP/TTS boot smokes) — reach for it only if you genuinely need cross-page
+   isolation. See [`../../docs/TESTING.md`](../../docs/TESTING.md) §4.
 7. **Add the measurable-better assertion.** The sheet names the metric, baseline,
    and target. Write the test that produces that number (see `TESTING.md` §5). It
    must be green.
@@ -116,8 +125,9 @@ and re-read the sheet — the feature is mis-scoped.
 | Re-paint highlights after relayout | `highlights.renderAll()` |
 | Show a definition popover | `onDefine(text, rect)` (wired to `DefinitionPopover.show`) |
 | Footnote popover | `js/reader/footnotes.js` (`activePopover`, `dismiss`) |
-| Turn a page | `pagination.next()` / `prev()` / `goTo(p)` |
-| Active reading mode | `js/mode-switcher.js` (`getCurrentMode()` — add an export if missing) |
+| Turn a page | `pagination.next()` / `prev()` / `goTo(p, animate)` |
+| Jump to a chapter | `seekToToken(state.doc.sections[i].wordStart)` — there is **no** `chapters.next()` |
+| Active reading mode | each app's controller knows its own mode; `getCurrentMode()` in `js/mode-switcher.js` is optional/diagnostic |
 | Pref value | `state._prefs.data.<key>` |
 
 ---

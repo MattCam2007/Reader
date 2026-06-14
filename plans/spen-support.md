@@ -72,10 +72,10 @@ lies dormant until the WebView app exists.
 
 | Phase | Build-sheet | Tier | Headline metric it wins on | Effort |
 | --- | --- | --- | --- | --- |
-| **1 — Hover preview** | [`spen/phase-1-hover-preview.md`](spen/phase-1-hover-preview.md) | Web | Taps to read a definition: **3 → 0** | M |
-| **2 — Barrel + eraser** | [`spen/phase-2-barrel-and-eraser.md`](spen/phase-2-barrel-and-eraser.md) | Web | Actions to highlight: **3 → 1**; to delete: **3 → 1** | S–M |
-| **3 — Pressure highlighter** | [`spen/phase-3-pressure-highlighter.md`](spen/phase-3-pressure-highlighter.md) | Web | Highlight weights expressible: **1 → 3** (no extra steps) | S–M |
-| **4 — Bridge + reading remote** | [`spen/phase-4-native-bridge-and-remote.md`](spen/phase-4-native-bridge-and-remote.md) | Native | Page-turns reachable with pen off-screen: **0% → 100%** | M + native shim |
+| **1 — Hover preview** | [`spen/phase-1-hover-preview.md`](spen/phase-1-hover-preview.md) | Web | Committing taps to read a definition: **2 → 0** | M |
+| **2 — Barrel + eraser** | [`spen/phase-2-barrel-and-eraser.md`](spen/phase-2-barrel-and-eraser.md) | Web | Actions to highlight: **2 → 1**; to delete: **2 → 1** | S–M |
+| **3 — Pressure highlighter** | [`spen/phase-3-pressure-highlighter.md`](spen/phase-3-pressure-highlighter.md) | Web | Highlight weights expressible: **1 → 3** (no extra steps) | M |
+| **4 — Bridge + reading remote** | [`spen/phase-4-native-bridge-and-remote.md`](spen/phase-4-native-bridge-and-remote.md) | Native | Page-turn reachable with pen off-screen: **0% → 100%** (button, default-on) | M + native shim |
 | **5 — Pen-detach auto-mode** | [`spen/phase-5-pen-detach-automode.md`](spen/phase-5-pen-detach-automode.md) | Native | Taps to enter "stylus mode": **N → 0** | S |
 
 **Recommended order:** 1 → 2 → 3 → 4 → 5. Phase 1 is the fastest, most delightful,
@@ -95,16 +95,23 @@ before starting any phase.**
 The baseline for every comparison is **"the same task performed through the
 already-shipped stylus path (S0–S2) or the finger path."** Four metric families:
 
-### 3.1 Interaction cost — *committed actions to complete a task*
+### 3.1 Interaction cost — *committing actions to complete a task*
 
-Count the discrete, committing user actions (a tap that fires a handler, a
-drag-then-lift, a menu open). Fewer is better. Examples:
+**Counting rule (strict — use this exact definition so prose and tests agree).** A
+*committing action* is one of: a tap that fires a handler, or a drag-then-lift as a
+single unit. **Waits, dwell time, and a menu *appearing* are NOT actions** — only
+the user's taps/drags count. (Earlier drafts inflated these baselines by counting
+"wait for bar" and "menu opens"; those are removed below.)
 
 | Task | Baseline (shipped) | With S Pen | Delta |
 | --- | --- | --- | --- |
-| See a word's definition | tap word → wait for sel-bar → tap **Define** = **3** | Phase 1: hover, **0** taps | **−3** |
-| Highlight a passage | drag-select → lift → tap a colour swatch = **3** | Phase 2 barrel-drag, **1** | **−2** |
-| Delete a highlight | tap highlight → menu opens → tap **Remove** = **3** | Phase 2 eraser, **1** | **−2** |
+| See a word's definition | tap word (shows bar) → tap **Define** = **2** | Phase 1: hover, **0** taps | **−2** |
+| Highlight a passage | drag-select+lift → tap a colour swatch = **2** | Phase 2 barrel-drag, **1** | **−1** |
+| Delete a highlight | tap highlight (shows bar) → tap **Remove** = **2** | Phase 2 eraser, **1** | **−1** |
+
+These are smaller than a naive count suggests, but they are *defensible* — the
+enforcing test counts committed side-effects, so it will reproduce exactly these
+numbers. A feature that needs a fabricated baseline to look good does not ship.
 
 **How it's enforced:** each phase exposes its decision as a *pure function*
 (Section 5 / `00-INDEX`) and a functional test scripts the gesture stream, then
@@ -129,8 +136,11 @@ assert `pagination.page` unchanged and `highlightManager.count()` unchanged.
 
 For the reading remote (Phase 4): can the action be performed with the pen **not
 touching the screen**? Baseline = **no** (impossible — a web page cannot see BLE).
-Phase 4 = **yes**. Enforced by a functional test that fires the fake bridge's
-`onButtonClick()` with no pointer events at all and asserts the page turned.
+Phase 4 = **yes** for the page-turn (the S Pen *button*, on by default); air
+gestures (chapter/WPM) are opt-in, so "100%" is the page-turn capability
+specifically, not every action out of the box. Enforced by a functional test that
+fires the fake bridge's `onButtonClick()` with no pointer events at all and asserts
+the page turned.
 
 > **Rule for the implementer:** if you cannot write the test that produces the
 > number, you have not finished designing the feature. Write the test first.

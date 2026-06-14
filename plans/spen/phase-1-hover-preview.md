@@ -15,9 +15,9 @@ procedure there.
 | | |
 | --- | --- |
 | **Metric** | Interaction cost + latency + accidental-action rate |
-| **Baseline (shipped)** | To read a word's definition: tap word → wait for selection bar → tap **Define** = **3 committing taps** |
-| **Target (S Pen)** | Hover the word = **0 taps**, preview painted **≤ 150 ms** after the pen settles, and **0** page-turns / highlights from any number of hovers |
-| **Enforcing test** | Functional: dispatch a hover `pointermove`, assert the definition popover appears with no taps and within budget; dispatch 20 hovers, assert `state.page` and `highlightManager.count()` unchanged |
+| **Baseline (shipped)** | To read a word's definition: tap word (shows the selection bar) → tap **Define** = **2 committing taps** (counting rule: `spen-support.md` §3.1 — the bar *appearing* is not a tap) |
+| **Target (S Pen)** | Hover the word = **0 taps**; preview painted after the settle timer (no extra user action), and **0** page-turns / highlights from any number of hovers |
+| **Enforcing test** | Functional (in-page): dispatch a hover `pointermove` on the viewport, assert the `.reader-def-popover` appears with no taps; dispatch 20 hovers, assert `state.page` and `highlightManager.count()` unchanged |
 
 ---
 
@@ -76,15 +76,20 @@ export class HoverPreview {
 }
 ```
 
-`HOVER_SETTLE_MS` (≈120) goes in `js/core/constants.js`. The settle delay + the
-render must total ≤ 150 ms to meet the latency target — keep `_show` cheap
-(reuse `DefinitionPopover`, don't build new chrome).
+`HOVER_SETTLE_MS` (≈120) goes in `js/core/constants.js`. The *latency the user
+feels* is the settle constant plus a cheap synchronous render — so the target is
+"`_show` paints synchronously right after the timer fires," not a raced wall-clock
+number. **Do not assert a tight wall-clock budget through the test runner's
+polling** (it is flaky); instead assert (a) the popover exists after the settle,
+and (b) `HOVER_SETTLE_MS <= 150` as a constant check. Keep `_show` cheap (reuse
+`DefinitionPopover`, don't build new chrome).
 
 > **Reuse, don't reinvent:** the definition card is the existing
-> `DefinitionPopover` (`onDefine(text, rect)` is already wired in `reader-app.js`
-> ~line 498). For a footnote-ref word, reuse the `footnotes` popover. A link peek
-> is a tiny "Jump to <chapter>" card — optional in v1; ship define + footnote
-> first if time-boxed.
+> `DefinitionPopover`, which renders an element with class **`.reader-def-popover`**
+> (`js/reader/definition.js:27`) via `onDefine(text, rect)` (already wired in
+> `reader-app.js:498` as `definitionPopover.show(text, rect)`). For a footnote-ref
+> word, reuse the `footnotes` popover. A link peek is a tiny "Jump to <chapter>"
+> card — optional in v1; ship define + footnote first if time-boxed.
 
 ---
 
@@ -159,15 +164,33 @@ Dismiss `hover` in `closePanels`, on book change, and on any `pagination` turn.
 
 ## Step 6–8 — functional, measurable, accidental-rate tests
 
-Add to a Playwright spec (or extend the live page run; see `TESTING.md` §4.2). Use
-the synthetic hover `pointermove` recipe. Assert:
+**Run these in-page from `runLiveTests`** (it executes inside the browser, so it
+can dispatch real `PointerEvent`s on the viewport — no new Playwright spec needed;
+see `TESTING.md` §4). The viewport element is `state.els?.viewport` or
+`document.querySelector('.reader-viewport')`. Pattern for one hover, settling on a
+word whose centre you compute from `wordRange(state, wi).getBoundingClientRect()`:
 
-- **Functional:** after one hover over a known word, `.definition-popover` exists.
-- **Measurable (interaction cost + latency):** popover appeared with 0 intervening
-  taps; `Date.now()` delta from the hover dispatch to popover ≤ 150 ms.
+```js
+const vp = document.querySelector('.reader-viewport');
+const r = wordRange(state, someAttachedWordIdx).getBoundingClientRect();
+const fire = () => vp.dispatchEvent(new PointerEvent('pointermove', {
+  pointerType: 'pen', pressure: 0, buttons: 0,
+  clientX: r.left + r.width / 2, clientY: r.top + r.height / 2,
+  bubbles: true, cancelable: true }));
+```
+
+Assert:
+
+- **Constant (latency proxy):** `HOVER_SETTLE_MS <= 150` (a stable number, not a
+  raced wall-clock).
+- **Functional:** fire the hover, `await` the settle (`await new Promise(res =>
+  setTimeout(res, HOVER_SETTLE_MS + 30))`), assert
+  `document.querySelector('.reader-def-popover') !== null` with **0 taps** in
+  between.
 - **Accidental rate:** capture `state.page` and `highlightManager.count()`; fire 20
   hover moves across different words; assert both unchanged.
-- **Pref off:** set `prefs.data.penHover = false`; hover; assert no popover.
+- **Pref off:** set `state._prefs.data.penHover = false`; hover; assert no popover.
+- **Cleanup:** dismiss the hover card and restore `penHover` in the `finally`.
 
 ---
 
@@ -182,8 +205,9 @@ the synthetic hover `pointermove` recipe. Assert:
 
 ## Acceptance
 
-- Hover preview shows within ~150 ms; never selects, never navigates, never
-  highlights. Finger + keyboard unchanged. Pref-gated, default on. No new
-  dependency. `node test/run-selftest.mjs` green incl. the measurable assertions.
+- Hover preview shows shortly after the pen settles (settle constant ≤ 150 ms);
+  never selects, never navigates, never highlights. Finger + keyboard unchanged.
+  Pref-gated, default on. No new dependency. `node test/run-selftest.mjs` green
+  incl. the measurable assertions.
 
 **Effort: M.**

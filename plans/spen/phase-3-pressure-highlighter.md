@@ -100,11 +100,20 @@ No schema bump (additive, safe default). Add an `updateWeight(id, weight)` mirro
 ## Step 5 — render + wiring
 
 **`highlight-render.js`** — `createFromWords(a, b, color, weight='medium')` passes
-`weight` to `manager.add`. In `renderAll`, group by `color`+`weight` and publish
-under a name like `hl-<color>-<weight>` (or keep `hl-<color>` and set a CSS custom
-property on `::highlight` — but the Highlight API does not support per-range vars,
-so **distinct names per weight is the reliable path**). Mirror the existing
-plain/noted split (you already publish `hl-<c>` and `hl-<c>-note`).
+`weight` to `manager.add`. In `renderAll`, bucket by `color`+`weight` and publish
+under `hl-<color>-<weight>` (the Highlight API supports no per-range CSS vars, so
+**distinct `::highlight` names per weight is the only reliable path**).
+
+> ⚠️ **Combinatorial cost — read before you start.** `renderAll` today publishes
+> two name families per colour: `hl-<c>` and `hl-<c>-note`. Adding weight as a
+> *third* dimension naively yields **colour(4) × weight(3) × note(2) = 24**
+> `::highlight` names and 24 CSS rules, and `renderAll` must bucket every item into
+> the right one. **Do not cross weight with note.** Keep weight on the *fill*
+> (`hl-<color>-<weight>`, 12 names) and keep the note cue as the **separate
+> underline layer it already is** — i.e. publish a single `hl-<c>-note` underline
+> family in parallel, independent of weight. That holds it to 12 fill names + 4
+> note names = 16, and `renderAll` stays a double loop (colour × weight) plus the
+> existing note pass. This is the bulk of the phase's work; budget for it.
 
 **`css/components/selection.css`** — three opacity tiers per colour, e.g.:
 
@@ -164,5 +173,6 @@ degradation, not breakage.
   step; degrades to medium without pressure; additive store change (no migration);
   finger/keyboard unaffected. Measurable assertion (3 vs 1) green.
 
-**Effort: S–M.** Cosmetic layer on the shipped store; the only subtlety is the
-per-weight `::highlight` names + CSS.
+**Effort: M.** The pure mapping + store change are trivial; the real work is the
+`renderAll` bucketing and the per-weight `::highlight` names/CSS (see the
+combinatorial warning in Step 5 — keep weight off the note dimension).

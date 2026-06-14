@@ -19,10 +19,10 @@ Read first: [`00-INDEX-AND-PROCEDURE.md`](00-INDEX-AND-PROCEDURE.md) and
 
 | | |
 | --- | --- |
-| **Metric** | Hands-free reachability (binary capability) + interaction cost |
-| **Baseline (shipped)** | Turning a page requires touching the screen. Pen-off-screen page-turns reachable: **0%** (a web page cannot see BLE). |
-| **Target (S Pen)** | Button-click / air-swipe turns the page with the pen **off-screen**: **100%** of nav actions reachable hands-free. |
-| **Enforcing test** | Functional: inject a fake `window.SPenBridge`, fire `window.__spen.onButtonClick()` with **no pointer events at all**, assert `state.page` advanced. The green assertion *is* the 0%→100% proof. |
+| **Metric** | Hands-free reachability (binary capability) |
+| **Baseline (shipped)** | Turning a page requires touching the screen. Pen-off-screen page-turn reachable: **0%** (a web page cannot see BLE). |
+| **Target (S Pen)** | The S Pen **button** (on by default) turns the page with the pen **off-screen**: page-turn reachable hands-free **0% → 100%**. Air-swipe chapter/WPM actions are **opt-in** (`penAirGestures`, default off), so they are *additional* hands-free capability, not part of the headline number. |
+| **Enforcing test** | Functional (in-page): inject a fake `window.SPenBridge`, fire `window.__spen.onButtonClick()` with **no pointer events at all**, assert `state.page` advanced. The green assertion *is* the 0%→100% proof. |
 
 ---
 
@@ -30,10 +30,10 @@ Read first: [`00-INDEX-AND-PROCEDURE.md`](00-INDEX-AND-PROCEDURE.md) and
 
 | File | Change |
 | --- | --- |
-| `js/core/spen-bridge.js` | **NEW.** Installs `window.__spen` receiver; `isBridgeAvailable()`, `bridgeCapabilities()`; feature-detect helpers. |
-| `js/reader/spen-remote.js` | **NEW.** `SPenRemoteController`: maps a normalized signal+mode+mapping → an action and invokes it. Contains the pure `gestureToAction`. |
-| `js/mode-switcher.js` | Export `getCurrentMode()` (the controller needs the active mode). |
-| `js/reader-app.js` (and rsvp/tts apps) | Instantiate the controller, give it the mode's action methods (`pagination.next/prev`, playback toggle…). |
+| `js/core/spen-bridge.js` | **NEW.** Installs the `window.__spen` receiver **once** (idempotent); owns the *active controller* slot; `isBridgeAvailable()`, `bridgeCapabilities()`. |
+| `js/reader/spen-remote.js` | **NEW.** `SPenRemoteController` (one per app instance): holds its app's mode + action map + mapping; registers itself as active on construct, clears on teardown. Contains the pure `gestureToAction`. |
+| `js/reader-app.js` (and later rsvp/tts apps) | Construct a controller for that app, passing its mode and that mode's real action methods. **Each app registers its own** — see the lifecycle note in Step 5. |
+| `js/mode-switcher.js` | *(Optional)* export `getCurrentMode()` for diagnostics; the controller does **not** depend on it — each app's controller already knows its own mode. |
 | `js/core/constants.js` | `DEFAULT_SPEN_MAPPING` + `penAirGestures: false` pref (+ `SETTINGS` row). |
 | settings template | A small action-picker per signal (can be v1.1) + the air-gestures toggle. |
 | `js/test/selftest.js` | Unit asserts for `gestureToAction`; functional assert via fake bridge. |
@@ -99,9 +99,20 @@ import { DEFAULT_SPEN_MAPPING } from '../core/constants.js';
 
 ---
 
-## Step 4 — bridge receiver (`js/core/spen-bridge.js`)
+## Step 4 — bridge receiver, **as a singleton** (`js/core/spen-bridge.js`)
+
+The receiver `window.__spen` is a **process-global** the native shim calls, but the
+app is **torn down and rebooted on every mode switch** (`mode-switcher.js` aborts
+each app's listeners). So `window.__spen` must be installed **once**, and route to
+whichever app's controller is currently *active*. Never re-assign `window.__spen`
+per app — that races the global.
 
 ```js
+let _active = null; // the SPenRemoteController of the live app, or null
+
+export function setActiveSpenController(c) { _active = c; }
+export function clearActiveSpenController(c) { if (_active === c) _active = null; }
+
 export function isBridgeAvailable() {
   try { return !!(window.SPenBridge && window.SPenBridge.isAvailable && window.SPenBridge.isAvailable()); }
   catch (_) { return false; }
@@ -110,70 +121,108 @@ export function bridgeCapabilities() {
   try { return (window.SPenBridge && window.SPenBridge.getCapabilities && window.SPenBridge.getCapabilities()) || {}; }
   catch (_) { return {}; }
 }
-// Install the native→web receiver. `handlers` = { onButton, onButton2, onAir, onAttach }.
-export function installSPenReceiver(handlers) {
+
+// Install the native→web receiver EXACTLY ONCE. Idempotent: safe to call from
+// every app boot; only the first call wires window.__spen. Each callback forwards
+// to the currently-active controller (or no-ops when none is live).
+export function installSPenReceiver() {
+  if (window.__spen) return;
   window.__spen = {
-    onButtonClick:       () => handlers.onButton && handlers.onButton(),
-    onButtonDoubleClick: () => handlers.onButton2 && handlers.onButton2(),
-    onAirGesture:        (g) => handlers.onAir && handlers.onAir(g),
-    onPenAttached:       (a) => handlers.onAttach && handlers.onAttach(!!a),
+    onButtonClick:       () => _active && _active.onButton('button'),
+    onButtonDoubleClick: () => _active && _active.onButton('button2'),
+    onAirGesture:        (g) => _active && _active.onAir(g),
+    onPenAttached:       (a) => _active && _active.onAttach(!!a),
   };
 }
 ```
 
-The receiver is installed unconditionally (it is just a dispatch table). When no
-native shim exists, nothing ever calls it → dormant, zero cost. The functional
-test calls it directly to simulate the native side.
+When no native shim exists nothing ever calls `window.__spen` → dormant, zero cost.
+The functional test calls it directly to simulate the native side.
 
 ---
 
-## Step 5 — controller + wiring
+## Step 5 — controller + per-app wiring (the lifecycle that matters)
 
-**`js/reader/spen-remote.js`** — `SPenRemoteController`:
+**`js/reader/spen-remote.js`** — one controller **per app instance**. It carries
+*its own* mode (the app that built it knows whether it is `read`/`rsvp`/`tts`), so
+there is no global-mode lookup. It registers itself as the active controller and —
+critically — **clears itself when the app is torn down**, using the same
+`AbortController` `signal` every other listener in the app uses.
 
 ```js
+import { installSPenReceiver, setActiveSpenController, clearActiveSpenController } from '../core/spen-bridge.js';
+// gestureToAction + SPEN_SIGNALS are defined in THIS file (Step 2) — keep them
+// co-located so the selftest imports them from '../reader/spen-remote.js'.
+
 export class SPenRemoteController {
-  constructor({ getMode, getMapping, actions, prefs }) {
-    this._getMode = getMode; this._getMapping = getMapping;
-    this._actions = actions;  // { next, prev, chapterNext, ..., playPause, ... }
-    this._prefs = prefs;
-    installSPenReceiver({
-      onButton:  () => this._run('button'),
-      onButton2: () => this._run('button2'),
-      onAir:     (g) => { if (this._prefs.data.penAirGestures) this._run(g); },
-      onAttach:  (a) => this._actions.onAttach && this._actions.onAttach(a), // Phase 5
-    });
+  // mode: 'read'|'rsvp'|'tts'; actions: { next, prev, ... }; getMapping(): mapping; prefs; signal
+  constructor({ mode, actions, getMapping, prefs, signal }) {
+    this._mode = mode; this._actions = actions;
+    this._getMapping = getMapping; this._prefs = prefs;
+    installSPenReceiver();             // idempotent — wires window.__spen once, ever
+    setActiveSpenController(this);     // this app is now the live target
+    // When the app is torn down (mode switch / unload), stop being the target.
+    if (signal) signal.addEventListener('abort', () => clearActiveSpenController(this));
   }
+  onButton(signal) { this._run(signal); }                 // 'button' | 'button2'
+  onAir(gesture)   { if (this._prefs.data.penAirGestures) this._run(gesture); }
+  onAttach(att)    { if (this._actions.onAttach) this._actions.onAttach(att); } // Phase 5
   _run(signal) {
-    const action = gestureToAction(signal, this._getMode(), this._getMapping());
+    const action = gestureToAction(signal, this._mode, this._getMapping());
     const fn = action && this._actions[action];
-    if (fn) fn();   // + optional brief on-screen toast "Next page" for feedback
+    if (fn) fn();   // + optional brief on-screen toast ("Next page") for feedback
   }
 }
 ```
 
-**`mode-switcher.js`** — add `export function getCurrentMode() { return currentMode; }`
-(the module already tracks `currentMode`).
+> **Why this shape (don't skip):** `window.__spen` is global and the native shim
+> holds a reference to it for the app's lifetime, but each mode is a *separate app
+> instance* with its own listeners aborted on switch. The singleton receiver +
+> `setActiveSpenController`/`clearActiveSpenController` (tied to the app's `signal`)
+> makes "the live app is the target" correct by construction, with no stale
+> pagination calls from a torn-down reader while RSVP is active.
 
-**`reader-app.js`** — build the `actions` map from existing methods and instantiate:
+**`reader-app.js`** — build the `actions` map from **real, verified** methods and
+construct the controller with `mode: 'read'` and the app's `signal`:
 
 ```js
 const remote = new SPenRemoteController({
-  getMode: getCurrentMode,
-  getMapping: () => prefs.data.spenMapping || DEFAULT_SPEN_MAPPING,
+  mode: 'read',
+  signal,                                   // the app's AbortController signal
   prefs,
+  getMapping: () => prefs.data.spenMapping || DEFAULT_SPEN_MAPPING,
   actions: {
-    next: () => pagination.next(), prev: () => pagination.prev(),
-    chapterNext: () => chapters.next?.(), chapterPrev: () => chapters.prev?.(),
-    toggleToc: () => openTOC(),
-    // rsvp/tts apps provide playPause/stepNext/etc. in their own wiring
+    next: () => pagination.next(),          // pagination.js:219 ✓
+    prev: () => pagination.prev(),          // pagination.js:232 ✓
+    // Chapter jump uses the REAL seek path (there is no chapters.next()):
+    chapterNext: () => seekToToken(sectionFirstTok(state.curChap + 1)),
+    chapterPrev: () => seekToToken(sectionFirstTok(state.curChap - 1)),
+    toggleToc: () => openTOC(),             // reader-app.js:541 ✓
+    onAttach: onPenAttached,                // Phase 5 (no-op stub until then)
   },
 });
+
+// Helper: first render-token of a section, clamped (doc.sections[i].wordStart is
+// the section's first word — doc-model.js:30; seekToToken is reader-app.js:257).
+function sectionFirstTok(i) {
+  const secs = state.doc.sections;
+  if (!secs || !secs.length) return 0;
+  const j = Math.max(0, Math.min(secs.length - 1, i));
+  return secs[j].wordStart;
+}
 ```
 
-(RSVP/TTS apps instantiate their own controller with their playback actions, or a
-single shared controller reads `getCurrentMode()` and each app registers its
-actions — pick the simpler given how mode-switcher tears down listeners.)
+> **C2 correction:** earlier drafts mapped `chapterNext/chapterPrev` to
+> `chapters.next?.()`. **That API does not exist** — `js/reader/chapters.js`
+> exports only `buildChapterIndex`. Chapter movement is done by seeking to a
+> section's first token via the existing `seekToToken` (which already handles
+> attaching a windowed chapter). Use `sectionFirstTok` above.
+
+RSVP/TTS apps, when they adopt the remote, construct **their own**
+`SPenRemoteController` with `mode: 'rsvp'`/`'tts'`, their `signal`, and their real
+playback methods (e.g. `playback.toggle()` — `playback.js:93`; step/sentence/WPM
+methods from their navigation modules — wire to the actual exported names, do not
+assume). The singleton receiver routes to whichever is currently active.
 
 > **Air gestures are opt-in** (`penAirGestures: false` default) per §8 — they can
 > fire accidentally while gesturing. Button clicks are always on (deliberate).
@@ -182,7 +231,9 @@ actions — pick the simpler given how mode-switcher tears down listeners.)
 
 ## Step 6–7 — functional + measurable tests
 
-The whole point — **no pointer events, pen off-screen:**
+**Run in-page from `runLiveTests`** (where `state`, `prefs` are in scope); restore
+any mutated prefs and remove the injected `window.SPenBridge` in the `finally`. The
+whole point — **no pointer events, pen off-screen:**
 
 ```js
 // Inject a fake bridge + fire the receiver; assert hands-free page turn.
