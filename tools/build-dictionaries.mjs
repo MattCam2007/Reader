@@ -116,8 +116,12 @@ async function main() {
   mkdirSync(OUT, { recursive: true });
   const catalog = [];
 
+  // `lang` is a BCP 47 tag (language[-REGION], region uppercase). The app groups
+  // dictionaries by it, so French (fr), Québécois French (fr-CA), Spanish (es)
+  // etc. can sit alongside these English ones, with multiple per language.
   catalog.push(writeDict('wordset', {
     name: 'Wordset English Dictionary',
+    lang: 'en',
     description: 'A modern, community-built English dictionary with parts of speech, synonyms and usage examples.',
     license: 'CC BY-SA 4.0 (+ WordNet 3.0)',
     attribution: 'Wordset, Inc. — wordset.org',
@@ -125,6 +129,7 @@ async function main() {
 
   catalog.push(writeDict('webster', {
     name: "Webster's Unabridged (1913)",
+    lang: 'en-US',
     description: "Webster's Revised Unabridged Dictionary, 1913 edition. Classic, literary definitions in the public domain.",
     license: 'Public domain',
     attribution: "Noah Webster (1913); digitised by matthewreagan/WebstersEnglishDictionary",
@@ -134,7 +139,7 @@ async function main() {
     version: 1,
     builtAt: new Date().toISOString().slice(0, 10),
     dictionaries: catalog.map((c) => ({
-      id: c.id, name: c.name, description: c.description,
+      id: c.id, name: c.name, lang: c.lang, description: c.description,
       license: c.license, attribution: c.attribution,
       words: c.words, bytes: c.bytes,
       buckets: Object.fromEntries(Object.entries(c.buckets).map(([k, v]) => [k, v.bytes])),

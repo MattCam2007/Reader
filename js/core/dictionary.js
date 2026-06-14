@@ -21,6 +21,27 @@ function bucketOf(lcword) {
   return c >= 'a' && c <= 'z' ? c : '0';
 }
 
+// Human-readable name for a BCP 47 tag, e.g. 'fr-CA' → "Canadian French".
+// A curated map covers the languages the app ships or plans (so names always
+// render, even where Intl.DisplayNames lacks the data); Intl handles anything
+// else, and the base-language name or raw tag is the last resort.
+const LANG_NAMES = {
+  'en': 'English', 'en-US': 'American English', 'en-GB': 'British English', 'en-CA': 'Canadian English',
+  'fr': 'French', 'fr-CA': 'Canadian French', 'fr-FR': 'French (France)',
+  'es': 'Spanish', 'es-MX': 'Mexican Spanish', 'es-ES': 'Spanish (Spain)',
+};
+let _langNames = null;
+export function languageName(tag) {
+  if (!tag || tag === 'und') return 'Other';
+  if (LANG_NAMES[tag]) return LANG_NAMES[tag];
+  try {
+    _langNames ||= new Intl.DisplayNames([navigator.language || 'en'], { type: 'language' });
+    const n = _langNames.of(tag);
+    if (n && n !== tag) return n;
+  } catch (_) { /* fall through */ }
+  return LANG_NAMES[tag.split('-')[0]] || tag;
+}
+
 // Decompress a gzipped ArrayBuffer to a parsed object via the platform's
 // DecompressionStream (no JS gzip dependency needed).
 async function gunzipJSON(buf) {
@@ -202,7 +223,7 @@ export class DictionaryManager {
         // Object.hasOwn guards against inherited members ("constructor" etc.)
         // since shard maps are plain objects after JSON.parse.
         const hit = Object.hasOwn(map, cand) ? map[cand] : null;
-        if (hit) { results.push({ dict: d.id, name: d.name, word: hit.w, senses: hit.s }); break; }
+        if (hit) { results.push({ dict: d.id, name: d.name, lang: d.lang || 'und', word: hit.w, senses: hit.s }); break; }
       }
     }
     return results;

@@ -5,7 +5,7 @@ import { PrefsManager } from '../core/prefs.js';
 import { createPicker } from '../shared/picker.js';
 import { renderFontPickerHTML, mountFontPicker } from '../shared/font-picker.js';
 import { BG_IMAGE_STORAGE_KEY, applyBgSettings, clearBgImage } from '../base-reader-app.js';
-import { dictionaries } from '../core/dictionary.js';
+import { dictionaries, languageName } from '../core/dictionary.js';
 
 let _screen = null;
 let _cleanup = null;
@@ -784,7 +784,22 @@ async function wireDictTab(root) {
   const list = document.createElement('div');
   list.className = 'ss-dict-list';
   const rows = new Map();
-  for (const d of catalog) { const el = rowFor(d); rows.set(d.id, el); list.appendChild(el); }
+  // Group dictionaries under a language heading (BCP 47 lang key), in catalog
+  // order, so multiple dictionaries per language sit together.
+  let lastLang = null;
+  for (const d of catalog) {
+    const lang = d.lang || 'und';
+    if (lang !== lastLang) {
+      const lh = document.createElement('div');
+      lh.className = 'ss-dict-lang';
+      lh.textContent = languageName(lang);
+      list.appendChild(lh);
+      lastLang = lang;
+    }
+    const el = rowFor(d);
+    rows.set(d.id, el);
+    list.appendChild(el);
+  }
   root.appendChild(list);
 
   const foot = document.createElement('div');

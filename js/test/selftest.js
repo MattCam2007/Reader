@@ -25,7 +25,7 @@ import { makeCapabilities, FULL_CAPABILITIES, NO_CAPABILITIES, CAPABILITY_KEYS }
 import { magicBytes, startsWith, ZIP_MAGIC } from '../formats/detect.js';
 import { listAdapters, getAdapterById, selectAdapter, acceptString } from '../formats/registry.js';
 import { MAX_PDF_PAGES } from '../formats/pdf/pdf-adapter.js';
-import { DictionaryManager } from '../core/dictionary.js';
+import { DictionaryManager, languageName } from '../core/dictionary.js';
 import '../formats/index.js'; // ensure adapters are registered for format tests
 
 export function runSelftest(state, hooks) {
@@ -918,6 +918,11 @@ export function runSelftest(state, hooks) {
     assert("dictionary", "candidates resolve -ies plural (ponies→pony)", cands("ponies").includes("pony"));
     assert("dictionary", "candidates resolve -s plural (cats→cat)", cands("cats").includes("cat"));
     assert("dictionary", "candidates always include the original word", cands("cat")[0] === "cat");
+    assert("dictionary", "languageName resolves a base tag (en→English)", languageName("en") === "English");
+    assert("dictionary", "languageName resolves a regional tag (fr-CA→Canadian French)", languageName("fr-CA") === "Canadian French");
+    assert("dictionary", "languageName distinguishes region (es-MX ≠ es)", languageName("es-MX") !== languageName("es"));
+    assert("dictionary", "languageName falls back to base name for unknown region (en-AU→English)", languageName("en-AU") === "English");
+    assert("dictionary", "languageName falls back to 'Other' for undetermined", languageName("und") === "Other");
   }
 
   // --- Live-app tests (need the real reader closures — see selftestHooks) ---

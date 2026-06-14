@@ -1,6 +1,7 @@
 {
   "id": "webster",
   "name": "Webster's Unabridged (1913)",
+  "lang": "en-US",
   "description": "Webster's Revised Unabridged Dictionary, 1913 edition. Classic, literary definitions in the public domain.",
   "license": "Public domain",
   "attribution": "Noah Webster (1913); digitised by matthewreagan/WebstersEnglishDictionary",

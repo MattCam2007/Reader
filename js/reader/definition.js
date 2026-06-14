@@ -1,4 +1,4 @@
-import { dictionaries, DictionaryManager } from '../core/dictionary.js';
+import { dictionaries, DictionaryManager, languageName } from '../core/dictionary.js';
 
 // In-app definition popover shown from the selection bar's "Define" action.
 // Looks the word up across the user's installed offline dictionaries and renders
@@ -53,7 +53,18 @@ export class DefinitionPopover {
     body.className = 'def-body';
 
     if (results.length) {
+      // Group by language so multilingual matches stay visually separated;
+      // the language header only appears when more than one language matched.
+      const langs = [...new Set(results.map((r) => r.lang))];
+      let lastLang = null;
       for (const r of results) {
+        if (langs.length > 1 && r.lang !== lastLang) {
+          const lh = document.createElement('div');
+          lh.className = 'def-lang';
+          lh.textContent = languageName(r.lang);
+          body.appendChild(lh);
+          lastLang = r.lang;
+        }
         const block = document.createElement('div');
         block.className = 'def-dict';
         const src = document.createElement('div');

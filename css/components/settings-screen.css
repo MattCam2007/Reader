@@ -349,3 +349,12 @@
 }
 .ss-dict-foot { color: var(--muted); font-size: 0.72rem; margin-top: 1rem; line-height: 1.5; }
 .ss-dict-foot code { font-size: 0.7rem; opacity: 0.9; }
+.ss-dict-lang {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0.9rem 0 0.1rem;
+}
+.ss-dict-lang:first-child { margin-top: 0; }

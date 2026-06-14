@@ -5,6 +5,7 @@
     {
       "id": "wordset",
       "name": "Wordset English Dictionary",
+      "lang": "en",
       "description": "A modern, community-built English dictionary with parts of speech, synonyms and usage examples.",
       "license": "CC BY-SA 4.0 (+ WordNet 3.0)",
       "attribution": "Wordset, Inc. — wordset.org",
@@ -42,6 +43,7 @@
     {
       "id": "webster",
       "name": "Webster's Unabridged (1913)",
+      "lang": "en-US",
       "description": "Webster's Revised Unabridged Dictionary, 1913 edition. Classic, literary definitions in the public domain.",
       "license": "Public domain",
       "attribution": "Noah Webster (1913); digitised by matthewreagan/WebstersEnglishDictionary",

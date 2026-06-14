@@ -1,6 +1,7 @@
 {
   "id": "wordset",
   "name": "Wordset English Dictionary",
+  "lang": "en",
   "description": "A modern, community-built English dictionary with parts of speech, synonyms and usage examples.",
   "license": "CC BY-SA 4.0 (+ WordNet 3.0)",
   "attribution": "Wordset, Inc. — wordset.org",
