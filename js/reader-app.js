@@ -490,21 +490,24 @@ export function init(options = {}) {
 
   const search = new SearchManager(state, els, goToLocator, closePanels);
 
-  // ---------- Highlights ----------
-  const highlightManager = new HighlightManager();
-  const highlights = new HighlightController(state, highlightManager, signal);
-
-  // ---------- Selection & definitions ----------
+  // ---------- Definitions ----------
   const definitionPopover = new DefinitionPopover(signal, {
     onManage: () => openSettings('dict'),
   });
+  const onDefine = (text, rect) => definitionPopover.show(text, rect);
+
+  // ---------- Highlights ----------
+  const highlightManager = new HighlightManager();
+  const highlights = new HighlightController(state, highlightManager, signal, { onDefine });
+
+  // ---------- Selection ----------
   const selection = new SelectionManager(state, signal, {
     onHighlight: (color) => {
       highlights.createFromSelection(color);
       const sel = window.getSelection();
       if (sel) sel.removeAllRanges();
     },
-    onDefine: (text, rect) => definitionPopover.show(text, rect),
+    onDefine,
   });
 
   // ---------- Focus traps ----------
