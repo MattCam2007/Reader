@@ -198,7 +198,7 @@ const remote = new SPenRemoteController({
     chapterNext: () => seekToToken(sectionFirstTok(state.curChap + 1)),
     chapterPrev: () => seekToToken(sectionFirstTok(state.curChap - 1)),
     toggleToc: () => openTOC(),             // reader-app.js:541 ✓
-    onAttach: onPenAttached,                // Phase 5 (no-op stub until then)
+    onAttach: () => {},                     // STUB. Phase 5 replaces this with onPenAttached.
   },
 });
 
@@ -232,8 +232,12 @@ assume). The singleton receiver routes to whichever is currently active.
 ## Step 6–7 — functional + measurable tests
 
 **Run in-page from `runLiveTests`** (where `state`, `prefs` are in scope); restore
-any mutated prefs and remove the injected `window.SPenBridge` in the `finally`. The
-whole point — **no pointer events, pen off-screen:**
+any mutated prefs and remove the injected `window.SPenBridge` in the `finally`.
+**Note:** `onButtonClick()` actually turns pages, so this test moves the reading
+position — keep it inside `runLiveTests`, whose existing `finally` restores
+`origPos` via `applyCanonicalPosition`. If you ever lift it into a standalone spec,
+snapshot and restore the position yourself. The whole point — **no pointer events,
+pen off-screen:**
 
 ```js
 // Inject a fake bridge + fire the receiver; assert hands-free page turn.

@@ -124,23 +124,56 @@ under `hl-<color>-<weight>` (the Highlight API supports no per-range CSS vars, s
 /* …repeat for green/blue/pink… */
 ```
 
-**`input.js`** — during the pen selection drag, track
-`this._penMaxPressure = Math.max(this._penMaxPressure, e.pressure || 0)` on each
-`pointermove`; reset on `pointerdown`. On commit (the barrel path from Phase 2, or
-the action-bar swatch path), pass `pressureToWeight(this._penMaxPressure)`.
+### The pressure data path (the part that's easy to get wrong)
 
-> If Phase 2 is not built, wire weight into the swatch-tap commit in
-> `HighlightController._showPenBar` instead (the swatch handler calls
-> `createFromWords(lo, hi, c)` — add the weight argument there).
+Pressure is measured in `input.js`, but the **action-bar swatch commit happens in
+`highlight-render.js`'s `_showPenBar`** — a different module with no access to the
+pen event. There is no weight on the pen-selection state today (`_penSel = { lo,
+hi }`, `highlight-render.js:23,165`). So you must **thread the weight through the
+selection state**, or the headline (drag → lift → tap swatch) path silently always
+commits `'medium'`. Wiring, end to end:
+
+1. **`input.js`** — track the stroke's peak pressure:
+   ```js
+   // pointerdown (pen selection): this._penMaxPressure = e.pressure || 0;
+   // pointermove (pen selection): this._penMaxPressure = Math.max(this._penMaxPressure, e.pressure || 0);
+   ```
+   Pass the weight through the existing `penSelect` callback (add a 4th arg):
+   ```js
+   this.callbacks.penSelect(anchor, focus, showBar, pressureToWeight(this._penMaxPressure));
+   ```
+2. **`reader-app.js`** — forward it:
+   `penSelect: (a, b, showBar, weight) => highlights.setPenSelection(a, b, showBar, weight),`
+3. **`highlight-render.js`** — store it on the live selection and use it at commit:
+   ```js
+   setPenSelection(a, b, showBar, weight = 'medium') {
+     // …existing…
+     this._penSel = { lo: Math.min(a, b), hi: Math.max(a, b), weight };
+     // …existing render + bar…
+   }
+   // in _showPenBar, the swatch handler:
+   sw.addEventListener('click', () => {
+     this.createFromWords(lo, hi, c, this._penSel.weight);   // <-- weight, not default
+     this.clearPenSelection();
+   });
+   ```
+   and `createFromWords(aWi, bWi, color, weight = 'medium')` forwards `weight` to
+   `manager.add` (Step 4).
+4. **Barrel path (Phase 2)** — `penBarrelDrag` likewise passes
+   `pressureToWeight(this._penMaxPressure)` to `createFromWords`.
+
+> Without step 1→3 the pure `pressureToWeight` mapping exists but **never reaches a
+> stored highlight via the swatch path** — and a pure-function-only test would not
+> catch it. That is exactly why Step 6 adds an end-to-end stroke test below.
 
 ---
 
 ## Step 6–7 — functional + measurable tests
 
-In `runLiveTests`:
+In `runLiveTests` (in-page; clean up via `addedHighlightIds`):
 
 ```js
-// Weight persists and renders.
+// (a) Store-level: weight persists and renders.
 const w = highlightManager.add({ start, end, color: 'blue', weight: 'heavy', text: 't' });
 addedHighlightIds.push(w.id);
 assert('pen-pressure', 'weight persists on the stored item',
@@ -148,15 +181,34 @@ assert('pen-pressure', 'weight persists on the stored item',
 let ok = true; try { highlights.renderAll(); } catch (_) { ok = false; }
 assert('pen-pressure', 'renderAll with weighted highlights does not throw', ok);
 
-// Measurable: three distinct weights are reachable from the pure mapping,
-// proving 3 emphasis levels exist (baseline = 1) with no extra user step.
+// (b) END-TO-END (the one that actually proves the feature works): set a pen
+// selection carrying a heavy weight, commit via the same call the swatch uses,
+// and assert the STORED item is heavy. This catches the "pressure never reaches
+// the commit" bug that a pure-function test cannot see.
+highlights.setPenSelection(aWi, bWi, true, 'heavy');
+assert('pen-pressure', 'pen selection carries the stroke weight',
+  highlights._penSel && highlights._penSel.weight === 'heavy');
+const heavy = highlights.createFromWords(aWi, bWi, 'blue', highlights._penSel.weight);
+if (heavy) addedHighlightIds.push(heavy.id);
+assert('pen-pressure', 'committing the weighted selection stores weight=heavy',
+  !!heavy && highlightManager.getAll().find(i => i.id === heavy.id).weight === 'heavy');
+highlights.clearPenSelection();
+
+// (c) Measurable: three distinct weights reachable from the mapping (baseline 1).
 const levels = new Set([pressureToWeight(0.2), pressureToWeight(0.5), pressureToWeight(0.9)]);
 assert('pen-pressure', 'three distinct weights reachable in one stroke (baseline 1)', levels.size === 3);
+
+// (d) Accidental rate / graceful degradation: a zero-pressure commit (synthetic or
+// non-pressure engine) still stores a valid 'medium' highlight.
+const med = highlights.createFromWords(aWi, bWi, 'blue', pressureToWeight(0));
+if (med) addedHighlightIds.push(med.id);
+assert('pen-pressure', 'zero-pressure commit degrades to a valid medium highlight',
+  !!med && highlightManager.getAll().find(i => i.id === med.id).weight === 'medium');
 ```
 
-**Accidental rate:** a zero-pressure (synthetic / non-pressure engine) commit must
-still produce a valid `'medium'` highlight — assert it does, proving graceful
-degradation, not breakage.
+> Test (b) intentionally uses the **same `createFromWords(..., weight)` call the
+> swatch handler uses**, so it fails if you forget to thread `_penSel.weight`
+> (Step 5). A green pure-mapping test (c) alone would not.
 
 ---
 

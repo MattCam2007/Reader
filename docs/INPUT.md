@@ -27,10 +27,18 @@ was added as a *parallel* Pointer-Events path. The two are kept from fighting by
 single flag:
 
 ```
-pointerdown (pen) fires BEFORE the compatibility touchstart.
+pointerdown (pen) fires BEFORE the compatibility touchstart   (see caveat)
   → set this._penActive = true
   → every touch* handler does `if (this._penActive) return;` at the top
 ```
+
+> **Caveat — this ordering is a relied-upon assumption, not a spec guarantee.** The
+> interleaving of Pointer Events and compatibility Touch Events is
+> implementation-defined; the codebase *depends* on `pointerdown` landing before
+> `touchstart` on the target Android engines (the comment at `input.js:234-235`
+> states this). It holds on Android Chrome/WebView today. If a future engine
+> reordered them, the `_penActive` gate would need a different mechanism. Treat it
+> as "true on our target platform," not "true everywhere."
 
 So a pen contact is handled exclusively by the `pointer*` handlers, and its
 touch-compatibility events are ignored. A finger never sets `_penActive`, so it

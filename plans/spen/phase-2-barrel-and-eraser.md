@@ -99,25 +99,57 @@ deleteHighlightAt(x, y) {
 }
 ```
 
-**`input.js`** pen branch — at `pointerdown`, classify and remember the mode for
-the contact:
+**`input.js`** — the existing pen `pointerdown` is one monolithic block
+(`input.js:236-272`) that sets `_penActive`, decides `_penNavigating =
+_penTurnsPage()`, and then either arms navigation or anchors a word selection. You
+must **insert the classification branch and define precedence**, not rewrite the
+selection/nav logic. Here is the restructured head of the handler:
 
 ```js
-this._penMode = classifyPenSignal(e.buttons, e.pressure); // 'barrel' | 'eraser' | 'tip' | ...
+viewport.addEventListener("pointerdown", (e) => {
+  if (e.pointerType !== "pen") return;
+  this.callbacks.penHoverEnd?.();            // Phase 1: kill any hover card
+  this._penActive = true;
+  this._penStartX = e.clientX; this._penStartY = e.clientY; this._penStartT = Date.now();
+  this._penAnchorWord = -1; this._penMoved = false;
+  try { viewport.setPointerCapture(e.pointerId); } catch (_) {}
+
+  // PRECEDENCE: barrel/eraser (a deliberate button) WIN over penTurnsPage nav.
+  this._penMode = this.state._prefs.data.penBarrel
+    ? classifyPenSignal(e.buttons, e.pressure)   // 'eraser' | 'barrel' | 'tip' | 'hover'
+    : 'tip';
+
+  if (this._penMode === 'eraser') {
+    document.body.classList.add("pen-contact"); e.preventDefault();
+    this.callbacks.penErase(e.clientX, e.clientY);   // erase under the pen now…
+    return;                                          // …and on each move (below). No selection.
+  }
+  // barrel AND tip both drive the word-selection drag; they differ only at COMMIT.
+  this._penNavigating = (this._penMode === 'tip') && this._penTurnsPage();
+  if (this._penNavigating) { /* …existing nav-arming block, unchanged… */ return; }
+
+  // …existing selection-anchor block, unchanged:
+  document.body.classList.add("pen-contact"); e.preventDefault();
+  this._penFocusWord = -1;
+  this._penAnchorWord = this._wordAtPoint(e.clientX, e.clientY);
+}, { signal });
 ```
 
-- **eraser:** on `pointerdown` and each `pointermove` while `buttons & 32`, call
-  `this.callbacks.penErase(e.clientX, e.clientY)` (delete the highlight under the
-  pen — a swipe over several erases each). Do **not** start a selection.
-- **barrel:** behave like the normal pen selection drag (anchor on down, extend on
-  move) **but** on `pointerup` commit directly with the default colour instead of
-  showing the action bar:
-  `this.callbacks.penBarrelDrag(anchorWord, focusWord)` →
-  `highlights.createFromWords(a, b, prefs.data.highlightColor || 'yellow')`.
+Then in the existing `pointermove` / `pointerup` pen handlers:
+
+- **eraser:** on each `pointermove` while `(e.buttons & 32)`, call
+  `this.callbacks.penErase(e.clientX, e.clientY)` (a swipe erases each highlight it
+  crosses). Nothing on `pointerup` but the usual cleanup.
+- **barrel:** identical drag/extend to a tip selection, **but** on `pointerup`
+  commit directly instead of showing the action bar — branch on `this._penMode`:
+  `if (this._penMode === 'barrel') this.callbacks.penBarrelDrag(anchorWord, focusWord);`
+  else the existing `penSelect(..., true)` (action bar).
 - **tip:** unchanged baseline selection flow.
 
-Respect `prefs.data.penBarrel`: when off, treat barrel/eraser as a plain tip
-(baseline behaviour).
+When `prefs.data.penBarrel` is **off**, `_penMode` is forced to `'tip'` above, so
+barrel/eraser fall through to the exact baseline behaviour (feature-detect +
+degrade). A barrel press with no drag (a tap) selects the single word as a tip tap
+would — barrel only changes the *commit*, not whether a deliberate gesture happened.
 
 **`reader-app.js`** callbacks:
 

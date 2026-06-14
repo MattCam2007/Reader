@@ -98,7 +98,8 @@ function onPenAttached(attached) {
     applyPrefs();
   }
 }
-// pass into SPenRemoteController actions: { ..., onAttach: onPenAttached }
+// In the Phase 4 SPenRemoteController actions map, REPLACE the `onAttach: () => {}`
+// stub with `onAttach: onPenAttached`.
 ```
 
 > **Do not persist** these forced prefs — they are a transient overlay tied to the
