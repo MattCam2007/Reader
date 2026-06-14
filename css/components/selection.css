@@ -31,6 +31,30 @@ body.stylus-selecting .reader-content {
 }
 .reader-sel-bar button:active { background: var(--border); }
 
+/* Persisted highlights (S2). One ::highlight name per palette colour; the
+   controller publishes a Highlight object under each. Translucent so the text
+   stays readable on every theme. */
+::highlight(hl-yellow) { background-color: rgba(255, 214, 10, 0.40); color: inherit; }
+::highlight(hl-green)  { background-color: rgba(46, 204, 113, 0.38); color: inherit; }
+::highlight(hl-blue)   { background-color: rgba(61, 156, 240, 0.36); color: inherit; }
+::highlight(hl-pink)   { background-color: rgba(255, 110, 180, 0.38); color: inherit; }
+
+/* Colour swatches in the highlight edit bar */
+.reader-hl-swatch {
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.reader-hl-swatch.active { border-color: var(--fg); }
+.reader-hl-swatch:active { opacity: 0.75; }
+.reader-hl-swatch.hl-yellow { background: rgba(255, 214, 10, 0.85); }
+.reader-hl-swatch.hl-green  { background: rgba(46, 204, 113, 0.85); }
+.reader-hl-swatch.hl-blue   { background: rgba(61, 156, 240, 0.85); }
+.reader-hl-swatch.hl-pink   { background: rgba(255, 110, 180, 0.85); }
+
 ::highlight(search-results) {
   background-color: rgba(231, 76, 60, 0.3);
   color: inherit;

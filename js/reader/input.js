@@ -5,7 +5,7 @@ import {
 } from '../core/constants.js';
 import * as perf from '../core/perf.js';
 import { isSettingsScreenOpen } from '../settings/settings-screen.js';
-import { wordRange } from '../model/geometry.js';
+import { wordRange, wordAtPoint } from '../model/geometry.js';
 
 function pinchDist(touches) {
   const dx = touches[1].clientX - touches[0].clientX;
@@ -327,8 +327,14 @@ export class InputHandler {
         return;
       }
 
-      // Selection mode. A tap (no drag) selects the single word under the pen.
+      // Selection mode. A tap (no drag) on an existing highlight opens its edit
+      // bar; otherwise it selects the single word under the pen.
       if (!this._penMoved) {
+        if (this.callbacks.editHighlightAt && this.callbacks.editHighlightAt(e.clientX, e.clientY)) {
+          this._penAnchorWord = -1;
+          this._penMoved = false;
+          return;
+        }
         const wi = this._penAnchorWord >= 0 ? this._penAnchorWord : this._wordAtPoint(e.clientX, e.clientY);
         if (wi >= 0) this._selectWordRange(wi, wi);
       }
@@ -427,38 +433,9 @@ export class InputHandler {
     return !!(this.state._prefs && this.state._prefs.data && this.state._prefs.data.penTurnsPage);
   }
 
-  // Map a viewport point to a render-token (word) index, or -1. Uses the caret
-  // hit-test to find the text node + offset under the point, then resolves it
-  // against the doc model, scanning only the words in the containing block.
+  // Map a viewport point to a render-token (word) index, or -1.
   _wordAtPoint(x, y) {
-    const doc = this.state.doc;
-    if (!doc || !doc.words || !doc.words.length) return -1;
-    let node = null, offset = 0;
-    if (document.caretPositionFromPoint) {
-      const cp = document.caretPositionFromPoint(x, y);
-      if (cp) { node = cp.offsetNode; offset = cp.offset; }
-    } else if (document.caretRangeFromPoint) {
-      const r = document.caretRangeFromPoint(x, y);
-      if (r) { node = r.startContainer; offset = r.startOffset; }
-    }
-    if (!node || node.nodeType !== Node.TEXT_NODE) return -1;
-
-    // Bound the scan to the words in this block (O(words-in-block), not O(book)).
-    let lo = 0, hi = doc.words.length;
-    const blkEl = node.parentElement && node.parentElement.closest(".blk");
-    if (blkEl && doc.blocks) {
-      const bi = doc.blocks.findIndex(b => b.el === blkEl);
-      if (bi >= 0) { lo = doc.blocks[bi].wordStart; hi = doc.blocks[bi].wordEnd; }
-    }
-    let after = -1;
-    for (let i = lo; i < hi; i++) {
-      const w = doc.words[i];
-      if (w.node !== node) continue;
-      if (offset >= w.start && offset < w.end) return i;
-      if (offset === w.end) return i;            // on a word boundary → that word
-      if (after < 0 && w.start > offset) after = i; // first word past the point
-    }
-    return after;
+    return wordAtPoint(this.state, x, y);
   }
 
   // Set the window selection to span words [a..b] inclusive (order-independent),

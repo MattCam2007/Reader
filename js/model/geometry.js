@@ -42,6 +42,54 @@ export function wordRange(state, i) {
   return range;
 }
 
+// Map a (text node, character offset) to a render-token (word) index, or -1.
+// Scans only the words in the node's containing block (.blk) so it is
+// O(words-in-block), not O(book). A word strictly containing the offset always
+// wins. At a token boundary (annotateInlineText splits "word." into the two
+// adjacent render tokens "word" and ".", so one token's end == the next's
+// start) `prefer` breaks the tie: 'start' picks the token that begins at the
+// offset (use for a selection's start), 'end' picks the token that ends there
+// (use for a selection's inclusive end).
+export function wordIndexFromNodeOffset(state, node, offset, prefer = 'start') {
+  const doc = state.doc;
+  if (!doc || !doc.words || !doc.words.length) return -1;
+  if (!node || node.nodeType !== Node.TEXT_NODE) return -1;
+  let lo = 0, hi = doc.words.length;
+  const blkEl = node.parentElement && node.parentElement.closest(".blk");
+  if (blkEl && doc.blocks) {
+    const bi = doc.blocks.findIndex(b => b.el === blkEl);
+    if (bi >= 0) { lo = doc.blocks[bi].wordStart; hi = doc.blocks[bi].wordEnd; }
+  }
+  let startsAt = -1, endsAt = -1, after = -1, last = -1;
+  for (let i = lo; i < hi; i++) {
+    const w = doc.words[i];
+    if (w.node !== node) continue;
+    last = i;
+    if (offset >= w.start && offset < w.end) return i; // interior: unambiguous
+    if (startsAt < 0 && w.start === offset) startsAt = i;
+    if (w.end === offset) endsAt = i;
+    if (after < 0 && w.start > offset) after = i;
+  }
+  if (prefer === 'end') {
+    return endsAt >= 0 ? endsAt : (startsAt >= 0 ? startsAt : (after >= 0 ? after : last));
+  }
+  return startsAt >= 0 ? startsAt : (endsAt >= 0 ? endsAt : (after >= 0 ? after : last));
+}
+
+// Map a viewport point to a render-token (word) index, or -1, via the caret
+// hit-test (vendor-prefixed on WebKit).
+export function wordAtPoint(state, x, y, prefer = 'start') {
+  let node = null, offset = 0;
+  if (document.caretPositionFromPoint) {
+    const cp = document.caretPositionFromPoint(x, y);
+    if (cp) { node = cp.offsetNode; offset = cp.offset; }
+  } else if (document.caretRangeFromPoint) {
+    const r = document.caretRangeFromPoint(x, y);
+    if (r) { node = r.startContainer; offset = r.startOffset; }
+  }
+  return wordIndexFromNodeOffset(state, node, offset, prefer);
+}
+
 export function pageOfWord(state, content, i) {
   const range = wordRange(state, i);
   if (!range) return 0;
