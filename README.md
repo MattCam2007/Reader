@@ -291,6 +291,14 @@ See the [`docs/`](docs/) directory for full developer documentation:
 | [Data Flows](docs/DATA-FLOWS.md) | Step-by-step flows for every major operation |
 | [State & Storage](docs/STATE.md) | State structures, localStorage schema, locator system |
 | [CSS Architecture](docs/CSS.md) | Theme system, design tokens, component file breakdown |
+| [Input & Stylus](docs/INPUT.md) | Touch/pointer/pen layers, the pen branch, hardware signals, where stylus features attach |
+| [Contributing](docs/CONTRIBUTING.md) | Dev loop and step-by-step procedures (add a pref, store, input behaviour, test) |
+| [Best Practices](docs/BEST-PRACTICES.md) | Invariants, reminders and hard-won learnings to read before changing core code |
+| [Testing](docs/TESTING.md) | The selftest harness; how to write unit and functional (gesture) tests |
+
+**Plans:** see [`plans/`](plans/) for feature roadmaps. S Pen support is planned
+in [`plans/spen-support.md`](plans/spen-support.md) with per-phase build-sheets in
+[`plans/spen/`](plans/spen/).
 
 ### Running the self-test
 
