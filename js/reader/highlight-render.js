@@ -52,7 +52,11 @@ export class HighlightController {
   // unlike an absolutely-positioned marker.
   renderAll() {
     this.dismissBar();
-    this._dismissNotePopover();
+    // NOTE: deliberately does not dismiss the note editor. Opening the soft
+    // keyboard resizes the viewport, which triggers relayout() -> renderAll();
+    // tearing down the textarea here would blur it and snap the keyboard shut
+    // the instant it opened. The editor is closed explicitly by its own
+    // Save/Delete/Cancel actions (and by clearAll on book change).
     if (typeof CSS === 'undefined' || !CSS.highlights || typeof Highlight === 'undefined') return;
     const plain = {}, noted = {};
     for (const c of HL_COLORS) { plain[c] = []; noted[c] = []; }
@@ -338,7 +342,8 @@ export class HighlightController {
     save.textContent = 'Save';
     save.addEventListener('click', () => {
       this.manager.updateNote(item.id, ta.value.trim());
-      this.renderAll(); // dismisses the popover and refreshes the note cue
+      this._dismissNotePopover();
+      this.renderAll(); // refresh the dotted-underline note cue
     });
     actions.appendChild(save);
 
@@ -349,6 +354,7 @@ export class HighlightController {
       clear.textContent = 'Delete';
       clear.addEventListener('click', () => {
         this.manager.updateNote(item.id, '');
+        this._dismissNotePopover();
         this.renderAll();
       });
       actions.appendChild(clear);
