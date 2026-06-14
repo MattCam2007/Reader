@@ -5,6 +5,22 @@ body.selection-on .reader-content {
   -webkit-user-select: text;
 }
 
+/* While a pen is in contact, suppress Android's native text selection (drag
+   handles + system Copy/Share toolbar) so it can't fight the stylus's own
+   custom selection. Overrides selection-on for the duration of the contact;
+   the pen's selection is painted via ::highlight(pen-selection) instead. */
+body.pen-contact .reader-content {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-touch-callout: none;
+}
+
+/* The pen's live (uncommitted) selection. */
+::highlight(pen-selection) {
+  background-color: rgba(120, 170, 255, 0.40);
+  color: inherit;
+}
+
 .reader-sel-bar {
   position: fixed;
   z-index: 47;
@@ -29,6 +45,100 @@ body.selection-on .reader-content {
   white-space: nowrap;
 }
 .reader-sel-bar button:active { background: var(--border); }
+
+/* Persisted highlights (S2). One ::highlight name per palette colour; the
+   controller publishes a Highlight object under each. Translucent so the text
+   stays readable on every theme. */
+::highlight(hl-yellow) { background-color: rgba(255, 214, 10, 0.40); color: inherit; }
+::highlight(hl-green)  { background-color: rgba(46, 204, 113, 0.38); color: inherit; }
+::highlight(hl-blue)   { background-color: rgba(61, 156, 240, 0.36); color: inherit; }
+::highlight(hl-pink)   { background-color: rgba(255, 110, 180, 0.38); color: inherit; }
+
+/* Highlights carrying a note get the same fill plus a dotted underline cue. */
+::highlight(hl-yellow-note) { background-color: rgba(255, 214, 10, 0.40); color: inherit; text-decoration: underline dotted; text-decoration-thickness: 2px; }
+::highlight(hl-green-note)  { background-color: rgba(46, 204, 113, 0.38); color: inherit; text-decoration: underline dotted; text-decoration-thickness: 2px; }
+::highlight(hl-blue-note)   { background-color: rgba(61, 156, 240, 0.36); color: inherit; text-decoration: underline dotted; text-decoration-thickness: 2px; }
+::highlight(hl-pink-note)   { background-color: rgba(255, 110, 180, 0.38); color: inherit; text-decoration: underline dotted; text-decoration-thickness: 2px; }
+
+/* Highlight note editor (reuses .note-popover chrome) */
+.hl-note-editor { display: flex; flex-direction: column; gap: 0.6rem; min-width: min(80vw, 18rem); }
+.hl-note-textarea {
+  width: 100%;
+  min-height: 4.5rem;
+  resize: vertical;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+.hl-note-actions { display: flex; gap: 0.4rem; justify-content: flex-end; }
+.hl-note-actions button {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+.hl-note-actions .hl-note-save { background: var(--accent, #3d9cf0); border-color: transparent; color: #fff; }
+.hl-note-actions button:active { opacity: 0.75; }
+
+/* Highlight edit popover: optional read-only note view above the action row */
+.reader-hl-edit {
+  position: fixed;
+  z-index: 47;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  box-shadow: 0 4px 16px var(--shadow);
+  padding: 0.45rem 0.5rem;
+  max-width: min(86vw, 22rem);
+}
+.reader-hl-note-view {
+  color: var(--fg);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 30vh;
+  overflow-y: auto;
+  padding: 0.15rem 0.25rem 0.05rem;
+}
+/* The action row reuses .reader-sel-bar button styling but drops its own
+   panel chrome when nested in the edit popover. */
+.reader-hl-edit .reader-sel-bar {
+  position: static;
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* Colour swatches in the highlight edit bar */
+.reader-hl-swatch {
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.reader-hl-swatch.active { border-color: var(--fg); }
+.reader-hl-swatch:active { opacity: 0.75; }
+.reader-hl-swatch.hl-yellow { background: rgba(255, 214, 10, 0.85); }
+.reader-hl-swatch.hl-green  { background: rgba(46, 204, 113, 0.85); }
+.reader-hl-swatch.hl-blue   { background: rgba(61, 156, 240, 0.85); }
+.reader-hl-swatch.hl-pink   { background: rgba(255, 110, 180, 0.85); }
 
 ::highlight(search-results) {
   background-color: rgba(231, 76, 60, 0.3);

@@ -3,6 +3,8 @@ import { mountFontPicker, fontPickerItemsHTML } from './shared/font-picker.js';
 import { applyTheme, applyOsThemeFallback, applyBgSettings } from './base-reader-app.js';
 import { openSettingsScreen, closeSettingsScreen, isSettingsScreenOpen } from './settings/settings-screen.js';
 import { BookmarkManager } from './core/bookmarks.js';
+import { HighlightManager } from './core/highlights.js';
+import { HighlightController } from './reader/highlight-render.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
 import { PrefsManager } from './core/prefs.js';
 import { ReaderState } from './core/state.js';
@@ -273,6 +275,7 @@ export function init(options = {}) {
           state.doc.wsToToken.length - 1
         ));
         resyncAfterImages(buildPosition(readerSections(), totalWsWords(), wsOrd, wsWordText));
+        highlights.renderAll(); // re-resolve into the newly-attached chapter
       }
       return;
     }
@@ -314,6 +317,7 @@ export function init(options = {}) {
         Math.max(0, Math.min(wsOrd, state.doc.wsToToken.length - 1)),
         wsWordText
       ));
+      if (attached) highlights.renderAll(); // re-resolve into the newly-attached chapter
     }
   }
 
@@ -465,7 +469,7 @@ export function init(options = {}) {
   const pagination = new PaginationEngine(state, els, currentLocatorFn, buildChapterIndexFn, updateProgressFn, savePosMain);
   // After a chapter-boundary page turn, re-land once the new chapter's images
   // decode (their flow shifts until then). No-op when the chapter has no images.
-  pagination.onWindowTurn = () => resyncAfterImages();
+  pagination.onWindowTurn = () => { resyncAfterImages(); highlights.renderAll(); };
 
   // ---------- Storage ----------
   const storage = new StorageManager(state);
@@ -485,8 +489,18 @@ export function init(options = {}) {
 
   const search = new SearchManager(state, els, goToLocator, closePanels);
 
+  // ---------- Highlights ----------
+  const highlightManager = new HighlightManager();
+  const highlights = new HighlightController(state, highlightManager, signal);
+
   // ---------- Selection ----------
-  const selection = new SelectionManager(state, signal);
+  const selection = new SelectionManager(state, signal, {
+    onHighlight: (color) => {
+      highlights.createFromSelection(color);
+      const sel = window.getSelection();
+      if (sel) sel.removeAllRanges();
+    },
+  });
 
   // ---------- Focus traps ----------
   trapFocus(els.toc, signal);
@@ -573,6 +587,10 @@ export function init(options = {}) {
     },
     closePanels,
     dismissSelBar: () => selection.dismiss(),
+    penSelect: (a, b, showBar) => highlights.setPenSelection(a, b, showBar),
+    penClearSelection: () => highlights.clearPenSelection(),
+    penSelectionActive: () => highlights.penSelectionActive(),
+    editHighlightAt: (x, y) => highlights.handleTap(x, y),
     dismissNotePopover: () => footnotes.dismiss(),
     activePopoverRef: () => footnotes.activePopover,
   }, signal);
@@ -706,6 +724,7 @@ export function init(options = {}) {
     if (pos) applyCanonicalPosition(pos);
     else storage.restorePos(applyCanonicalPosition);
     resyncAfterImages(pos);
+    highlights.renderAll();
   }
 
   // Window only when it pays off: paginated layout, more than one chapter, and a
@@ -774,6 +793,7 @@ export function init(options = {}) {
     // seek doesn't, so refresh here to cover every mode. The layout-signature
     // gate inside makes this a no-op when nothing actually moved.
     chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark, bookmarkManager.generation);
+    highlights.renderAll();
   }
 
   // Live-apply a re-paginating pref change (quick drawer) while preserving the
@@ -820,6 +840,7 @@ export function init(options = {}) {
       state.bookId = session.bookId;
       els.bookTitleEl.textContent = session.title || session.bookId;
       bookmarkManager.setBook(state.bookId);
+      highlightManager.setBook(state.bookId);
 
       // Stage the heavy steps with a real paint between them. Each step below
       // runs synchronously and can take a while on a large book (a 100k-word PDF
@@ -1303,6 +1324,7 @@ export function init(options = {}) {
   // live closures, not pure functions.
   const selftestHooks = {
     els, prefs, chrome, bookmarkManager, pagination,
+    highlightManager, highlights,
     getBookmarkContext, navigateToBookmark,
     getCanonicalPosition, applyCanonicalPosition, seekToToken,
     relayout, applyPrefs,
@@ -1315,6 +1337,7 @@ export function init(options = {}) {
   } else if (urlParams.get("selftest") === "1") {
     state.bookId = "Pride and Prejudice (sample)";
     bookmarkManager.setBook(state.bookId);
+    highlightManager.setBook(state.bookId);
     els.bookTitleEl.textContent = "Pride and Prejudice";
     renderBook(buildSample());
     requestAnimationFrame(() => {

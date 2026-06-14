@@ -1,9 +1,13 @@
 import { SELECTION_DEBOUNCE_MS } from '../core/constants.js';
+import { HL_COLORS } from './highlight-render.js';
 
 export class SelectionManager {
-  constructor(state, signal) {
+  constructor(state, signal, hooks = {}) {
     this.state = state;
     this._signal = signal;
+    // hooks.onHighlight(color): create a highlight from the current selection.
+    // When provided, the bar gains a row of colour swatches.
+    this._hooks = hooks;
     this._selBar = null;
     this._timer = null;
     this._bindEvents();
@@ -50,6 +54,20 @@ export class SelectionManager {
       this.dismiss();
     });
     this._selBar.appendChild(defineBtn);
+
+    if (this._hooks.onHighlight) {
+      for (const c of HL_COLORS) {
+        const sw = document.createElement("button");
+        sw.type = "button";
+        sw.className = "reader-hl-swatch hl-" + c;
+        sw.setAttribute("aria-label", "Highlight " + c);
+        sw.addEventListener("click", () => {
+          this._hooks.onHighlight(c);
+          this.dismiss();
+        });
+        this._selBar.appendChild(sw);
+      }
+    }
 
     document.body.appendChild(this._selBar);
 

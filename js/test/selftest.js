@@ -943,7 +943,9 @@ function runLiveTests(state, hooks, assert) {
     prefs, chrome, bookmarkManager, applyPrefs, relayout, seekToToken,
     getBookmarkContext, navigateToBookmark, getCanonicalPosition,
     applyCanonicalPosition, readerSections, totalWsWords, wsWordText,
+    highlightManager, highlights,
   } = hooks;
+  const addedHighlightIds = [];
   const doc = state.doc;
   const totalWs = doc.wsToToken.length;
   const origLayout = prefs.data.layout;
@@ -1094,11 +1096,87 @@ function runLiveTests(state, hooks, assert) {
       }
       assert('position-live', 'reader → TTS-rule → reader round-trip within ±1 word' + (ok ? '' : ' — ' + detail), ok);
     }
+    // --- S2: highlight store + locator round-trip + containment ---
+    if (highlightManager && highlights && doc.words.length > 12) {
+      setLayout('paginated', false);
+      // Pick a span inside the currently-attached chapter so the live selection
+      // below resolves against in-tree nodes (large books render windowed, with
+      // off-screen chapters detached).
+      const cur = state.curChap || 0;
+      const sec = doc.sections[cur] || { wordStart: 0, wordEnd: doc.words.length };
+      const before = highlightManager.count();
+      const aWi = sec.wordStart + 1;
+      const bWi = Math.min(sec.wordEnd - 1, aWi + 5);
+      const start = toLocator(state, aWi);
+      const end = toLocator(state, bWi);
+      const item = highlightManager.add({ start, end, color: 'green', text: 'test' });
+      if (item) addedHighlightIds.push(item.id);
+      assert('highlights', 'add appends an item', highlightManager.count() === before + 1);
+      assert('highlights', 'add returns locator endpoints',
+        !!item && resolveLocator(state, item.start) === aWi && resolveLocator(state, item.end) === bWi);
+      assert('highlights', 'itemAtWord finds a word inside the span',
+        highlights.itemAtWord(Math.floor((aWi + bWi) / 2)) === item);
+      assert('highlights', 'itemAtWord misses a word outside the span',
+        highlights.itemAtWord(bWi + 3) !== item);
+      highlightManager.updateColor(item.id, 'pink');
+      assert('highlights', 'updateColor persists',
+        highlightManager.getAll().find(i => i.id === item.id).color === 'pink');
+      // renderAll must not throw whether or not the Highlight API is present.
+      let rendered = true;
+      try { highlights.renderAll(); } catch (_) { rendered = false; }
+      assert('highlights', 'renderAll runs without throwing', rendered);
+      highlightManager.remove(item.id);
+      assert('highlights', 'remove deletes the item', highlightManager.count() === before);
+      assert('highlights', 'itemAtWord empty after remove',
+        highlights.itemAtWord(Math.floor((aWi + bWi) / 2)) === null);
+
+      // createFromSelection: map a live window selection back to word locators.
+      const r1 = wordRange(state, aWi), r2 = wordRange(state, bWi);
+      const range = document.createRange();
+      range.setStart(r1.startContainer, r1.startOffset);
+      range.setEnd(r2.endContainer, r2.endOffset);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      const created = highlights.createFromSelection('blue');
+      if (created) addedHighlightIds.push(created.id);
+      assert('highlights', 'createFromSelection maps selection to word locators',
+        !!created && resolveLocator(state, created.start) === aWi && resolveLocator(state, created.end) === bWi);
+      sel.removeAllRanges();
+      if (created) highlightManager.remove(created.id);
+
+      // Pen selection path: a custom selection (no native window selection),
+      // then commit to a stored highlight via createFromWords.
+      highlights.setPenSelection(aWi, bWi, false);
+      assert('highlights', 'pen selection active after setPenSelection', highlights.penSelectionActive() === true);
+      assert('highlights', 'clearPenSelection reports it cleared an active selection',
+        highlights.clearPenSelection() === true && highlights.penSelectionActive() === false);
+      const penItem = highlights.createFromWords(aWi, bWi, 'green');
+      if (penItem) addedHighlightIds.push(penItem.id);
+      assert('highlights', 'createFromWords maps to word locators',
+        !!penItem && resolveLocator(state, penItem.start) === aWi && resolveLocator(state, penItem.end) === bWi);
+      if (penItem) highlightManager.remove(penItem.id);
+
+      // Notes on highlights.
+      const noteItem = highlightManager.add({ start, end, color: 'yellow', text: 'n' });
+      if (noteItem) addedHighlightIds.push(noteItem.id);
+      highlightManager.updateNote(noteItem.id, 'my note');
+      assert('highlights', 'updateNote persists',
+        highlightManager.getAll().find(i => i.id === noteItem.id).note === 'my note');
+      let noteRenderOk = true;
+      try { highlights.renderAll(); } catch (_) { noteRenderOk = false; }
+      assert('highlights', 'renderAll with a noted highlight does not throw', noteRenderOk);
+      highlightManager.updateNote(noteItem.id, '');
+      assert('highlights', 'updateNote can clear a note',
+        highlightManager.getAll().find(i => i.id === noteItem.id).note === '');
+      highlightManager.remove(noteItem.id);
+    }
   } finally {
     // Restore the pre-test prefs, layout, position and bookmark set even when
     // a test throws — without this, a mid-test exception left the reader in a
     // forced-window/scroll layout with a leaked test bookmark.
     for (const id of addedBookmarkIds) bookmarkManager.remove(id);
+    for (const id of addedHighlightIds) highlightManager.remove(id);
     state.forceWindow = false;
     prefs.data.layout = origLayout;
     prefs.data.size = origSize;

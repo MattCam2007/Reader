@@ -108,6 +108,9 @@ export const DEFAULT_PREFS = {
   pageAnim: "slide",
   layout: "paginated",
   columns: "auto",
+  // Stylus: when false (default) a pen never turns the page — it selects words
+  // instead. When true, a pen behaves like a finger (swipe/tap to navigate).
+  penTurnsPage: false,
 };
 
 // Declarative settings wiring (Phase 3: DRY)
@@ -120,6 +123,7 @@ export const SETTINGS = [
   { seg: "paraSeg",      attr: "para",    pref: "paraSpacing",  repaginate: true  },
   { seg: "alignSeg",     attr: "align",   pref: "align",        repaginate: true  },
   { seg: "selectionSeg", attr: "sel",     pref: "selection",    repaginate: false, transform: v => v === "true" },
+  { seg: "penSeg",       attr: "pen",     pref: "penTurnsPage", repaginate: false, transform: v => v === "true" },
   { seg: "pageAnimSeg",  attr: "anim",    pref: "pageAnim",     repaginate: false },
   { seg: "layoutSeg",    attr: "layout",  pref: "layout",       repaginate: true  },
   { seg: "columnsSeg",   attr: "cols",    pref: "columns",      repaginate: true  },
