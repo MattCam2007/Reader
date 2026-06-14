@@ -49,8 +49,17 @@ export class SelectionManager {
     defineBtn.textContent = "Define";
     defineBtn.type = "button";
     defineBtn.addEventListener("click", () => {
-      const text = sel.toString().trim().split(/\s+/)[0];
-      if (text) window.open("https://en.wiktionary.org/wiki/" + encodeURIComponent(text), "_blank");
+      const text = sel.toString();
+      // Anchor the in-app definition popover to the selection. Re-read the rect
+      // here so it reflects the final selection, not where the bar was placed.
+      const r = (sel.rangeCount ? sel.getRangeAt(0).getBoundingClientRect() : rect);
+      if (this._hooks.onDefine) {
+        this._hooks.onDefine(text, r);
+      } else {
+        // No in-app dictionaries wired up — fall back to Wiktionary.
+        const word = text.trim().split(/\s+/)[0];
+        if (word) window.open("https://en.wiktionary.org/wiki/" + encodeURIComponent(word), "_blank");
+      }
       this.dismiss();
     });
     this._selBar.appendChild(defineBtn);

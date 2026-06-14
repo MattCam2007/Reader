@@ -5,6 +5,7 @@ import { PrefsManager } from '../core/prefs.js';
 import { createPicker } from '../shared/picker.js';
 import { renderFontPickerHTML, mountFontPicker } from '../shared/font-picker.js';
 import { BG_IMAGE_STORAGE_KEY, applyBgSettings, clearBgImage } from '../base-reader-app.js';
+import { dictionaries } from '../core/dictionary.js';
 
 let _screen = null;
 let _cleanup = null;
@@ -111,6 +112,7 @@ export function openSettingsScreen(config = {}) {
       <button class="sscreen-tab" role="tab" data-tab="read" type="button">Read</button>
       <button class="sscreen-tab" role="tab" data-tab="rsvp" type="button">Speed</button>
       <button class="sscreen-tab" role="tab" data-tab="tts" type="button">Listen</button>
+      <button class="sscreen-tab" role="tab" data-tab="dict" type="button">Words</button>
     </nav>
     <div class="sscreen-body" id="sscreenBody" role="tabpanel"></div>`;
 
@@ -151,6 +153,9 @@ export function openSettingsScreen(config = {}) {
     } else if (tab === 'tts') {
       body.innerHTML = listenTabHTML(ttsPrefs.data);
       fontPickerHandle = wireListenTab(ttsPrefs, currentMode === 'tts' ? onTtsChange : null);
+    } else if (tab === 'dict') {
+      body.innerHTML = `${section('Offline dictionaries')}<div class="ss-dict" id="ssDict"><div class="ss-dict-loading">Loading…</div></div>`;
+      wireDictTab(byId('ssDict'));
     }
   }
 
@@ -670,6 +675,138 @@ function wireListenTab(prefs, liveApply) {
   });
 
   return fontHandle;
+}
+
+// ── Dictionaries tab ─────────────────────────────────────────────────────────
+
+function fmtBytes(n) {
+  if (!n) return '';
+  return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB';
+}
+
+// Builds the offline-dictionary manager: a list of available dictionaries the
+// user can download (and later delete), plus a "Download all". Data lives in
+// IndexedDB via DictionaryManager; the UI just drives it. Renders asynchronously
+// because the catalog and installed state are fetched on open.
+async function wireDictTab(root) {
+  if (!root) return;
+  let catalog, installedSet;
+  try {
+    [catalog, installedSet] = await Promise.all([dictionaries.catalog(), dictionaries.installed()]);
+  } catch (e) {
+    if (root.isConnected) root.innerHTML = `<div class="ss-dict-empty">Couldn't load the dictionary catalog.</div>`;
+    return;
+  }
+  if (!root.isConnected) return;
+
+  const installed = new Set(installedSet);
+  const busy = new Set();
+
+  function rowFor(d) {
+    const el = document.createElement('div');
+    el.className = 'ss-dict-row';
+    el.dataset.dict = d.id;
+    render(el, d);
+    return el;
+  }
+
+  function render(el, d) {
+    const isIn = installed.has(d.id);
+    const isBusy = busy.has(d.id);
+    el.innerHTML = `
+      <div class="ss-dict-info">
+        <div class="ss-dict-name">${d.name}${isIn ? ' <span class="ss-dict-badge">Downloaded</span>' : ''}</div>
+        <div class="ss-dict-desc">${d.description || ''}</div>
+        <div class="ss-dict-meta">${(d.words || 0).toLocaleString()} words · ${fmtBytes(d.bytes)} · ${d.license || ''}</div>
+      </div>
+      <div class="ss-dict-action"></div>`;
+    const action = el.querySelector('.ss-dict-action');
+    if (isBusy) {
+      const prog = document.createElement('div');
+      prog.className = 'ss-dict-progress';
+      prog.textContent = '0%';
+      action.appendChild(prog);
+    } else if (isIn) {
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'ss-dict-btn ss-dict-del';
+      del.textContent = 'Delete';
+      del.addEventListener('click', () => doRemove(d, el));
+      action.appendChild(del);
+    } else {
+      const dl = document.createElement('button');
+      dl.type = 'button';
+      dl.className = 'ss-dict-btn ss-dict-dl';
+      dl.textContent = 'Download';
+      dl.addEventListener('click', () => doDownload(d, el));
+      action.appendChild(dl);
+    }
+  }
+
+  async function doDownload(d, el) {
+    busy.add(d.id);
+    render(el, d);
+    syncDownloadAll();
+    const prog = el.querySelector('.ss-dict-progress');
+    try {
+      await dictionaries.download(d.id, ({ bytes, totalBytes }) => {
+        if (prog && prog.isConnected) prog.textContent = Math.round((bytes / (totalBytes || 1)) * 100) + '%';
+      });
+      installed.add(d.id);
+    } catch (e) {
+      console.warn('dict:download', e);
+      if (el.isConnected) { const a = el.querySelector('.ss-dict-action'); if (a) a.textContent = 'Failed — retry'; }
+    } finally {
+      busy.delete(d.id);
+      if (el.isConnected) render(el, d);
+      syncDownloadAll();
+    }
+  }
+
+  async function doRemove(d, el) {
+    try { await dictionaries.remove(d.id); installed.delete(d.id); }
+    catch (e) { console.warn('dict:remove', e); }
+    if (el.isConnected) render(el, d);
+    syncDownloadAll();
+  }
+
+  // Layout: a "Download all" header button, then one row per dictionary, then
+  // the attribution footer.
+  root.innerHTML = '';
+  const head = document.createElement('div');
+  head.className = 'ss-dict-head';
+  const allBtn = document.createElement('button');
+  allBtn.type = 'button';
+  allBtn.className = 'ss-dict-btn ss-dict-all';
+  head.appendChild(allBtn);
+  root.appendChild(head);
+
+  const list = document.createElement('div');
+  list.className = 'ss-dict-list';
+  const rows = new Map();
+  for (const d of catalog) { const el = rowFor(d); rows.set(d.id, el); list.appendChild(el); }
+  root.appendChild(list);
+
+  const foot = document.createElement('div');
+  foot.className = 'ss-dict-foot';
+  foot.innerHTML = 'Dictionaries are stored on your device and work fully offline. ' +
+    'Sources &amp; licences are listed in <code>data/dictionaries/ATTRIBUTION.md</code>.';
+  root.appendChild(foot);
+
+  function syncDownloadAll() {
+    const remaining = catalog.filter((d) => !installed.has(d.id) && !busy.has(d.id));
+    const anyBusy = busy.size > 0;
+    allBtn.disabled = anyBusy || remaining.length === 0;
+    allBtn.textContent = anyBusy ? 'Downloading…'
+      : remaining.length === 0 ? 'All downloaded'
+      : `Download all (${fmtBytes(remaining.reduce((s, d) => s + (d.bytes || 0), 0))})`;
+  }
+  allBtn.addEventListener('click', async () => {
+    for (const d of catalog) {
+      if (!installed.has(d.id) && !busy.has(d.id)) await doDownload(d, rows.get(d.id));
+    }
+  });
+  syncDownloadAll();
 }
 
 // ── Shared wiring helpers ────────────────────────────────────────────────────

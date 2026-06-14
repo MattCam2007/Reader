@@ -23,6 +23,7 @@ import { ChromeManager } from './reader/chrome.js';
 import { InputHandler } from './reader/input.js';
 import { SearchManager } from './reader/search.js';
 import { SelectionManager } from './reader/selection.js';
+import { DefinitionPopover } from './reader/definition.js';
 import { FootnoteManager } from './reader/footnotes.js';
 import { buildSample } from '../fixtures/sample.js';
 import { runSelftest } from './test/selftest.js';
@@ -493,13 +494,17 @@ export function init(options = {}) {
   const highlightManager = new HighlightManager();
   const highlights = new HighlightController(state, highlightManager, signal);
 
-  // ---------- Selection ----------
+  // ---------- Selection & definitions ----------
+  const definitionPopover = new DefinitionPopover(signal, {
+    onManage: () => openSettings('dict'),
+  });
   const selection = new SelectionManager(state, signal, {
     onHighlight: (color) => {
       highlights.createFromSelection(color);
       const sel = window.getSelection();
       if (sel) sel.removeAllRanges();
     },
+    onDefine: (text, rect) => definitionPopover.show(text, rect),
   });
 
   // ---------- Focus traps ----------
@@ -542,10 +547,10 @@ export function init(options = {}) {
 
   let _previewWasChromeHidden = false;
 
-  function openSettings() {
+  function openSettings(initialTab = 'read') {
     closePanels();
     openSettingsScreen({
-      initialTab: 'read',
+      initialTab,
       currentMode: 'read',
       onGeneralChange(key, value) {
         generalPrefs.data[key] = value;

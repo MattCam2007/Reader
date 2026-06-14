@@ -288,3 +288,64 @@
 .ss-bg-opacity-row {
   border-bottom: 1px solid var(--border-faint);
 }
+
+/* ── Offline dictionaries (Words tab) ─────────────────────────────────────── */
+.ss-dict-loading, .ss-dict-empty { color: var(--muted); padding: 0.6rem 0; }
+.ss-dict-head { margin-bottom: 0.8rem; }
+.ss-dict-list { display: flex; flex-direction: column; gap: 0.7rem; }
+.ss-dict-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 0.8rem;
+  border: 1px solid var(--border-mid);
+  border-radius: 0.7rem;
+  background: var(--control-bg);
+}
+.ss-dict-info { flex: 1 1 auto; min-width: 0; }
+.ss-dict-name { font-weight: 700; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.ss-dict-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0.05rem 0.45rem;
+}
+.ss-dict-desc { color: var(--muted); font-size: 0.82rem; margin-top: 0.25rem; line-height: 1.4; }
+.ss-dict-meta { color: var(--muted); font-size: 0.72rem; margin-top: 0.35rem; opacity: 0.85; }
+.ss-dict-action { flex: 0 0 auto; display: flex; align-items: center; }
+.ss-dict-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.ss-dict-btn:disabled { opacity: 0.5; cursor: default; }
+.ss-dict-btn:active { opacity: 0.82; }
+.ss-dict-del {
+  background: var(--control-bg);
+  color: var(--muted);
+  border: 1px solid var(--border-mid);
+}
+.ss-dict-del:active { background: var(--control-bg-hover); }
+.ss-dict-all { width: 100%; }
+.ss-dict-progress {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 3rem;
+  text-align: right;
+}
+.ss-dict-foot { color: var(--muted); font-size: 0.72rem; margin-top: 1rem; line-height: 1.5; }
+.ss-dict-foot code { font-size: 0.7rem; opacity: 0.9; }
