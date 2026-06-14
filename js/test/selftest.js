@@ -918,6 +918,8 @@ export function runSelftest(state, hooks) {
     assert("dictionary", "candidates resolve -ies plural (ponies→pony)", cands("ponies").includes("pony"));
     assert("dictionary", "candidates resolve -s plural (cats→cat)", cands("cats").includes("cat"));
     assert("dictionary", "candidates always include the original word", cands("cat")[0] === "cat");
+    assert("dictionary", "candidates resolve French elision (l'eau→eau)", cands("l'eau").includes("eau"));
+    assert("dictionary", "candidates resolve curly-apostrophe elision (d’accord→accord)", cands("d’accord").includes("accord"));
     assert("dictionary", "languageName resolves a base tag (en→English)", languageName("en") === "English");
     assert("dictionary", "languageName resolves a regional tag (fr-CA→Canadian French)", languageName("fr-CA") === "Canadian French");
     assert("dictionary", "languageName distinguishes region (es-MX ≠ es)", languageName("es-MX") !== languageName("es"));

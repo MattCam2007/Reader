@@ -78,6 +78,45 @@
         "y": 31410,
         "z": 25623
       }
+    },
+    {
+      "id": "remede-fr",
+      "name": "Français — Wiktionnaire (Remède)",
+      "lang": "fr-CA",
+      "description": "Dictionnaire français complet issu du Wiktionnaire, incluant le vocabulaire et les usages québécois. Comprehensive French dictionary including Québécois vocabulary and regional labels.",
+      "license": "CC BY-SA 3.0/4.0 (Wiktionnaire); compilation CeCILL v2.1",
+      "attribution": "Le Wiktionnaire (contributeurs) ; compilation par le projet Remède (camarm-dev/remede)",
+      "words": 832268,
+      "bytes": 15682501,
+      "buckets": {
+        "0": 532160,
+        "a": 1187647,
+        "b": 805949,
+        "c": 1587757,
+        "d": 1226672,
+        "e": 714201,
+        "f": 528536,
+        "g": 461698,
+        "h": 302380,
+        "i": 376834,
+        "j": 126524,
+        "k": 43051,
+        "l": 370141,
+        "m": 753152,
+        "n": 221393,
+        "o": 218497,
+        "p": 1198120,
+        "q": 69532,
+        "r": 2865490,
+        "s": 964202,
+        "t": 673134,
+        "u": 51886,
+        "v": 312965,
+        "w": 19362,
+        "x": 7322,
+        "y": 16972,
+        "z": 46924
+      }
     }
   ]
 }

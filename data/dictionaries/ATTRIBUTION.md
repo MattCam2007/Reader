@@ -17,6 +17,20 @@ Because Wordset is licensed under CC BY-SA 4.0, the adapted dictionary data
 bundled here is distributed under the same licence, with attribution to Wordset,
 Inc. and Princeton University. This applies to the dictionary **data** only.
 
+## Français — Wiktionnaire / Remède (`remede-fr`)
+
+- Source: https://github.com/camarm-dev/remede (release `remede.xdxf`)
+- Definitions derived from **le Wiktionnaire** (Wiktionary in French), © its
+  contributors, licensed under **CC BY-SA 3.0 / 4.0**:
+  https://creativecommons.org/licenses/by-sa/4.0/
+- Compiled and distributed by the **Remède** project (camarm-dev), whose
+  software is under the **CeCILL v2.1** licence.
+
+Comprehensive French dictionary that includes Québécois (Canadian French)
+vocabulary and regional labels (e.g. *(Québec)*), hence the `fr-CA` tag. The
+adapted data here is redistributed under CC BY-SA, with attribution to the
+Wiktionnaire contributors and the Remède project.
+
 ## Webster's Unabridged Dictionary, 1913 (`webster`)
 
 - Source: https://github.com/matthewreagan/WebstersEnglishDictionary

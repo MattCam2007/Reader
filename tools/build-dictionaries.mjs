@@ -92,6 +92,59 @@ async function buildWebster() {
   return buckets;
 }
 
+// ---- remede (French): XDXF release artifact, streamed so we never hold the
+// whole 367 MB file in memory. Each <ar> article carries a headword (<k>) and
+// one or more part-of-speech (<gr>) + definition (<deftext>) pairs. The data is
+// Wiktionnaire-derived French and includes Québécois vocabulary and labels. ----
+function xdxfClean(s) {
+  return s
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function buildRemedeFR() {
+  const url = 'https://github.com/camarm-dev/remede/releases/download/1.4.0/remede.xdxf';
+  process.stdout.write('  remede remede.xdxf (streaming ~367 MB) …');
+  const res = await fetch(url, { redirect: 'follow' });
+  if (!res.ok) throw new Error(`remede ${res.status}`);
+  const buckets = {};
+  const decoder = new TextDecoder('utf-8');
+  let buf = '';
+  let n = 0;
+
+  const flushArticles = () => {
+    let idx;
+    while ((idx = buf.indexOf('</ar>')) !== -1) {
+      const start = buf.lastIndexOf('<ar>', idx);
+      const article = start !== -1 ? buf.slice(start + 4, idx) : '';
+      buf = buf.slice(idx + 5);
+      if (!article) continue;
+      const km = /<k>(.*?)<\/k>/s.exec(article);
+      if (!km) continue;
+      const display = xdxfClean(km[1]);
+      if (!display) continue;
+      const grs = [...article.matchAll(/<gr>(.*?)<\/gr>/gs)].map((m) => xdxfClean(m[1]));
+      const defs = [...article.matchAll(/<deftext>(.*?)<\/deftext>/gs)].map((m) => xdxfClean(m[1]));
+      const senses = defs.map((d, i) => ({ p: grs[i] || '', d: d.slice(0, 600) })).filter((s) => s.d);
+      if (!senses.length) continue;
+      addEntry(buckets, display.toLowerCase(), display, senses);
+      n++;
+    }
+  };
+
+  for await (const chunk of res.body) {
+    buf += decoder.decode(chunk, { stream: true });
+    if (buf.length > 1_000_000) flushArticles();
+  }
+  buf += decoder.decode();
+  flushArticles();
+  console.log(` ${n} entries`);
+  return buckets;
+}
+
 function writeDict(id, meta, buckets) {
   const dir = join(OUT, id);
   rmSync(dir, { recursive: true, force: true });
@@ -134,6 +187,14 @@ async function main() {
     license: 'Public domain',
     attribution: "Noah Webster (1913); digitised by matthewreagan/WebstersEnglishDictionary",
   }, await buildWebster()));
+
+  catalog.push(writeDict('remede-fr', {
+    name: 'Français — Wiktionnaire (Remède)',
+    lang: 'fr-CA',
+    description: 'Dictionnaire français complet issu du Wiktionnaire, incluant le vocabulaire et les usages québécois. Comprehensive French dictionary including Québécois vocabulary and regional labels.',
+    license: 'CC BY-SA 3.0/4.0 (Wiktionnaire); compilation CeCILL v2.1',
+    attribution: 'Le Wiktionnaire (contributeurs) ; compilation par le projet Remède (camarm-dev/remede)',
+  }, await buildRemedeFR()));
 
   writeFileSync(join(OUT, 'catalog.json'), JSON.stringify({
     version: 1,

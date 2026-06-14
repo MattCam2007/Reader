@@ -198,6 +198,9 @@ export class DictionaryManager {
   static _candidates(word) {
     const out = [word];
     const add = (w) => { if (w && w !== word && !out.includes(w)) out.push(w); };
+    // French elision: l'eau → eau, d'accord → accord, qu'il → il.
+    const apos = word.split(/['’]/);
+    if (apos.length > 1) add(apos[apos.length - 1]);
     if (word.endsWith('ies') && word.length > 4) add(word.slice(0, -3) + 'y');
     if (word.endsWith('es') && word.length > 3) add(word.slice(0, -2));
     if (word.endsWith('s') && word.length > 2) add(word.slice(0, -1));
@@ -217,9 +220,11 @@ export class DictionaryManager {
     const results = [];
     for (const d of this._catalog) {
       if (!installed.has(d.id)) continue;
-      const map = await this._shard(d.id, bucketOf(word));
-      if (!map) continue;
       for (const cand of candidates) {
+        // Candidates can fall in different first-letter shards (e.g. the elision
+        // l'eau → eau), so resolve the bucket per candidate.
+        const map = await this._shard(d.id, bucketOf(cand));
+        if (!map) continue;
         // Object.hasOwn guards against inherited members ("constructor" etc.)
         // since shard maps are plain objects after JSON.parse.
         const hit = Object.hasOwn(map, cand) ? map[cand] : null;

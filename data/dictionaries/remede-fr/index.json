@@ -1,0 +1,120 @@
+{
+  "id": "remede-fr",
+  "name": "Français — Wiktionnaire (Remède)",
+  "lang": "fr-CA",
+  "description": "Dictionnaire français complet issu du Wiktionnaire, incluant le vocabulaire et les usages québécois. Comprehensive French dictionary including Québécois vocabulary and regional labels.",
+  "license": "CC BY-SA 3.0/4.0 (Wiktionnaire); compilation CeCILL v2.1",
+  "attribution": "Le Wiktionnaire (contributeurs) ; compilation par le projet Remède (camarm-dev/remede)",
+  "buckets": {
+    "0": {
+      "words": 26156,
+      "bytes": 532160
+    },
+    "a": {
+      "words": 54603,
+      "bytes": 1187647
+    },
+    "b": {
+      "words": 32092,
+      "bytes": 805949
+    },
+    "c": {
+      "words": 65966,
+      "bytes": 1587757
+    },
+    "d": {
+      "words": 79120,
+      "bytes": 1226672
+    },
+    "e": {
+      "words": 45711,
+      "bytes": 714201
+    },
+    "f": {
+      "words": 21907,
+      "bytes": 528536
+    },
+    "g": {
+      "words": 18814,
+      "bytes": 461698
+    },
+    "h": {
+      "words": 11197,
+      "bytes": 302380
+    },
+    "i": {
+      "words": 17581,
+      "bytes": 376834
+    },
+    "j": {
+      "words": 4740,
+      "bytes": 126524
+    },
+    "k": {
+      "words": 1433,
+      "bytes": 43051
+    },
+    "l": {
+      "words": 12838,
+      "bytes": 370141
+    },
+    "m": {
+      "words": 28281,
+      "bytes": 753152
+    },
+    "n": {
+      "words": 7774,
+      "bytes": 221393
+    },
+    "o": {
+      "words": 8173,
+      "bytes": 218497
+    },
+    "p": {
+      "words": 47797,
+      "bytes": 1198120
+    },
+    "q": {
+      "words": 2338,
+      "bytes": 69532
+    },
+    "r": {
+      "words": 258373,
+      "bytes": 2865490
+    },
+    "s": {
+      "words": 42109,
+      "bytes": 964202
+    },
+    "t": {
+      "words": 27573,
+      "bytes": 673134
+    },
+    "u": {
+      "words": 1845,
+      "bytes": 51886
+    },
+    "v": {
+      "words": 12406,
+      "bytes": 312965
+    },
+    "w": {
+      "words": 619,
+      "bytes": 19362
+    },
+    "x": {
+      "words": 231,
+      "bytes": 7322
+    },
+    "y": {
+      "words": 636,
+      "bytes": 16972
+    },
+    "z": {
+      "words": 1955,
+      "bytes": 46924
+    }
+  },
+  "words": 832268,
+  "bytes": 15682501
+}
