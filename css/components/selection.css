@@ -90,6 +90,40 @@ body.pen-contact .reader-content {
 .hl-note-actions .hl-note-save { background: var(--accent, #3d9cf0); border-color: transparent; color: #fff; }
 .hl-note-actions button:active { opacity: 0.75; }
 
+/* Highlight edit popover: optional read-only note view above the action row */
+.reader-hl-edit {
+  position: fixed;
+  z-index: 47;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  box-shadow: 0 4px 16px var(--shadow);
+  padding: 0.45rem 0.5rem;
+  max-width: min(86vw, 22rem);
+}
+.reader-hl-note-view {
+  color: var(--fg);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 30vh;
+  overflow-y: auto;
+  padding: 0.15rem 0.25rem 0.05rem;
+}
+/* The action row reuses .reader-sel-bar button styling but drops its own
+   panel chrome when nested in the edit popover. */
+.reader-hl-edit .reader-sel-bar {
+  position: static;
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
 /* Colour swatches in the highlight edit bar */
 .reader-hl-swatch {
   width: 1.5rem;

@@ -263,6 +263,19 @@ export class HighlightController {
 
   _showBar(item, x, y) {
     this.dismissBar();
+    const wrap = document.createElement('div');
+    wrap.className = 'reader-hl-edit';
+
+    // When the highlight has a note, show it read-only above the actions. The
+    // Edit note button below still opens the editor — viewing and editing are
+    // separate.
+    if (item.note) {
+      const view = document.createElement('div');
+      view.className = 'reader-hl-note-view';
+      view.textContent = item.note;
+      wrap.appendChild(view);
+    }
+
     const bar = document.createElement('div');
     bar.className = 'reader-sel-bar reader-hl-bar';
 
@@ -296,17 +309,18 @@ export class HighlightController {
     });
     bar.appendChild(del);
 
-    document.body.appendChild(bar);
-    this._bar = bar;
+    wrap.appendChild(bar);
+    document.body.appendChild(wrap);
+    this._bar = wrap;
 
-    const rect = bar.getBoundingClientRect();
+    const rect = wrap.getBoundingClientRect();
     let top = y - rect.height - 10;
     let left = x - rect.width / 2;
     if (top < 4) top = y + 14;
     if (left < 4) left = 4;
     if (left + rect.width > window.innerWidth - 4) left = window.innerWidth - rect.width - 4;
-    bar.style.top = top + 'px';
-    bar.style.left = left + 'px';
+    wrap.style.top = top + 'px';
+    wrap.style.left = left + 'px';
   }
 
   dismissBar() {
