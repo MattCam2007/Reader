@@ -54,6 +54,26 @@
   letter-spacing: 0.01em;
   color: var(--fg);
 }
+/* Compact language dropdown, pinned to the right edge of the header. */
+.sscreen-lang {
+  margin-left: auto;
+  flex-shrink: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.3rem 1.6rem 0.3rem 0.7rem;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none' stroke='%23888' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='1,1 5,5 9,1'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+}
+.sscreen-lang:focus-visible { outline: 2px solid var(--accent, #4a8); outline-offset: 1px; }
+.sscreen-lang option { color: initial; }
 
 /* Mode tabs */
 .sscreen-tabs {

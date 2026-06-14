@@ -1,3 +1,5 @@
+import { t } from '../core/i18n.js';
+
 export class FootnoteManager {
   constructor(state, els, goToPageFn) {
     this.state = state;
@@ -78,7 +80,7 @@ export class FootnoteManager {
     pop.textContent = text;
     const closeBtn = document.createElement("button");
     closeBtn.className = "note-close";
-    closeBtn.textContent = "Dismiss";
+    closeBtn.textContent = t('btn.dismiss');
     closeBtn.type = "button";
     closeBtn.addEventListener("click", () => this.dismiss());
     pop.appendChild(closeBtn);

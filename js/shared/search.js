@@ -1,5 +1,6 @@
 import { MAX_SEARCH_HITS } from '../core/constants.js';
 import { lastIndexAtMost } from '../rsvp/tokenizer.js';
+import { t } from '../core/i18n.js';
 
 // Shared full-text search. The same hit-finding + snippet-rendering loop was
 // copy-pasted into reader/search.js, rsvp-app and tts-app — and every copy
@@ -51,13 +52,13 @@ export function renderSearchResults(resultsEl, opts) {
   resultsEl.innerHTML = "";
   if (!query || query.length < 2 || !text || !charStart.length) {
     if (query && query.length >= 2) {
-      resultsEl.innerHTML = '<div class="reader-search-empty">No results</div>';
+      resultsEl.innerHTML = `<div class="reader-search-empty">${t('msg.noResults')}</div>`;
     }
     return 0;
   }
   const hits = findHits(text, query, maxHits);
   if (!hits.length) {
-    resultsEl.innerHTML = '<div class="reader-search-empty">No results</div>';
+    resultsEl.innerHTML = `<div class="reader-search-empty">${t('msg.noResults')}</div>`;
     return 0;
   }
   const frag = document.createDocumentFragment();

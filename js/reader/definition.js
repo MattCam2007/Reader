@@ -1,4 +1,5 @@
 import { dictionaries, DictionaryManager, languageName } from '../core/dictionary.js';
+import { t } from '../core/i18n.js';
 
 // In-app definition popover shown from the selection bar's "Define" action.
 // Looks the word up across the user's installed offline dictionaries and renders
@@ -25,7 +26,7 @@ export class DefinitionPopover {
     const pop = document.createElement('div');
     pop.className = 'reader-def-popover';
     pop.innerHTML = `<div class="def-head"><span class="def-word"></span></div>
-      <div class="def-body"><div class="def-loading">Looking up…</div></div>`;
+      <div class="def-body"><div class="def-loading">${t('def.lookingUp')}</div></div>`;
     pop.querySelector('.def-word').textContent = word;
     document.body.appendChild(pop);
     this._pop = pop;
@@ -91,7 +92,7 @@ export class DefinitionPopover {
           if (Array.isArray(s.y) && s.y.length) {
             const syn = document.createElement('div');
             syn.className = 'def-syn';
-            syn.textContent = 'syn: ' + s.y.join(', ');
+            syn.textContent = t('def.synPrefix') + ' ' + s.y.join(', ');
             li.appendChild(syn);
           }
           ol.appendChild(li);
@@ -103,18 +104,18 @@ export class DefinitionPopover {
       const msg = document.createElement('div');
       msg.className = 'def-empty';
       if (installedCount === 0) {
-        msg.textContent = 'No dictionaries downloaded yet.';
+        msg.textContent = t('def.noDictionaries');
         if (this._hooks.onManage) {
           const btn = document.createElement('button');
           btn.type = 'button';
           btn.className = 'def-manage';
-          btn.textContent = 'Manage dictionaries';
+          btn.textContent = t('def.manageDictionaries');
           btn.addEventListener('click', () => { this.dismiss(); this._hooks.onManage(); });
           msg.appendChild(document.createElement('br'));
           msg.appendChild(btn);
         }
       } else {
-        msg.textContent = `No definition found for “${word}”.`;
+        msg.textContent = t('def.noDefinition', { word });
       }
       body.appendChild(msg);
     }
@@ -127,7 +128,7 @@ export class DefinitionPopover {
     link.target = '_blank';
     link.rel = 'noopener';
     link.className = 'def-wiktionary';
-    link.textContent = 'Look up on Wiktionary ↗';
+    link.textContent = t('def.wiktionary');
     foot.appendChild(link);
     body.appendChild(foot);
 

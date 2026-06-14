@@ -1,6 +1,8 @@
 // Bookmarks panel UI — shared across all three reading modes.
 // Call initBookmarksPanel() once per mode init; use returned handle to open/render.
 
+import { t } from '../core/i18n.js';
+
 const BM_COLORS = ['c1', 'c2', 'c3', 'c4', 'c5'];
 
 function esc(str) {
@@ -11,7 +13,7 @@ function esc(str) {
 }
 
 function buildColorSwatches(item) {
-  return BM_COLORS.map(c => `<button class="bm-color-swatch${item.color === c ? ' active' : ''}" data-id="${item.id}" data-color="${c}" style="--swatch:var(--bm-${c})" aria-label="Bookmark color ${c}" type="button"></button>`).join('');
+  return BM_COLORS.map(c => `<button class="bm-color-swatch${item.color === c ? ' active' : ''}" data-id="${item.id}" data-color="${c}" style="--swatch:var(--bm-${c})" aria-label="${esc(t('a11y.bookmarkColor', { color: c }))}" type="button"></button>`).join('');
 }
 
 function buildItemHTML(item) {
@@ -26,19 +28,19 @@ function buildItemHTML(item) {
     </div>
     ${text ? `<div class="bm-preview">${text}</div>` : ''}
     <div class="bm-note-area">
-      <div class="bm-note-show" data-show-id="${item.id}">${note ? note : '<span class="bm-note-hint">Add note…</span>'}</div>
+      <div class="bm-note-show" data-show-id="${item.id}">${note ? note : `<span class="bm-note-hint">${esc(t('msg.addNote'))}</span>`}</div>
       <div class="bm-note-editor" id="bm-editor-${item.id}" hidden>
-        <textarea class="bm-textarea" placeholder="Add a note…" aria-label="Note">${note}</textarea>
+        <textarea class="bm-textarea" placeholder="${esc(t('msg.addNotePlaceholder'))}" aria-label="${esc(t('a11y.note'))}">${note}</textarea>
         <div class="bm-editor-actions">
-          <button class="bm-save-btn" data-id="${item.id}" type="button">Save</button>
-          <button class="bm-cancel-btn" type="button">Cancel</button>
+          <button class="bm-save-btn" data-id="${item.id}" type="button">${esc(t('btn.save'))}</button>
+          <button class="bm-cancel-btn" type="button">${esc(t('btn.cancel'))}</button>
         </div>
       </div>
     </div>
     <div class="bm-item-foot">
-      <button class="bm-go-btn" data-id="${item.id}" type="button">Go to</button>
+      <button class="bm-go-btn" data-id="${item.id}" type="button">${esc(t('btn.goTo'))}</button>
       <div class="bm-colors">${buildColorSwatches(item)}</div>
-      <button class="bm-del-btn" data-id="${item.id}" type="button" aria-label="Delete bookmark">✕</button>
+      <button class="bm-del-btn" data-id="${item.id}" type="button" aria-label="${esc(t('a11y.removeBookmark'))}">✕</button>
     </div>`;
 }
 
@@ -62,7 +64,7 @@ export function initBookmarksPanel({ panelEl, listEl, addBtnEl, closeBtnEl }, si
     if (!listEl || !_bm) return;
     const items = _bm.getAll();
     if (!items.length) {
-      listEl.innerHTML = '<div class="bm-empty">No bookmarks yet. Tap <b>+ Add</b> above to save your place.</div>';
+      listEl.innerHTML = `<div class="bm-empty">${t('msg.noBookmarks')}</div>`;
       return;
     }
     const frag = document.createDocumentFragment();

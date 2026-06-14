@@ -1,3 +1,5 @@
+import { t } from '../core/i18n.js';
+
 export class StatsTracker {
   constructor(els) {
     this.els = els;
@@ -37,12 +39,12 @@ export class StatsTracker {
     const totalSec = Math.floor(totalMs / 1000);
     const m = Math.floor(totalSec / 60);
     const s = totalSec % 60;
-    if (this.els.statWords) this.els.statWords.textContent = this.sessionWords.toLocaleString() + " words";
+    if (this.els.statWords) this.els.statWords.textContent = t('rsvp.words', { n: this.sessionWords.toLocaleString() });
     if (this.els.statTime) this.els.statTime.textContent = m + ":" + String(s).padStart(2, "0");
     if (this.els.statAvg) {
       this.els.statAvg.textContent = totalMs > 2000
-        ? Math.round(this.sessionWords / totalMs * 60000) + " avg wpm"
-        : "\u2014 avg wpm";
+        ? t('rsvp.avgWpm', { n: Math.round(this.sessionWords / totalMs * 60000) })
+        : t('rsvp.avgWpmNone');
     }
   }
 

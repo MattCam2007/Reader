@@ -1,5 +1,6 @@
 import { FONT_MAP, FONT_MONO, GENERAL_DEFAULTS, EXTRACTABLE_BLOCK_TYPES } from './core/constants.js';
-import { openSettingsScreen, closeSettingsScreen } from './settings/settings-screen.js';
+import { t } from './core/i18n.js';
+import { openSettingsScreen, closeSettingsScreen, consumePendingSettingsTab } from './settings/settings-screen.js';
 import { BookmarkManager } from './core/bookmarks.js';
 import { initBookmarksPanel } from './bookmarks/panel.js';
 import { PrefsManager } from './core/prefs.js';
@@ -438,25 +439,25 @@ export function init(options = {}) {
 
   // Settings panel
   const settingsBtn = document.getElementById("settingsBtn");
+  function openSettings(initialTab = 'rsvp') {
+    document.body.classList.remove('show-toc', 'show-search');
+    if (tocBtn) tocBtn.setAttribute('aria-expanded', 'false');
+    if (searchBtn) searchBtn.setAttribute('aria-expanded', 'false');
+    openSettingsScreen({
+      initialTab,
+      currentMode: 'rsvp',
+      onGeneralChange(key, value) {
+        generalPrefs.data[key] = value;
+        if (key === 'theme') applyTheme(value);
+        applyBgSettings(generalPrefs);
+        applyComfortOverlay();
+      },
+      onRsvpChange: onRsvpSettingChange,
+    });
+    if (settingsBtn) settingsBtn.setAttribute('aria-expanded', 'true');
+  }
   if (settingsBtn) {
-    settingsBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      document.body.classList.remove('show-toc', 'show-search');
-      if (tocBtn) tocBtn.setAttribute('aria-expanded', 'false');
-      if (searchBtn) searchBtn.setAttribute('aria-expanded', 'false');
-      openSettingsScreen({
-        initialTab: 'rsvp',
-        currentMode: 'rsvp',
-        onGeneralChange(key, value) {
-          generalPrefs.data[key] = value;
-          if (key === 'theme') applyTheme(value);
-          applyBgSettings(generalPrefs);
-          applyComfortOverlay();
-        },
-        onRsvpChange: onRsvpSettingChange,
-      });
-      settingsBtn.setAttribute('aria-expanded', 'true');
-    }, { signal });
+    settingsBtn.addEventListener('click', (e) => { e.stopPropagation(); openSettings(); }, { signal });
   }
 
   // TOC panel
@@ -513,7 +514,7 @@ export function init(options = {}) {
     if (!state.chapters.length) {
       const empty = document.createElement('div');
       empty.className = 'reader-toc-empty';
-      empty.textContent = 'Load a book to see chapters.';
+      empty.textContent = t('msg.loadBookForChapters');
       tocList.appendChild(empty);
       return;
     }
@@ -650,7 +651,7 @@ export function init(options = {}) {
     state.setPlayState('loading');
     els.statusMsg.classList.remove("error");
     els.statusRetryBtn.hidden = true;
-    els.statusMsg.textContent = "Loading " + file.name + "\u2026";
+    els.statusMsg.textContent = t('app.loadingFile', { name: file.name });
 
     try {
       const buffer = await file.arrayBuffer();
@@ -694,15 +695,15 @@ export function init(options = {}) {
     console.error("EPUB load failed:", err);
     state.setPlayState('error');
     els.statusMsg.classList.add("error");
-    els.statusMsg.textContent = err && err.message ? err.message : "Couldn't read that file.";
+    els.statusMsg.textContent = err && err.message ? err.message : t('app.cantReadFile');
     els.statusRetryBtn.hidden = false;
   }
 
   function showWelcome() {
     document.body.classList.add('welcome');
     els.statusMsg.classList.remove('error');
-    els.statusMsg.textContent = 'Open an ebook to start reading.';
-    els.statusRetryBtn.textContent = 'Open a book';
+    els.statusMsg.textContent = t('app.openEbook');
+    els.statusRetryBtn.textContent = t('app.openBook');
     els.statusRetryBtn.hidden = false;
   }
 
@@ -732,7 +733,7 @@ export function init(options = {}) {
     state.setPlayState('loading');
     els.statusMsg.classList.remove('error');
     els.statusRetryBtn.hidden = true;
-    els.statusMsg.textContent = 'Fetching book…';
+    els.statusMsg.textContent = t('app.fetchingBook');
     fetch(srcUrl)
       .then(r => { if (!r.ok) throw new Error('Fetch failed: ' + r.status); return r.blob(); })
       .then(blob => {
@@ -789,6 +790,10 @@ export function init(options = {}) {
     const pos = loadPosition(state.bookId);
     if (pos) applyCanonicalPosition(pos);
   }
+
+  // Reopen settings after a language-change reload, on the tab the user left.
+  const _reopenTab = consumePendingSettingsTab();
+  if (_reopenTab) openSettings(_reopenTab);
 
   return {
     teardown() {
