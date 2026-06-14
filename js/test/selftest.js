@@ -1144,6 +1144,18 @@ function runLiveTests(state, hooks, assert) {
         !!created && resolveLocator(state, created.start) === aWi && resolveLocator(state, created.end) === bWi);
       sel.removeAllRanges();
       if (created) highlightManager.remove(created.id);
+
+      // Pen selection path: a custom selection (no native window selection),
+      // then commit to a stored highlight via createFromWords.
+      highlights.setPenSelection(aWi, bWi, false);
+      assert('highlights', 'pen selection active after setPenSelection', highlights.penSelectionActive() === true);
+      assert('highlights', 'clearPenSelection reports it cleared an active selection',
+        highlights.clearPenSelection() === true && highlights.penSelectionActive() === false);
+      const penItem = highlights.createFromWords(aWi, bWi, 'green');
+      if (penItem) addedHighlightIds.push(penItem.id);
+      assert('highlights', 'createFromWords maps to word locators',
+        !!penItem && resolveLocator(state, penItem.start) === aWi && resolveLocator(state, penItem.end) === bWi);
+      if (penItem) highlightManager.remove(penItem.id);
     }
   } finally {
     // Restore the pre-test prefs, layout, position and bookmark set even when

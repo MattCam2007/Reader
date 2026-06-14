@@ -5,7 +5,7 @@ import {
 } from '../core/constants.js';
 import * as perf from '../core/perf.js';
 import { isSettingsScreenOpen } from '../settings/settings-screen.js';
-import { wordRange, wordAtPoint } from '../model/geometry.js';
+import { wordAtPoint } from '../model/geometry.js';
 
 function pinchDist(touches) {
   const dx = touches[1].clientX - touches[0].clientX;
@@ -57,6 +57,7 @@ export class InputHandler {
     this._penActive = false;
     this._penNavigating = false;
     this._penAnchorWord = -1;
+    this._penFocusWord = -1;
     this._penStartX = 0;
     this._penStartY = 0;
     this._penStartT = 0;
@@ -259,7 +260,14 @@ export class InputHandler {
         return;
       }
 
-      // Selection mode: anchor the word under the pen.
+      // Selection mode: suppress Android's native text selection for this
+      // contact (preventDefault + the pen-contact class force user-select:none),
+      // then anchor the word under the pen. The visible selection is our own
+      // custom highlight, driven via the penSelect callback — never the browser
+      // window selection, which would summon the native selection handles/toolbar.
+      document.body.classList.add("pen-contact");
+      e.preventDefault();
+      this._penFocusWord = -1;
       this._penAnchorWord = this._wordAtPoint(e.clientX, e.clientY);
     }, { signal });
 
@@ -287,16 +295,18 @@ export class InputHandler {
         return;
       }
 
-      // Selection drag: extend a word-granular selection from the anchor.
+      // Selection drag: extend a word-granular custom selection from the anchor.
       const dx = e.clientX - this._penStartX;
       const dy = e.clientY - this._penStartY;
       if (!this._penMoved && Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
       this._penMoved = true;
+      e.preventDefault();
       if (this._penAnchorWord < 0) this._penAnchorWord = this._wordAtPoint(e.clientX, e.clientY);
       const focus = this._wordAtPoint(e.clientX, e.clientY);
       if (this._penAnchorWord < 0 || focus < 0) return;
-      e.preventDefault();
-      this._selectWordRange(this._penAnchorWord, focus);
+      this._penFocusWord = focus;
+      // Paint while dragging; defer the action bar until the pen lifts.
+      this.callbacks.penSelect(this._penAnchorWord, focus, false);
     }, { passive: false, signal });
 
     viewport.addEventListener("pointerup", (e) => {
@@ -327,37 +337,40 @@ export class InputHandler {
         return;
       }
 
-      // Selection mode. A tap (no drag) on an existing highlight opens its edit
-      // bar; otherwise it selects the single word under the pen.
-      if (!this._penMoved) {
+      // Selection mode.
+      document.body.classList.remove("pen-contact");
+      if (this._penMoved) {
+        // Drag finished → commit the selection and surface the action bar.
+        const focus = this._penFocusWord >= 0 ? this._penFocusWord : this._wordAtPoint(e.clientX, e.clientY);
+        if (this._penAnchorWord >= 0 && focus >= 0) {
+          this.callbacks.penSelect(this._penAnchorWord, focus, true);
+        } else {
+          this.callbacks.penClearSelection();
+        }
+      } else {
+        // Tap: edit an existing highlight, else select the single word, else clear.
         if (this.callbacks.editHighlightAt && this.callbacks.editHighlightAt(e.clientX, e.clientY)) {
-          this._penAnchorWord = -1;
-          this._penMoved = false;
+          this._penAnchorWord = -1; this._penFocusWord = -1;
           return;
         }
         const wi = this._penAnchorWord >= 0 ? this._penAnchorWord : this._wordAtPoint(e.clientX, e.clientY);
-        if (wi >= 0) this._selectWordRange(wi, wi);
-      }
-      const sel = window.getSelection();
-      if (sel && !sel.isCollapsed) {
-        this.callbacks.showSelBar();
-      } else {
-        // Tap on empty space / between words: clear any standing selection.
-        if (sel) sel.removeAllRanges();
-        this.callbacks.dismissSelBar();
-        document.body.classList.remove("stylus-selecting");
+        if (wi >= 0) this.callbacks.penSelect(wi, wi, true);
+        else this.callbacks.penClearSelection();
       }
       this._penAnchorWord = -1;
+      this._penFocusWord = -1;
       this._penMoved = false;
     }, { signal });
 
     viewport.addEventListener("pointercancel", (e) => {
       if (e.pointerType !== "pen") return;
+      document.body.classList.remove("pen-contact");
       this._penActive = false;
       this._penNavigating = false;
       this._dragging = false;
       this._decided = null;
       this._penAnchorWord = -1;
+      this._penFocusWord = -1;
       this._penMoved = false;
     }, { signal });
 
@@ -403,11 +416,12 @@ export class InputHandler {
       return;
     }
 
+    // A finger tap clears a live pen (custom) selection first.
+    if (this.callbacks.penClearSelection && this.callbacks.penClearSelection()) return;
     const sel = window.getSelection();
     if (sel && !sel.isCollapsed) {
       this.callbacks.dismissSelBar();
       sel.removeAllRanges();
-      document.body.classList.remove("stylus-selecting");
       return;
     }
     if (this.callbacks.activePopoverRef()) {
@@ -436,23 +450,6 @@ export class InputHandler {
   // Map a viewport point to a render-token (word) index, or -1.
   _wordAtPoint(x, y) {
     return wordAtPoint(this.state, x, y);
-  }
-
-  // Set the window selection to span words [a..b] inclusive (order-independent),
-  // snapping both ends to word boundaries, and make it visible/selectable.
-  _selectWordRange(a, b) {
-    const lo = Math.min(a, b), hi = Math.max(a, b);
-    const r1 = wordRange(this.state, lo);
-    const r2 = wordRange(this.state, hi);
-    if (!r1 || !r2) return;
-    document.body.classList.add("stylus-selecting");
-    const range = document.createRange();
-    range.setStart(r1.startContainer, r1.startOffset);
-    range.setEnd(r2.endContainer, r2.endOffset);
-    const sel = window.getSelection();
-    if (!sel) return;
-    sel.removeAllRanges();
-    sel.addRange(range);
   }
 
   // Apply or clear the zoom transform on contentClip. When scale > 1 the clip's

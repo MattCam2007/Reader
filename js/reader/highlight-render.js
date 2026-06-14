@@ -1,5 +1,5 @@
 import { resolveLocator, toLocator } from '../model/locator.js';
-import { wordIndexFromNodeOffset, wordAtPoint } from '../model/geometry.js';
+import { wordIndexFromNodeOffset, wordAtPoint, wordRange } from '../model/geometry.js';
 
 // Palette keys, in render order. Each has a matching ::highlight(hl-<key>) rule
 // in css/components/selection.css and a swatch colour below.
@@ -15,7 +15,9 @@ export class HighlightController {
   constructor(state, manager, signal) {
     this.state = state;
     this.manager = manager;
-    this._bar = null;
+    this._bar = null;       // edit bar for an existing highlight
+    this._selBar = null;    // action bar for a live pen selection
+    this._penSel = null;    // { lo, hi } word indices of the live pen selection
     // Dismiss the edit bar on any tap outside it.
     document.addEventListener('pointerdown', (e) => {
       if (this._bar && !this._bar.contains(e.target)) this.dismissBar();
@@ -65,6 +67,7 @@ export class HighlightController {
   }
 
   clearAll() {
+    this.clearPenSelection();
     this.dismissBar();
     if (typeof CSS === 'undefined' || !CSS.highlights) return;
     for (const c of HL_COLORS) {
@@ -97,6 +100,127 @@ export class HighlightController {
     const item = this.manager.add({ start, end, color, text: this._textFor(sWi, eWi) });
     this.renderAll();
     return item;
+  }
+
+  // Store a highlight directly from word indices (the pen path, which never
+  // creates a native window selection — see setPenSelection).
+  createFromWords(aWi, bWi, color) {
+    if (aWi < 0 || bWi < 0) return null;
+    const lo = Math.min(aWi, bWi), hi = Math.max(aWi, bWi);
+    const start = toLocator(this.state, lo);
+    const end = toLocator(this.state, hi);
+    if (!start || !end) return null;
+    const item = this.manager.add({ start, end, color, text: this._textFor(lo, hi) });
+    this.renderAll();
+    return item;
+  }
+
+  // ── Pen selection (custom highlight, not the browser's window selection) ──
+  // The pen drives its own word-granular "selection" rendered via
+  // ::highlight(pen-selection). This avoids invoking Android's native text
+  // selection (drag handles + the system Copy/Share toolbar), which otherwise
+  // fights our own action bar.
+  _penRange() {
+    if (!this._penSel) return null;
+    const r1 = wordRange(this.state, this._penSel.lo);
+    const r2 = wordRange(this.state, this._penSel.hi);
+    if (!r1 || !r2) return null;
+    try {
+      const range = document.createRange();
+      range.setStart(r1.startContainer, r1.startOffset);
+      range.setEnd(r2.endContainer, r2.endOffset);
+      return range;
+    } catch (_) { return null; }
+  }
+
+  _renderPenSelection() {
+    if (typeof CSS === 'undefined' || !CSS.highlights || typeof Highlight === 'undefined') return;
+    const range = this._penRange();
+    try {
+      if (range) CSS.highlights.set('pen-selection', new Highlight(range));
+      else CSS.highlights.delete('pen-selection');
+    } catch (e) { console.warn('highlights:pen-render', e); }
+  }
+
+  // Set/extend the pen selection to span words [a..b]. showBar=false while the
+  // pen is still dragging (just paint), true on lift (paint + action bar).
+  setPenSelection(a, b, showBar) {
+    if (a == null || b == null || a < 0 || b < 0) { this.clearPenSelection(); return; }
+    this._penSel = { lo: Math.min(a, b), hi: Math.max(a, b) };
+    this._renderPenSelection();
+    if (showBar) this._showPenBar();
+    else this.dismissPenBar();
+  }
+
+  penSelectionActive() { return !!this._penSel; }
+
+  clearPenSelection() {
+    const had = !!this._penSel;
+    this._penSel = null;
+    if (typeof CSS !== 'undefined' && CSS.highlights) {
+      try { CSS.highlights.delete('pen-selection'); } catch (_) {}
+    }
+    this.dismissPenBar();
+    return had;
+  }
+
+  _showPenBar() {
+    this.dismissPenBar();
+    const range = this._penRange();
+    if (!range) return;
+    const text = range.toString();
+    const { lo, hi } = this._penSel;
+
+    const bar = document.createElement('div');
+    bar.className = 'reader-sel-bar';
+
+    const copy = document.createElement('button');
+    copy.type = 'button';
+    copy.textContent = 'Copy';
+    copy.addEventListener('click', () => {
+      try { navigator.clipboard.writeText(text); } catch (_) { document.execCommand('copy'); }
+      this.clearPenSelection();
+    });
+    bar.appendChild(copy);
+
+    const define = document.createElement('button');
+    define.type = 'button';
+    define.textContent = 'Define';
+    define.addEventListener('click', () => {
+      const word = text.trim().split(/\s+/)[0];
+      if (word) window.open('https://en.wiktionary.org/wiki/' + encodeURIComponent(word), '_blank');
+      this.clearPenSelection();
+    });
+    bar.appendChild(define);
+
+    for (const c of HL_COLORS) {
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.className = 'reader-hl-swatch hl-' + c;
+      sw.setAttribute('aria-label', 'Highlight ' + c);
+      sw.addEventListener('click', () => {
+        this.createFromWords(lo, hi, c);
+        this.clearPenSelection();
+      });
+      bar.appendChild(sw);
+    }
+
+    document.body.appendChild(bar);
+    this._selBar = bar;
+
+    const rect = range.getBoundingClientRect();
+    const barRect = bar.getBoundingClientRect();
+    let top = rect.top - barRect.height - 6;
+    let left = rect.left + rect.width / 2 - barRect.width / 2;
+    if (top < 4) top = rect.bottom + 6;
+    if (left < 4) left = 4;
+    if (left + barRect.width > window.innerWidth - 4) left = window.innerWidth - barRect.width - 4;
+    bar.style.top = top + 'px';
+    bar.style.left = left + 'px';
+  }
+
+  dismissPenBar() {
+    if (this._selBar) { this._selBar.remove(); this._selBar = null; }
   }
 
   itemAtWord(wi) {

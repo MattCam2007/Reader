@@ -499,7 +499,6 @@ export function init(options = {}) {
       highlights.createFromSelection(color);
       const sel = window.getSelection();
       if (sel) sel.removeAllRanges();
-      document.body.classList.remove("stylus-selecting");
     },
   });
 
@@ -588,7 +587,9 @@ export function init(options = {}) {
     },
     closePanels,
     dismissSelBar: () => selection.dismiss(),
-    showSelBar: () => selection.showNow(),
+    penSelect: (a, b, showBar) => highlights.setPenSelection(a, b, showBar),
+    penClearSelection: () => highlights.clearPenSelection(),
+    penSelectionActive: () => highlights.penSelectionActive(),
     editHighlightAt: (x, y) => highlights.handleTap(x, y),
     dismissNotePopover: () => footnotes.dismiss(),
     activePopoverRef: () => footnotes.activePopover,

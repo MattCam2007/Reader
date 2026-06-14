@@ -1,9 +1,24 @@
 /* Selection bar, search highlights */
 
-body.selection-on .reader-content,
-body.stylus-selecting .reader-content {
+body.selection-on .reader-content {
   user-select: text;
   -webkit-user-select: text;
+}
+
+/* While a pen is in contact, suppress Android's native text selection (drag
+   handles + system Copy/Share toolbar) so it can't fight the stylus's own
+   custom selection. Overrides selection-on for the duration of the contact;
+   the pen's selection is painted via ::highlight(pen-selection) instead. */
+body.pen-contact .reader-content {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-touch-callout: none;
+}
+
+/* The pen's live (uncommitted) selection. */
+::highlight(pen-selection) {
+  background-color: rgba(120, 170, 255, 0.40);
+  color: inherit;
 }
 
 .reader-sel-bar {
