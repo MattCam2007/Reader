@@ -14,9 +14,11 @@ export function hoverChangedWord(word, lastWord) {
 
 export class HoverPreview {
   constructor(state, hooks) {
-    // hooks: { onDefine(text, rect), peekFootnote(anchor)|null, peekLink(anchor)|null }
+    // hooks: { onDefine(text, rect), peekFootnote(anchor)|null, peekLink(anchor)|null,
+    //          onDebug(kind, key, n)|null }
     this._state = state;
     this._hooks = hooks;
+    this._onDebug = hooks.onDebug || null;
     this._timer = null;
     this._lastKey = null;
   }
@@ -36,7 +38,13 @@ export class HoverPreview {
     if (key === this._lastKey) return;
     this._lastKey = key;
     clearTimeout(this._timer);
-    this._timer = setTimeout(() => this._show(anchor, wi, x, y), HOVER_SETTLE_MS);
+    const armed = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    this._onDebug?.('arm', key, HOVER_SETTLE_MS);
+    this._timer = setTimeout(() => {
+      const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      this._onDebug?.('fire', key, Math.round(now - armed));
+      this._show(anchor, wi, x, y);
+    }, HOVER_SETTLE_MS);
   }
 
   dismiss() {

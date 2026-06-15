@@ -27,6 +27,7 @@ import { SelectionManager } from './reader/selection.js';
 import { DefinitionPopover } from './reader/definition.js';
 import { FootnoteManager } from './reader/footnotes.js';
 import { HoverPreview } from './reader/hover-preview.js';
+import { initHoverDebug } from './reader/hover-debug.js';
 import { buildSample } from '../fixtures/sample.js';
 import { runSelftest } from './test/selftest.js';
 import { trapFocus } from './reader/focus-trap.js';
@@ -500,10 +501,14 @@ export function init(options = {}) {
   const highlights = new HighlightController(state, highlightManager, signal, { onDefine });
 
   // ---------- Hover Preview (S Pen Air View) ----------
+  // ?hoverdebug=1 prints the loaded HOVER_SETTLE_MS and each popup's real
+  // arm→fire delay, so a stale cached build or an early trigger is visible.
+  const hoverDebug = urlParams.has('hoverdebug') ? initHoverDebug() : null;
   const hover = new HoverPreview(state, {
     onDefine,
     peekFootnote: (anchor) => footnotes.peekAt(anchor),
     peekLink: null,
+    onDebug: hoverDebug,
   });
   // After a chapter-boundary page turn, re-land once images decode. Also dismiss
   // any hover card so it doesn't go stale when the chapter content shifts.
