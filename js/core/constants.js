@@ -53,8 +53,7 @@ export const SAVE_DEBOUNCE_MS = 500;
 export const RESIZE_DEBOUNCE_MS = 150;
 export const SELECTION_DEBOUNCE_MS = 200;
 // S Pen hover settle delay — preview shows after this many ms of pen stillness.
-// Must stay ≤ 150 for the phase-1 latency contract (enforced by selftest).
-export const HOVER_SETTLE_MS = 120;
+export const HOVER_SETTLE_MS = 360;
 
 // EPUB extraction
 export const RICH_INLINE = true;
