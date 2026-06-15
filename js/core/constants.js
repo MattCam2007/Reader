@@ -116,6 +116,8 @@ export const DEFAULT_PREFS = {
   penTurnsPage: false,
   // S Pen hover preview (Air View): shows definition/footnote on hover, no tap needed.
   penHover: true,
+  // S Pen pressure highlighting: maps tip pressure to highlight weight (light/medium/heavy).
+  penPressure: true,
 };
 
 // Declarative settings wiring (Phase 3: DRY)
@@ -129,7 +131,8 @@ export const SETTINGS = [
   { seg: "alignSeg",     attr: "align",   pref: "align",        repaginate: true  },
   { seg: "selectionSeg", attr: "sel",     pref: "selection",    repaginate: false, transform: v => v === "true" },
   { seg: "penSeg",       attr: "pen",     pref: "penTurnsPage", repaginate: false, transform: v => v === "true" },
-  { seg: "penHoverSeg",  attr: "penhover",pref: "penHover",     repaginate: false, transform: v => v === "true" },
+  { seg: "penHoverSeg",    attr: "penhover",    pref: "penHover",    repaginate: false, transform: v => v === "true" },
+  { seg: "penPressureSeg", attr: "penpressure", pref: "penPressure", repaginate: false, transform: v => v === "true" },
   { seg: "pageAnimSeg",  attr: "anim",    pref: "pageAnim",     repaginate: false },
   { seg: "layoutSeg",    attr: "layout",  pref: "layout",       repaginate: true  },
   { seg: "columnsSeg",   attr: "cols",    pref: "columns",      repaginate: true  },

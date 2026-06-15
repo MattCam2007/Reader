@@ -46,15 +46,26 @@ body.pen-contact .reader-content {
 }
 .reader-sel-bar button:active { background: var(--border); }
 
-/* Persisted highlights (S2). One ::highlight name per palette colour; the
-   controller publishes a Highlight object under each. Translucent so the text
-   stays readable on every theme. */
-::highlight(hl-yellow) { background-color: rgba(255, 214, 10, 0.40); color: inherit; }
-::highlight(hl-green)  { background-color: rgba(46, 204, 113, 0.38); color: inherit; }
-::highlight(hl-blue)   { background-color: rgba(61, 156, 240, 0.36); color: inherit; }
-::highlight(hl-pink)   { background-color: rgba(255, 110, 180, 0.38); color: inherit; }
+/* Persisted highlights (S2 + Phase 3). Three weight tiers per palette colour:
+   light (gentle hover-skim) / medium (normal writing pressure) / heavy (emphasis).
+   Old items without a stored weight default to medium — same opacity as before. */
+::highlight(hl-yellow-light)  { background-color: rgba(255, 214, 10, 0.20); color: inherit; }
+::highlight(hl-yellow-medium) { background-color: rgba(255, 214, 10, 0.40); color: inherit; }
+::highlight(hl-yellow-heavy)  { background-color: rgba(255, 214, 10, 0.62); color: inherit; }
 
-/* Highlights carrying a note get the same fill plus a dotted underline cue. */
+::highlight(hl-green-light)   { background-color: rgba(46, 204, 113, 0.18); color: inherit; }
+::highlight(hl-green-medium)  { background-color: rgba(46, 204, 113, 0.38); color: inherit; }
+::highlight(hl-green-heavy)   { background-color: rgba(46, 204, 113, 0.58); color: inherit; }
+
+::highlight(hl-blue-light)    { background-color: rgba(61, 156, 240, 0.16); color: inherit; }
+::highlight(hl-blue-medium)   { background-color: rgba(61, 156, 240, 0.36); color: inherit; }
+::highlight(hl-blue-heavy)    { background-color: rgba(61, 156, 240, 0.56); color: inherit; }
+
+::highlight(hl-pink-light)    { background-color: rgba(255, 110, 180, 0.18); color: inherit; }
+::highlight(hl-pink-medium)   { background-color: rgba(255, 110, 180, 0.38); color: inherit; }
+::highlight(hl-pink-heavy)    { background-color: rgba(255, 110, 180, 0.58); color: inherit; }
+
+/* Highlights carrying a note get an underline cue (weight-independent). */
 ::highlight(hl-yellow-note) { background-color: rgba(255, 214, 10, 0.40); color: inherit; text-decoration: underline dotted; text-decoration-thickness: 2px; }
 ::highlight(hl-green-note)  { background-color: rgba(46, 204, 113, 0.38); color: inherit; text-decoration: underline dotted; text-decoration-thickness: 2px; }
 ::highlight(hl-blue-note)   { background-color: rgba(61, 156, 240, 0.36); color: inherit; text-decoration: underline dotted; text-decoration-thickness: 2px; }

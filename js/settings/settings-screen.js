@@ -405,6 +405,7 @@ function readTabHTML(p) {
     row(t('lbl.textSelection'), seg('ss-sel', 'data-sel', [['true', t('opt.on')],['false', t('opt.off')]], String(p.selection))),
     row(t('lbl.stylusTurnsPage'), seg('ss-pen', 'data-pen', [['false', t('opt.off')],['true', t('opt.on')]], String(p.penTurnsPage))),
     row(t('lbl.penHoverPreview'), seg('ss-penhover', 'data-penhover', [['true', t('opt.on')],['false', t('opt.off')]], String(p.penHover))),
+    row(t('lbl.penPressureHighlight'), seg('ss-penpressure', 'data-penpressure', [['true', t('opt.on')],['false', t('opt.off')]], String(p.penPressure))),
 
     section(t('sec.typography')),
     row(t('lbl.textSize'), counter('ss-sizeDown', 'ss-sizeDisplay', 'ss-sizeUp', p.size)),
@@ -433,7 +434,8 @@ function wireReadTab(prefs, liveApply) {
     { id: 'ss-notepop',attr: 'data-notepop',pref: 'notePopovers', repag: false, xform: v => v === 'true' },
     { id: 'ss-sel',    attr: 'data-sel',    pref: 'selection',    repag: false, xform: v => v === 'true' },
     { id: 'ss-pen',      attr: 'data-pen',     pref: 'penTurnsPage', repag: false, xform: v => v === 'true' },
-    { id: 'ss-penhover', attr: 'data-penhover', pref: 'penHover',     repag: false, xform: v => v === 'true' },
+    { id: 'ss-penhover',    attr: 'data-penhover',    pref: 'penHover',    repag: false, xform: v => v === 'true' },
+    { id: 'ss-penpressure', attr: 'data-penpressure', pref: 'penPressure', repag: false, xform: v => v === 'true' },
   ];
 
   for (const s of SEGS) {

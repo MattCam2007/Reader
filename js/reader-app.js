@@ -605,7 +605,7 @@ export function init(options = {}) {
     },
     closePanels,
     dismissSelBar: () => selection.dismiss(),
-    penSelect: (a, b, showBar) => highlights.setPenSelection(a, b, showBar),
+    penSelect: (a, b, showBar, weight) => highlights.setPenSelection(a, b, showBar, weight),
     penClearSelection: () => highlights.clearPenSelection(),
     penSelectionActive: () => highlights.penSelectionActive(),
     editHighlightAt: (x, y) => highlights.handleTap(x, y),

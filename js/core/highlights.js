@@ -45,7 +45,8 @@ export class HighlightManager {
   }
 
   // start/end are inclusive-word locators {s,b,w}; color is a palette key.
-  add({ start, end, color = 'yellow', text = '', note = '' }) {
+  // weight is 'light' | 'medium' | 'heavy' (default 'medium'; additive — old items without it are 'medium').
+  add({ start, end, color = 'yellow', weight = 'medium', text = '', note = '' }) {
     if (!start || !end) return null;
     const id = 'hl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
     const item = {
@@ -54,6 +55,7 @@ export class HighlightManager {
       start,
       end,
       color: color || 'yellow',
+      weight: weight || 'medium',
       text: (text || '').slice(0, 120),
       note: note || '',
     };

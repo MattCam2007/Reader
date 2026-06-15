@@ -27,6 +27,7 @@ import { listAdapters, getAdapterById, selectAdapter, acceptString } from '../fo
 import { MAX_PDF_PAGES } from '../formats/pdf/pdf-adapter.js';
 import { DictionaryManager, languageName } from '../core/dictionary.js';
 import { isHover, hoverChangedWord } from '../reader/hover-preview.js';
+import { pressureToWeight } from '../reader/pen-signals.js';
 import '../formats/index.js'; // ensure adapters are registered for format tests
 
 export async function runSelftest(state, hooks) {
@@ -942,6 +943,18 @@ export async function runSelftest(state, hooks) {
     assert('hover', 'HOVER_SETTLE_MS is a number ≤ 150 (latency contract)', typeof HOVER_SETTLE_MS === 'number' && HOVER_SETTLE_MS <= 150);
   }
 
+  // --- reader/pen-signals: pressure → weight ---
+  {
+    assert('pen-pressure', '0 / undefined → medium (graceful default)',
+      pressureToWeight(0) === 'medium' && pressureToWeight(undefined) === 'medium');
+    assert('pen-pressure', 'light band',  pressureToWeight(0.2) === 'light');
+    assert('pen-pressure', 'medium band', pressureToWeight(0.5) === 'medium');
+    assert('pen-pressure', 'heavy band',  pressureToWeight(0.9) === 'heavy');
+    assert('pen-pressure', 'band boundaries are monotonic',
+      ['light','medium','heavy'].indexOf(pressureToWeight(0.1))
+        <= ['light','medium','heavy'].indexOf(pressureToWeight(0.99)));
+  }
+
   // --- Live-app tests (need the real reader closures — see selftestHooks) ---
   if (hooks && doc.wsToToken && doc.wsToToken.length) {
     try {
@@ -1208,6 +1221,40 @@ async function runLiveTests(state, hooks, assert) {
       assert('highlights', 'updateNote can clear a note',
         highlightManager.getAll().find(i => i.id === noteItem.id).note === '');
       highlightManager.remove(noteItem.id);
+
+      // pen-pressure live tests (Phase 3).
+
+      // (a) Store-level: weight persists and a weighted renderAll does not throw.
+      const wItem = highlightManager.add({ start, end, color: 'blue', weight: 'heavy', text: 't' });
+      if (wItem) addedHighlightIds.push(wItem.id);
+      assert('pen-pressure', 'weight persists on the stored item',
+        !!(wItem && highlightManager.getAll().find(i => i.id === wItem.id).weight === 'heavy'));
+      let weightRenderOk = true;
+      try { highlights.renderAll(); } catch (_) { weightRenderOk = false; }
+      assert('pen-pressure', 'renderAll with weighted highlights does not throw', weightRenderOk);
+      if (wItem) highlightManager.remove(wItem.id);
+
+      // (b) End-to-end: the weight set on a pen selection reaches the stored item.
+      highlights.setPenSelection(aWi, bWi, true, 'heavy');
+      assert('pen-pressure', 'pen selection carries the stroke weight',
+        !!(highlights._penSel && highlights._penSel.weight === 'heavy'));
+      const heavyItem = highlights.createFromWords(aWi, bWi, 'blue', highlights._penSel?.weight ?? 'medium');
+      if (heavyItem) addedHighlightIds.push(heavyItem.id);
+      assert('pen-pressure', 'committing the weighted selection stores weight=heavy',
+        !!(heavyItem && highlightManager.getAll().find(i => i.id === heavyItem.id).weight === 'heavy'));
+      highlights.clearPenSelection();
+      if (heavyItem) highlightManager.remove(heavyItem.id);
+
+      // (c) Measurable: three distinct weights reachable in a single stroke (baseline was 1).
+      const levels = new Set([pressureToWeight(0.2), pressureToWeight(0.5), pressureToWeight(0.9)]);
+      assert('pen-pressure', 'three distinct weights reachable in one stroke (baseline 1)', levels.size === 3);
+
+      // (d) Graceful degradation: zero-pressure degrades to a valid medium highlight.
+      const medItem = highlights.createFromWords(aWi, bWi, 'blue', pressureToWeight(0));
+      if (medItem) addedHighlightIds.push(medItem.id);
+      assert('pen-pressure', 'zero-pressure degrades to a valid medium highlight',
+        !!(medItem && highlightManager.getAll().find(i => i.id === medItem.id).weight === 'medium'));
+      if (medItem) highlightManager.remove(medItem.id);
     }
   } finally {
     // Restore the pre-test prefs, layout, position and bookmark set even when

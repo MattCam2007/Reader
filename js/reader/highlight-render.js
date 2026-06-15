@@ -2,9 +2,10 @@ import { resolveLocator, toLocator } from '../model/locator.js';
 import { wordIndexFromNodeOffset, wordAtPoint, wordRange } from '../model/geometry.js';
 import { t } from '../core/i18n.js';
 
-// Palette keys, in render order. Each has a matching ::highlight(hl-<key>) rule
+// Palette keys, in render order. Each has matching ::highlight(hl-<key>-<weight>) rules
 // in css/components/selection.css and a swatch colour below.
 export const HL_COLORS = ['yellow', 'green', 'blue', 'pink'];
+export const HL_WEIGHTS = ['light', 'medium', 'heavy'];
 
 // Renders persisted highlights via the CSS Custom Highlight API (the same
 // mechanism search and the resume-highlight use) and owns the small edit bar
@@ -47,11 +48,10 @@ export class HighlightController {
     } catch (_) { return null; }
   }
 
-  // Re-resolve every stored highlight to a Range and publish one Highlight per
-  // colour. Call after the first paginate and after every relayout/window turn.
-  // Highlights carrying a note are published under a second name (hl-<c>-note)
-  // so CSS can mark them (dotted underline) — a cue that moves with the text,
-  // unlike an absolutely-positioned marker.
+  // Re-resolve every stored highlight to a Range and publish into the CSS
+  // Custom Highlight API. Fill is bucketed by color × weight (12 names);
+  // notes get a separate underline layer independent of weight (4 names).
+  // Call after the first paginate and after every relayout/window turn.
   renderAll() {
     this.dismissBar();
     // NOTE: deliberately does not dismiss the note editor. Opening the soft
@@ -60,13 +60,19 @@ export class HighlightController {
     // the instant it opened. The editor is closed explicitly by its own
     // Save/Delete/Cancel actions (and by clearAll on book change).
     if (typeof CSS === 'undefined' || !CSS.highlights || typeof Highlight === 'undefined') return;
-    const plain = {}, noted = {};
-    for (const c of HL_COLORS) { plain[c] = []; noted[c] = []; }
+    // fill[color][weight] accumulates ranges; noted[color] accumulates underline ranges.
+    const fill = {}, noted = {};
+    for (const c of HL_COLORS) {
+      fill[c] = { light: [], medium: [], heavy: [] };
+      noted[c] = [];
+    }
     for (const item of this.manager.getAll()) {
       const range = this._rangeFor(item);
       if (!range) continue;
       const color = HL_COLORS.includes(item.color) ? item.color : 'yellow';
-      (item.note ? noted : plain)[color].push(range);
+      const weight = HL_WEIGHTS.includes(item.weight) ? item.weight : 'medium';
+      fill[color][weight].push(range);
+      if (item.note) noted[color].push(range);
     }
     const publish = (name, ranges) => {
       try {
@@ -75,7 +81,7 @@ export class HighlightController {
       } catch (e) { console.warn('highlights:render', e); }
     };
     for (const c of HL_COLORS) {
-      publish('hl-' + c, plain[c]);
+      for (const w of HL_WEIGHTS) publish('hl-' + c + '-' + w, fill[c][w]);
       publish('hl-' + c + '-note', noted[c]);
     }
   }
@@ -86,7 +92,7 @@ export class HighlightController {
     this._dismissNotePopover();
     if (typeof CSS === 'undefined' || !CSS.highlights) return;
     for (const c of HL_COLORS) {
-      try { CSS.highlights.delete('hl-' + c); } catch (_) {}
+      for (const w of HL_WEIGHTS) { try { CSS.highlights.delete('hl-' + c + '-' + w); } catch (_) {} }
       try { CSS.highlights.delete('hl-' + c + '-note'); } catch (_) {}
     }
   }
@@ -120,13 +126,13 @@ export class HighlightController {
 
   // Store a highlight directly from word indices (the pen path, which never
   // creates a native window selection — see setPenSelection).
-  createFromWords(aWi, bWi, color) {
+  createFromWords(aWi, bWi, color, weight = 'medium') {
     if (aWi < 0 || bWi < 0) return null;
     const lo = Math.min(aWi, bWi), hi = Math.max(aWi, bWi);
     const start = toLocator(this.state, lo);
     const end = toLocator(this.state, hi);
     if (!start || !end) return null;
-    const item = this.manager.add({ start, end, color, text: this._textFor(lo, hi) });
+    const item = this.manager.add({ start, end, color, weight, text: this._textFor(lo, hi) });
     this.renderAll();
     return item;
   }
@@ -160,9 +166,11 @@ export class HighlightController {
 
   // Set/extend the pen selection to span words [a..b]. showBar=false while the
   // pen is still dragging (just paint), true on lift (paint + action bar).
-  setPenSelection(a, b, showBar) {
+  // weight carries the stroke's peak pressure classification so the swatch
+  // commit uses it without needing to re-sample pressure at click time.
+  setPenSelection(a, b, showBar, weight = 'medium') {
     if (a == null || b == null || a < 0 || b < 0) { this.clearPenSelection(); return; }
-    this._penSel = { lo: Math.min(a, b), hi: Math.max(a, b) };
+    this._penSel = { lo: Math.min(a, b), hi: Math.max(a, b), weight };
     this._renderPenSelection();
     if (showBar) this._showPenBar();
     else this.dismissPenBar();
@@ -220,7 +228,7 @@ export class HighlightController {
       sw.className = 'reader-hl-swatch hl-' + c;
       sw.setAttribute('aria-label', t('a11y.highlight', { color: c }));
       sw.addEventListener('click', () => {
-        this.createFromWords(lo, hi, c);
+        this.createFromWords(lo, hi, c, this._penSel?.weight ?? 'medium');
         this.clearPenSelection();
       });
       bar.appendChild(sw);
