@@ -53,7 +53,7 @@ export const SAVE_DEBOUNCE_MS = 500;
 export const RESIZE_DEBOUNCE_MS = 150;
 export const SELECTION_DEBOUNCE_MS = 200;
 // S Pen hover settle delay — preview shows after this many ms of pen stillness.
-export const HOVER_SETTLE_MS = 360;
+export const HOVER_SETTLE_MS = 600;
 
 // EPUB extraction
 export const RICH_INLINE = true;
