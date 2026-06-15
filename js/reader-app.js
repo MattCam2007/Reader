@@ -27,7 +27,6 @@ import { SelectionManager } from './reader/selection.js';
 import { DefinitionPopover } from './reader/definition.js';
 import { FootnoteManager } from './reader/footnotes.js';
 import { HoverPreview } from './reader/hover-preview.js';
-import { initPenDebug } from './reader/pen-debug.js';
 import { buildSample } from '../fixtures/sample.js';
 import { runSelftest } from './test/selftest.js';
 import { trapFocus } from './reader/focus-trap.js';
@@ -101,10 +100,6 @@ export function init(options = {}) {
   const state = new ReaderState();
   state.setPrefs(prefs);
   const urlParams = new URLSearchParams(location.search);
-
-  // S Pen diagnostic overlay (?pendebug=1): shows raw pointer-event fields so we
-  // can see whether the barrel/eraser buttons reach the web layer on a device.
-  if (urlParams.get("pendebug") === "1") initPenDebug(signal);
 
   // ---------- Bookmarks ----------
   const bookmarkManager = new BookmarkManager();
@@ -616,10 +611,8 @@ export function init(options = {}) {
     editHighlightAt: (x, y) => highlights.handleTap(x, y),
     dismissNotePopover: () => footnotes.dismiss(),
     activePopoverRef: () => footnotes.activePopover,
-    penHoverMove:   (x, y) => hover.onPenMove(x, y),
-    penHoverEnd:    () => hover.dismiss(),
-    penBarrelDrag:  (a, b) => highlights.createFromWords(a, b, prefs.data.highlightColor || 'yellow'),
-    penErase:       (x, y) => highlights.deleteHighlightAt(x, y),
+    penHoverMove: (x, y) => hover.onPenMove(x, y),
+    penHoverEnd:  () => hover.dismiss(),
   }, signal);
 
   // ---------- Overlay ----------

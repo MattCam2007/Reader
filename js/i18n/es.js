@@ -204,7 +204,6 @@ export default {
   'lbl.textSelection': 'Selección de texto',
   'lbl.stylusTurnsPage': 'El lápiz pasa la página',
   'lbl.penHoverPreview': 'Vista previa al pasar el lápiz',
-  'lbl.penButtonShortcuts': 'Atajos del botón del lápiz',
   'lbl.textSize': 'Tamaño del texto',
   'lbl.typeface': 'Tipografía',
   'lbl.margins': 'Márgenes',

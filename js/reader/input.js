@@ -7,7 +7,6 @@ import * as perf from '../core/perf.js';
 import { isSettingsScreenOpen } from '../settings/settings-screen.js';
 import { wordAtPoint } from '../model/geometry.js';
 import { isHover } from './hover-preview.js';
-import { classifyPenSignal } from './pen-signals.js';
 
 function pinchDist(touches) {
   const dx = touches[1].clientX - touches[0].clientX;
@@ -58,8 +57,6 @@ export class InputHandler {
     // (default) a pen selects words instead of navigating.
     this._penActive = false;
     this._penNavigating = false;
-    this._penMode = 'tip';   // 'tip' | 'barrel' | 'eraser' — set on each pointerdown
-    this._penButtonHeld = false; // Samsung: side button pressed during hover before tip contact
     this._penAnchorWord = -1;
     this._penFocusWord = -1;
     this._penStartX = 0;
@@ -239,8 +236,9 @@ export class InputHandler {
     // _penActive here makes the touch* handlers above bail for this contact.
     viewport.addEventListener("pointerdown", (e) => {
       if (e.pointerType !== "pen") return;
-      this.callbacks.penHoverEnd?.();   // pen landing → dismiss any hover card
+      this.callbacks.penHoverEnd?.();   // pen tip landing → dismiss any hover card
       this._penActive = true;
+      this._penNavigating = this._penTurnsPage();
       this._penAnchorWord = -1;
       this._penMoved = false;
       this._penStartX = e.clientX;
@@ -248,24 +246,6 @@ export class InputHandler {
       this._penStartT = Date.now();
       try { viewport.setPointerCapture(e.pointerId); } catch (_) {}
 
-      // PRECEDENCE: barrel/eraser (deliberate button) win over penTurnsPage nav.
-      // _penButtonHeld: Samsung S Pen sets bit 0 + pressure=0 during hover when the
-      // side button is held; capture that and treat the landing contact as barrel.
-      const penBarrel = this.state._prefs?.data?.penBarrel;
-      const rawMode = penBarrel ? classifyPenSignal(e.buttons, e.pressure) : 'tip';
-      this._penMode = (penBarrel && this._penButtonHeld && rawMode === 'tip') ? 'barrel' : rawMode;
-      this._penButtonHeld = false;
-
-      if (this._penMode === 'eraser') {
-        // Eraser: delete any highlight under the tip immediately and on each move.
-        document.body.classList.add("pen-contact");
-        e.preventDefault();
-        this.callbacks.penErase?.(e.clientX, e.clientY);
-        return;
-      }
-
-      // Barrel and tip both use the word-selection drag; they differ only at commit.
-      this._penNavigating = (this._penMode === 'tip') && this._penTurnsPage();
       if (this._penNavigating) {
         // Behave like a finger: arm the same drag state machine.
         if (this.state.isScrollMode || this._zoomScale > 1) { this._dragging = false; return; }
@@ -296,12 +276,6 @@ export class InputHandler {
     viewport.addEventListener("pointermove", (e) => {
       if (e.pointerType !== "pen" || !this._penActive) return;
 
-      // Eraser swipe: delete each highlight the eraser crosses.
-      if (this._penMode === 'eraser') {
-        if (e.buttons & 32) this.callbacks.penErase?.(e.clientX, e.clientY);
-        return;
-      }
-
       if (this._penNavigating) {
         if (!this._dragging) return;
         const dx = e.clientX - this._startX;
@@ -323,13 +297,7 @@ export class InputHandler {
         return;
       }
 
-      // Selection drag (tip or barrel): extend a word-granular custom selection.
-      // Barrel-button upgrade: the user often presses the side button AFTER the
-      // tip contacts the screen. Re-classify when we see the barrel bit appear
-      // mid-drag so the commit still goes through penBarrelDrag.
-      if (this._penMode === 'tip' && (e.buttons & 2) && this.state._prefs?.data?.penBarrel) {
-        this._penMode = 'barrel';
-      }
+      // Selection drag: extend a word-granular custom selection from the anchor.
       const dx = e.clientX - this._penStartX;
       const dy = e.clientY - this._penStartY;
       if (!this._penMoved && Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
@@ -371,32 +339,18 @@ export class InputHandler {
         return;
       }
 
-      // Eraser: nothing to commit on lift; cleanup already done by pointercancel path.
-      if (this._penMode === 'eraser') {
-        document.body.classList.remove("pen-contact");
-        this._penAnchorWord = -1; this._penFocusWord = -1; this._penMoved = false;
-        return;
-      }
-
-      // Selection mode (tip or barrel).
+      // Selection mode.
       document.body.classList.remove("pen-contact");
       if (this._penMoved) {
-        // Drag finished.
+        // Drag finished → commit the selection and surface the action bar.
         const focus = this._penFocusWord >= 0 ? this._penFocusWord : this._wordAtPoint(e.clientX, e.clientY);
         if (this._penAnchorWord >= 0 && focus >= 0) {
-          if (this._penMode === 'barrel') {
-            // Barrel drag: commit directly as a highlight (0 swatch taps).
-            this.callbacks.penClearSelection?.();
-            this.callbacks.penBarrelDrag?.(this._penAnchorWord, focus);
-          } else {
-            // Tip drag: surface the action bar so the user picks a colour.
-            this.callbacks.penSelect(this._penAnchorWord, focus, true);
-          }
+          this.callbacks.penSelect(this._penAnchorWord, focus, true);
         } else {
           this.callbacks.penClearSelection();
         }
       } else {
-        // Tap (barrel or tip): edit an existing highlight, else select the word.
+        // Tap: edit an existing highlight, else select the single word, else clear.
         if (this.callbacks.editHighlightAt && this.callbacks.editHighlightAt(e.clientX, e.clientY)) {
           this._penAnchorWord = -1; this._penFocusWord = -1;
           return;
@@ -415,7 +369,6 @@ export class InputHandler {
       document.body.classList.remove("pen-contact");
       this._penActive = false;
       this._penNavigating = false;
-      this._penMode = 'tip';
       this._dragging = false;
       this._decided = null;
       this._penAnchorWord = -1;
@@ -431,19 +384,11 @@ export class InputHandler {
       if (this._penActive) return;   // a contact is in progress — not a hover
       if (isHover(e.pointerType, e.buttons, e.pressure)) {
         this.callbacks.penHoverMove?.(e.clientX, e.clientY);
-      } else if ((e.buttons & 1) && e.pressure === 0 && this.state._prefs?.data?.penBarrel) {
-        // Samsung S Pen: side button held while hovering (bit 0 set, no pressure).
-        // Record this so the next tip contact is classified as barrel.
-        this._penButtonHeld = true;
-        this.callbacks.penHoverEnd?.();
       }
     }, { passive: true, signal });
 
     viewport.addEventListener("pointerleave", (e) => {
-      if (e.pointerType === "pen") {
-        this._penButtonHeld = false;
-        this.callbacks.penHoverEnd?.();
-      }
+      if (e.pointerType === "pen") this.callbacks.penHoverEnd?.();
     }, { signal });
 
     viewport.addEventListener("click", (e) => {

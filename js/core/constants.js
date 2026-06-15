@@ -116,10 +116,6 @@ export const DEFAULT_PREFS = {
   penTurnsPage: false,
   // S Pen hover preview (Air View): shows definition/footnote on hover, no tap needed.
   penHover: true,
-  // S Pen barrel-button + eraser shortcuts: barrel+drag highlights; eraser deletes.
-  penBarrel: true,
-  // Default colour used by barrel-drag highlight and the Phase 3 pressure highlighter.
-  highlightColor: 'yellow',
 };
 
 // Declarative settings wiring (Phase 3: DRY)
@@ -134,7 +130,6 @@ export const SETTINGS = [
   { seg: "selectionSeg", attr: "sel",     pref: "selection",    repaginate: false, transform: v => v === "true" },
   { seg: "penSeg",       attr: "pen",     pref: "penTurnsPage", repaginate: false, transform: v => v === "true" },
   { seg: "penHoverSeg",  attr: "penhover",pref: "penHover",     repaginate: false, transform: v => v === "true" },
-  { seg: "penBarrelSeg", attr: "penbarrel",pref: "penBarrel",  repaginate: false, transform: v => v === "true" },
   { seg: "pageAnimSeg",  attr: "anim",    pref: "pageAnim",     repaginate: false },
   { seg: "layoutSeg",    attr: "layout",  pref: "layout",       repaginate: true  },
   { seg: "columnsSeg",   attr: "cols",    pref: "columns",      repaginate: true  },

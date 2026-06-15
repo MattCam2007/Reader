@@ -27,7 +27,6 @@ import { listAdapters, getAdapterById, selectAdapter, acceptString } from '../fo
 import { MAX_PDF_PAGES } from '../formats/pdf/pdf-adapter.js';
 import { DictionaryManager, languageName } from '../core/dictionary.js';
 import { isHover, hoverChangedWord } from '../reader/hover-preview.js';
-import { classifyPenSignal } from '../reader/pen-signals.js';
 import '../formats/index.js'; // ensure adapters are registered for format tests
 
 export async function runSelftest(state, hooks) {
@@ -943,18 +942,6 @@ export async function runSelftest(state, hooks) {
     assert('hover', 'HOVER_SETTLE_MS is a number ≤ 150 (latency contract)', typeof HOVER_SETTLE_MS === 'number' && HOVER_SETTLE_MS <= 150);
   }
 
-  // --- reader/pen-signals: S Pen contact classification ---
-  {
-    assert('pen-signals', 'eraser bit wins over all',                classifyPenSignal(32 | 2 | 1, 0.9) === 'eraser');
-    assert('pen-signals', 'barrel bit → barrel',                    classifyPenSignal(2, 0) === 'barrel');
-    assert('pen-signals', 'Samsung barrel: bit-0 + no pressure → barrel', classifyPenSignal(1, 0) === 'barrel');
-    assert('pen-signals', 'tip contact with pressure → tip',         classifyPenSignal(1, 0.5) === 'tip');
-    assert('pen-signals', 'pressure without tip bit → tip',         classifyPenSignal(0, 0.2) === 'tip');
-    assert('pen-signals', 'nothing → hover',                        classifyPenSignal(0, 0) === 'hover');
-    assert('pen-signals', 'eraser + barrel → eraser',               classifyPenSignal(32 | 2, 0) === 'eraser');
-    assert('pen-signals', 'barrel + tip → barrel',                  classifyPenSignal(2 | 1, 0.5) === 'barrel');
-  }
-
   // --- Live-app tests (need the real reader closures — see selftestHooks) ---
   if (hooks && doc.wsToToken && doc.wsToToken.length) {
     try {
@@ -1234,61 +1221,6 @@ async function runLiveTests(state, hooks, assert) {
     applyPrefs();
     relayout(null);
     if (origPos) applyCanonicalPosition(origPos);
-  }
-
-  // --- pen-barrel + pen-eraser: live functional tests ---
-  if (highlights && highlightManager && doc.words.length > 12) {
-    const cur = state.curChap || 0;
-    const sec = doc.sections[cur] || { wordStart: 0, wordEnd: doc.words.length };
-    const aWi = sec.wordStart + 1;
-    const bWi = Math.min(sec.wordEnd - 1, aWi + 5);
-    const start = toLocator(state, aWi);
-    const end   = toLocator(state, bWi);
-
-    // Eraser: seed a highlight, call deleteHighlightAt on its midpoint, assert -1 and no edit bar.
-    {
-      const it = highlightManager.add({ start, end, color: 'green', text: 't' });
-      const before = highlightManager.count();
-      const midRange = wordRange(state, Math.floor((aWi + bWi) / 2));
-      const r = midRange?.getBoundingClientRect();
-      let erased = false;
-      if (r && r.width > 0 && r.height > 0) {
-        erased = highlights.deleteHighlightAt(r.left + r.width / 2, r.top + r.height / 2);
-      } else {
-        highlightManager.remove(it.id); // cleanup if off-screen
-      }
-      assert('pen-eraser', 'eraser deletes exactly one highlight, 0 edit-bar menus',
-        erased === true && highlightManager.count() === before - 1
-        && document.querySelector('.reader-hl-edit') === null);
-    }
-
-    // Barrel create: createFromWords commits directly, assert +1 and NO selection bar.
-    {
-      const n0 = highlightManager.count();
-      const made = highlights.createFromWords(aWi, bWi, 'yellow');
-      if (made) addedHighlightIds.push(made.id);
-      assert('pen-barrel', 'barrel-drag creates one highlight with 0 swatch taps',
-        !!made && highlightManager.count() === n0 + 1
-        && document.querySelector('.reader-sel-bar') === null);
-    }
-
-    // Accidental rate: barrel-button hover (buttons:2, pressure:0) must not create highlights.
-    {
-      const vp = els && els.viewport;
-      if (vp) {
-        const n0 = highlightManager.count();
-        const pg = state.page;
-        for (let i = 0; i < 10; i++) {
-          vp.dispatchEvent(new PointerEvent('pointermove', {
-            pointerType: 'pen', pressure: 0, buttons: 2,
-            clientX: 60 + i * 5, clientY: 120,
-            bubbles: true, cancelable: true,
-          }));
-        }
-        assert('pen-barrel-accidental', 'barrel hover (no contact) creates 0 highlights', highlightManager.count() === n0);
-        assert('pen-barrel-accidental', 'barrel hover causes 0 page turns', state.page === pg);
-      }
-    }
   }
 
   // --- hover-preview: live functional tests (async — requires settle timer) ---

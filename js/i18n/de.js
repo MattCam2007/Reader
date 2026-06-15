@@ -204,7 +204,6 @@ export default {
   'lbl.textSelection': 'Textauswahl',
   'lbl.stylusTurnsPage': 'Stift blättert um',
   'lbl.penHoverPreview': 'Stift-Hover-Vorschau',
-  'lbl.penButtonShortcuts': 'Stifttasten-Kurzbefehle',
   'lbl.textSize': 'Textgröße',
   'lbl.typeface': 'Schriftart',
   'lbl.margins': 'Ränder',
