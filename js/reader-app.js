@@ -26,6 +26,7 @@ import { SearchManager } from './reader/search.js';
 import { SelectionManager } from './reader/selection.js';
 import { DefinitionPopover } from './reader/definition.js';
 import { FootnoteManager } from './reader/footnotes.js';
+import { HoverPreview } from './reader/hover-preview.js';
 import { buildSample } from '../fixtures/sample.js';
 import { runSelftest } from './test/selftest.js';
 import { trapFocus } from './reader/focus-trap.js';
@@ -469,9 +470,6 @@ export function init(options = {}) {
 
   // ---------- Pagination ----------
   const pagination = new PaginationEngine(state, els, currentLocatorFn, buildChapterIndexFn, updateProgressFn, savePosMain);
-  // After a chapter-boundary page turn, re-land once the new chapter's images
-  // decode (their flow shifts until then). No-op when the chapter has no images.
-  pagination.onWindowTurn = () => { resyncAfterImages(); highlights.renderAll(); };
 
   // ---------- Storage ----------
   const storage = new StorageManager(state);
@@ -501,6 +499,16 @@ export function init(options = {}) {
   const highlightManager = new HighlightManager();
   const highlights = new HighlightController(state, highlightManager, signal, { onDefine });
 
+  // ---------- Hover Preview (S Pen Air View) ----------
+  const hover = new HoverPreview(state, {
+    onDefine,
+    peekFootnote: (anchor) => footnotes.peekAt(anchor),
+    peekLink: null,
+  });
+  // After a chapter-boundary page turn, re-land once images decode. Also dismiss
+  // any hover card so it doesn't go stale when the chapter content shifts.
+  pagination.onWindowTurn = () => { resyncAfterImages(); highlights.renderAll(); hover.dismiss(); };
+
   // ---------- Selection ----------
   const selection = new SelectionManager(state, signal, {
     onHighlight: (color) => {
@@ -528,6 +536,7 @@ export function init(options = {}) {
   }
 
   function closePanels() {
+    hover.dismiss();
     document.body.classList.remove("show-toc", "show-search", "show-bookmarks");
     search.clearHighlights();
     updateAriaExpanded();
@@ -602,6 +611,8 @@ export function init(options = {}) {
     editHighlightAt: (x, y) => highlights.handleTap(x, y),
     dismissNotePopover: () => footnotes.dismiss(),
     activePopoverRef: () => footnotes.activePopover,
+    penHoverMove: (x, y) => hover.onPenMove(x, y),
+    penHoverEnd:  () => hover.dismiss(),
   }, signal);
 
   // ---------- Overlay ----------
@@ -1333,7 +1344,7 @@ export function init(options = {}) {
   // live closures, not pure functions.
   const selftestHooks = {
     els, prefs, chrome, bookmarkManager, pagination,
-    highlightManager, highlights,
+    highlightManager, highlights, hover,
     getBookmarkContext, navigateToBookmark,
     getCanonicalPosition, applyCanonicalPosition, seekToToken,
     relayout, applyPrefs,

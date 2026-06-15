@@ -203,6 +203,7 @@ export default {
   'lbl.notePopovers': 'Bulles de notes',
   'lbl.textSelection': 'Sélection de texte',
   'lbl.stylusTurnsPage': 'Le stylet tourne la page',
+  'lbl.penHoverPreview': 'Aperçu au survol du stylet',
   'lbl.textSize': 'Taille du texte',
   'lbl.typeface': 'Police',
   'lbl.margins': 'Marges',

@@ -203,6 +203,7 @@ export default {
   'lbl.notePopovers': 'Notiz-Popovers',
   'lbl.textSelection': 'Textauswahl',
   'lbl.stylusTurnsPage': 'Stift blättert um',
+  'lbl.penHoverPreview': 'Stift-Hover-Vorschau',
   'lbl.textSize': 'Textgröße',
   'lbl.typeface': 'Schriftart',
   'lbl.margins': 'Ränder',

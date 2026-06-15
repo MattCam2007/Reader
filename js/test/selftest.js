@@ -3,7 +3,7 @@ import { toLocator, resolveLocator, exportTokens } from '../model/locator.js';
 import { deriveBookId, buildPosition, resolvePosition } from '../core/position.js';
 import { blocksFromDoc, sanitizeInline, safeAnchorHref } from '../formats/epub/extractor.js';
 import { EventBus } from '../core/events.js';
-import { FONT_MAP, SETTINGS, DEFAULT_PREFS, EXTRACTABLE_BLOCK_TYPES, EXTRACTABLE_BLOCK_SELECTOR } from '../core/constants.js';
+import { FONT_MAP, SETTINGS, DEFAULT_PREFS, EXTRACTABLE_BLOCK_TYPES, EXTRACTABLE_BLOCK_SELECTOR, HOVER_SETTLE_MS } from '../core/constants.js';
 import { PrefsManager } from '../core/prefs.js';
 import { buildDocModel } from '../model/doc-model.js';
 import { buildChapterIndex } from '../reader/chapters.js';
@@ -26,9 +26,10 @@ import { magicBytes, startsWith, ZIP_MAGIC } from '../formats/detect.js';
 import { listAdapters, getAdapterById, selectAdapter, acceptString } from '../formats/registry.js';
 import { MAX_PDF_PAGES } from '../formats/pdf/pdf-adapter.js';
 import { DictionaryManager, languageName } from '../core/dictionary.js';
+import { isHover, hoverChangedWord } from '../reader/hover-preview.js';
 import '../formats/index.js'; // ensure adapters are registered for format tests
 
-export function runSelftest(state, hooks) {
+export async function runSelftest(state, hooks) {
   // Debug handle (selftest entry points only): lets a console / headless probe
   // drive the same live-app closures the suite uses.
   if (typeof window !== 'undefined') { window.__selftestState = state; window.__selftestHooks = hooks; }
@@ -927,10 +928,24 @@ export function runSelftest(state, hooks) {
     assert("dictionary", "languageName falls back to 'Other' for undetermined", languageName("und") === "Other");
   }
 
+  // --- reader/hover-preview: hover detection ---
+  {
+    assert('hover', 'pen, no buttons, no pressure → hover', isHover('pen', 0, 0) === true);
+    assert('hover', 'pen tip down → not hover', isHover('pen', 1, 0.5) === false);
+    assert('hover', 'pen barrel held → not hover', isHover('pen', 2, 0) === false);
+    assert('hover', 'finger move → not hover', isHover('touch', 0, 0) === false);
+    assert('hover', 'mouse move → not hover', isHover('mouse', 0, 0) === false);
+    assert('hover', 'pen no pressure null → hover', isHover('pen', 0, null) === true);
+    assert('hover', 'changed-word true on a new word', hoverChangedWord(5, 3) === true);
+    assert('hover', 'changed-word false on same word', hoverChangedWord(5, 5) === false);
+    assert('hover', 'changed-word false on -1 (whitespace)', hoverChangedWord(-1, 3) === false);
+    assert('hover', 'HOVER_SETTLE_MS is a number ≤ 150 (latency contract)', typeof HOVER_SETTLE_MS === 'number' && HOVER_SETTLE_MS <= 150);
+  }
+
   // --- Live-app tests (need the real reader closures — see selftestHooks) ---
   if (hooks && doc.wsToToken && doc.wsToToken.length) {
     try {
-      runLiveTests(state, hooks, assert);
+      await runLiveTests(state, hooks, assert);
     } catch (e) {
       console.warn('selftest:live', e);
       assert('live', 'live tests completed without exception (' + (e && e.message) + ')', false);
@@ -960,12 +975,12 @@ export function runSelftest(state, hooks) {
 // switches, bookmark add/check/navigate, and position restores across layout
 // changes. Only runs from the ?selftest=1 entry points, where reader-app
 // passes its hooks. Restores layout prefs and position when done.
-function runLiveTests(state, hooks, assert) {
+async function runLiveTests(state, hooks, assert) {
   const {
     prefs, chrome, bookmarkManager, applyPrefs, relayout, seekToToken,
     getBookmarkContext, navigateToBookmark, getCanonicalPosition,
     applyCanonicalPosition, readerSections, totalWsWords, wsWordText,
-    highlightManager, highlights,
+    highlightManager, highlights, hover, els,
   } = hooks;
   const addedHighlightIds = [];
   const doc = state.doc;
@@ -1180,6 +1195,7 @@ function runLiveTests(state, hooks, assert) {
       if (penItem) highlightManager.remove(penItem.id);
 
       // Notes on highlights.
+
       const noteItem = highlightManager.add({ start, end, color: 'yellow', text: 'n' });
       if (noteItem) addedHighlightIds.push(noteItem.id);
       highlightManager.updateNote(noteItem.id, 'my note');
@@ -1206,6 +1222,74 @@ function runLiveTests(state, hooks, assert) {
     relayout(null);
     if (origPos) applyCanonicalPosition(origPos);
   }
+
+  // --- hover-preview: live functional tests (async — requires settle timer) ---
+  if (hover && els && els.viewport) {
+    const origPenHover = prefs.data.penHover;
+    const vp = els.viewport;
+    try {
+      assert('hover-live', 'penHover default pref is true', prefs.data.penHover === true);
+
+      // Accidental-action rate: 20 hovers must cause 0 page turns or highlight mutations.
+      {
+        const beforePage = state.page;
+        const beforeCount = highlightManager.count();
+        for (let i = 0; i < 20; i++) {
+          vp.dispatchEvent(new PointerEvent('pointermove', {
+            pointerType: 'pen', pressure: 0, buttons: 0,
+            clientX: 50 + i * 3, clientY: 100,
+            bubbles: true, cancelable: true,
+          }));
+        }
+        assert('hover-live', 'accidental-rate: 20 hovers → 0 page turns', state.page === beforePage);
+        assert('hover-live', 'accidental-rate: 20 hovers → 0 highlight mutations', highlightManager.count() === beforeCount);
+        hover.dismiss();
+      }
+
+      // Pref off: hover must not show a popover.
+      {
+        prefs.data.penHover = false;
+        const someWi = doc.wsToToken[Math.floor(doc.wsToToken.length * 0.1)];
+        const r = wordRange(state, someWi)?.getBoundingClientRect();
+        if (r && r.width > 0 && r.height > 0) {
+          vp.dispatchEvent(new PointerEvent('pointermove', {
+            pointerType: 'pen', pressure: 0, buttons: 0,
+            clientX: r.left + r.width / 2, clientY: r.top + r.height / 2,
+            bubbles: true, cancelable: true,
+          }));
+          await new Promise(res => setTimeout(res, HOVER_SETTLE_MS + 30));
+          assert('hover-live', 'pref off: hover shows no popover', !document.querySelector('.reader-def-popover'));
+          hover.dismiss();
+        }
+        prefs.data.penHover = true;
+      }
+
+      // Measurable-better: hovering a word shows a definition popover with 0 committing taps.
+      {
+        const someWi = doc.wsToToken[Math.floor(doc.wsToToken.length * 0.2)];
+        const range = wordRange(state, someWi);
+        const r = range?.getBoundingClientRect();
+        if (r && r.width > 0 && r.height > 0) {
+          document.querySelector('.reader-def-popover')?.remove();
+          vp.dispatchEvent(new PointerEvent('pointermove', {
+            pointerType: 'pen', pressure: 0, buttons: 0,
+            clientX: r.left + r.width / 2, clientY: r.top + r.height / 2,
+            bubbles: true, cancelable: true,
+          }));
+          await new Promise(res => setTimeout(res, HOVER_SETTLE_MS + 30));
+          const pop = document.querySelector('.reader-def-popover');
+          assert('hover-live', 'measurable-better: hover → popover in 0 committing taps', !!pop);
+          hover.dismiss();
+          document.querySelector('.reader-def-popover')?.remove();
+        }
+      }
+    } finally {
+      prefs.data.penHover = origPenHover;
+      hover.dismiss();
+      document.querySelector('.reader-def-popover')?.remove();
+    }
+  }
+
 }
 
 function showResults(results) {

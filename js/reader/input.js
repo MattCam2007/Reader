@@ -6,6 +6,7 @@ import {
 import * as perf from '../core/perf.js';
 import { isSettingsScreenOpen } from '../settings/settings-screen.js';
 import { wordAtPoint } from '../model/geometry.js';
+import { isHover } from './hover-preview.js';
 
 function pinchDist(touches) {
   const dx = touches[1].clientX - touches[0].clientX;
@@ -235,6 +236,7 @@ export class InputHandler {
     // _penActive here makes the touch* handlers above bail for this contact.
     viewport.addEventListener("pointerdown", (e) => {
       if (e.pointerType !== "pen") return;
+      this.callbacks.penHoverEnd?.();   // pen tip landing → dismiss any hover card
       this._penActive = true;
       this._penNavigating = this._penTurnsPage();
       this._penAnchorWord = -1;
@@ -372,6 +374,21 @@ export class InputHandler {
       this._penAnchorWord = -1;
       this._penFocusWord = -1;
       this._penMoved = false;
+    }, { signal });
+
+    // ── S Pen hover (Air View) ─────────────────────────────────────────────
+    // Separate listener: hover has buttons===0 and must NOT set _penActive or
+    // call preventDefault — it is a purely passive observation.
+    viewport.addEventListener("pointermove", (e) => {
+      if (e.pointerType !== "pen") return;
+      if (this._penActive) return;   // a contact is in progress — not a hover
+      if (isHover(e.pointerType, e.buttons, e.pressure)) {
+        this.callbacks.penHoverMove?.(e.clientX, e.clientY);
+      }
+    }, { passive: true, signal });
+
+    viewport.addEventListener("pointerleave", (e) => {
+      if (e.pointerType === "pen") this.callbacks.penHoverEnd?.();
     }, { signal });
 
     viewport.addEventListener("click", (e) => {
