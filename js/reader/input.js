@@ -320,6 +320,12 @@ export class InputHandler {
       }
 
       // Selection drag (tip or barrel): extend a word-granular custom selection.
+      // Barrel-button upgrade: the user often presses the side button AFTER the
+      // tip contacts the screen. Re-classify when we see the barrel bit appear
+      // mid-drag so the commit still goes through penBarrelDrag.
+      if (this._penMode === 'tip' && (e.buttons & 2) && this.state._prefs?.data?.penBarrel) {
+        this._penMode = 'barrel';
+      }
       const dx = e.clientX - this._penStartX;
       const dy = e.clientY - this._penStartY;
       if (!this._penMoved && Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
