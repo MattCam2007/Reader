@@ -260,6 +260,15 @@ export class HighlightController {
     return this.itemAtWord(wordAtPoint(this.state, x, y));
   }
 
+  // Delete the highlight under (x, y), if any. Returns true if one was removed.
+  deleteHighlightAt(x, y) {
+    const item = this.itemAtPoint(x, y);
+    if (!item) return false;
+    this.manager.remove(item.id);
+    this.renderAll();
+    return true;
+  }
+
   // If a highlight sits under (x,y), open its edit bar and return true.
   handleTap(x, y) {
     const item = this.itemAtPoint(x, y);

@@ -611,8 +611,10 @@ export function init(options = {}) {
     editHighlightAt: (x, y) => highlights.handleTap(x, y),
     dismissNotePopover: () => footnotes.dismiss(),
     activePopoverRef: () => footnotes.activePopover,
-    penHoverMove: (x, y) => hover.onPenMove(x, y),
-    penHoverEnd:  () => hover.dismiss(),
+    penHoverMove:   (x, y) => hover.onPenMove(x, y),
+    penHoverEnd:    () => hover.dismiss(),
+    penBarrelDrag:  (a, b) => highlights.createFromWords(a, b, prefs.data.highlightColor || 'yellow'),
+    penErase:       (x, y) => highlights.deleteHighlightAt(x, y),
   }, signal);
 
   // ---------- Overlay ----------
