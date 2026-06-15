@@ -14,11 +14,11 @@
 //   1. Same-origin assets are served stale-while-revalidate: the cached copy
 //      answers instantly, but every use refreshes it in the background, so
 //      the app converges one visit after a deploy instead of never.
-//   2. The cache-name prefix is bumped (v2) so this deploy flushes the
+//   2. The cache-name prefix is bumped (v3) so this deploy flushes the
 //      already-poisoned caches in the field once, on activate.
 
 const VERSION = '__COMMIT_HASH__';
-const CACHE = 'reader-v2-' + VERSION;
+const CACHE = 'reader-v3-' + VERSION;
 
 // EPUB parsing libraries are vendored (vendor/ — see reader.html), so they are
 // same-origin app assets and precache like everything else. Only the
