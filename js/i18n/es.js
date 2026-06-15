@@ -204,6 +204,7 @@ export default {
   'lbl.textSelection': 'Selección de texto',
   'lbl.stylusTurnsPage': 'El lápiz pasa la página',
   'lbl.penHoverPreview': 'Vista previa al pasar el lápiz',
+  'lbl.penHoverDelay': 'Retraso al pasar',
   'lbl.penPressureHighlight': 'Resaltado por presión',
   'lbl.textSize': 'Tamaño del texto',
   'lbl.typeface': 'Tipografía',

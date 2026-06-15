@@ -38,13 +38,14 @@ export class HoverPreview {
     if (key === this._lastKey) return;
     this._lastKey = key;
     clearTimeout(this._timer);
+    const delay = this._state._prefs?.data?.penHoverDelay ?? HOVER_SETTLE_MS;
     const armed = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-    this._onDebug?.('arm', key, HOVER_SETTLE_MS);
+    this._onDebug?.('arm', key, delay);
     this._timer = setTimeout(() => {
       const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
       this._onDebug?.('fire', key, Math.round(now - armed));
       this._show(anchor, wi, x, y);
-    }, HOVER_SETTLE_MS);
+    }, delay);
   }
 
   dismiss() {

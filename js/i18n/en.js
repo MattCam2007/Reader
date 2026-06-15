@@ -206,6 +206,7 @@ export default {
   'lbl.textSelection': 'Text selection',
   'lbl.stylusTurnsPage': 'Stylus turns page',
   'lbl.penHoverPreview': 'Pen hover preview',
+  'lbl.penHoverDelay': 'Hover delay',
   'lbl.penPressureHighlight': 'Pressure highlighting',
   'lbl.textSize': 'Text size',
   'lbl.typeface': 'Typeface',

@@ -204,6 +204,7 @@ export default {
   'lbl.textSelection': 'Sélection de texte',
   'lbl.stylusTurnsPage': 'Le stylet tourne la page',
   'lbl.penHoverPreview': 'Aperçu au survol du stylet',
+  'lbl.penHoverDelay': 'Délai de survol',
   'lbl.penPressureHighlight': 'Mise en évidence par pression',
   'lbl.textSize': 'Taille du texte',
   'lbl.typeface': 'Police',

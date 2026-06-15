@@ -204,6 +204,7 @@ export default {
   'lbl.textSelection': 'Textauswahl',
   'lbl.stylusTurnsPage': 'Stift blättert um',
   'lbl.penHoverPreview': 'Stift-Hover-Vorschau',
+  'lbl.penHoverDelay': 'Hover-Verzögerung',
   'lbl.penPressureHighlight': 'Druckbasiertes Markieren',
   'lbl.textSize': 'Textgröße',
   'lbl.typeface': 'Schriftart',
