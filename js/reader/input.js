@@ -59,6 +59,7 @@ export class InputHandler {
     this._penActive = false;
     this._penNavigating = false;
     this._penMode = 'tip';   // 'tip' | 'barrel' | 'eraser' — set on each pointerdown
+    this._penButtonHeld = false; // Samsung: side button pressed during hover before tip contact
     this._penAnchorWord = -1;
     this._penFocusWord = -1;
     this._penStartX = 0;
@@ -248,9 +249,12 @@ export class InputHandler {
       try { viewport.setPointerCapture(e.pointerId); } catch (_) {}
 
       // PRECEDENCE: barrel/eraser (deliberate button) win over penTurnsPage nav.
-      this._penMode = (this.state._prefs?.data?.penBarrel)
-        ? classifyPenSignal(e.buttons, e.pressure)
-        : 'tip';
+      // _penButtonHeld: Samsung S Pen sets bit 0 + pressure=0 during hover when the
+      // side button is held; capture that and treat the landing contact as barrel.
+      const penBarrel = this.state._prefs?.data?.penBarrel;
+      const rawMode = penBarrel ? classifyPenSignal(e.buttons, e.pressure) : 'tip';
+      this._penMode = (penBarrel && this._penButtonHeld && rawMode === 'tip') ? 'barrel' : rawMode;
+      this._penButtonHeld = false;
 
       if (this._penMode === 'eraser') {
         // Eraser: delete any highlight under the tip immediately and on each move.
@@ -427,11 +431,19 @@ export class InputHandler {
       if (this._penActive) return;   // a contact is in progress — not a hover
       if (isHover(e.pointerType, e.buttons, e.pressure)) {
         this.callbacks.penHoverMove?.(e.clientX, e.clientY);
+      } else if ((e.buttons & 1) && e.pressure === 0 && this.state._prefs?.data?.penBarrel) {
+        // Samsung S Pen: side button held while hovering (bit 0 set, no pressure).
+        // Record this so the next tip contact is classified as barrel.
+        this._penButtonHeld = true;
+        this.callbacks.penHoverEnd?.();
       }
     }, { passive: true, signal });
 
     viewport.addEventListener("pointerleave", (e) => {
-      if (e.pointerType === "pen") this.callbacks.penHoverEnd?.();
+      if (e.pointerType === "pen") {
+        this._penButtonHeld = false;
+        this.callbacks.penHoverEnd?.();
+      }
     }, { signal });
 
     viewport.addEventListener("click", (e) => {

@@ -945,13 +945,14 @@ export async function runSelftest(state, hooks) {
 
   // --- reader/pen-signals: S Pen contact classification ---
   {
-    assert('pen-signals', 'eraser bit wins over all',           classifyPenSignal(32 | 2 | 1, 0.9) === 'eraser');
-    assert('pen-signals', 'barrel bit → barrel',               classifyPenSignal(2, 0) === 'barrel');
-    assert('pen-signals', 'tip contact → tip',                 classifyPenSignal(1, 0) === 'tip');
-    assert('pen-signals', 'pressure without tip bit → tip',    classifyPenSignal(0, 0.2) === 'tip');
-    assert('pen-signals', 'nothing → hover',                   classifyPenSignal(0, 0) === 'hover');
-    assert('pen-signals', 'eraser + barrel → eraser',          classifyPenSignal(32 | 2, 0) === 'eraser');
-    assert('pen-signals', 'barrel + tip → barrel',             classifyPenSignal(2 | 1, 0.5) === 'barrel');
+    assert('pen-signals', 'eraser bit wins over all',                classifyPenSignal(32 | 2 | 1, 0.9) === 'eraser');
+    assert('pen-signals', 'barrel bit → barrel',                    classifyPenSignal(2, 0) === 'barrel');
+    assert('pen-signals', 'Samsung barrel: bit-0 + no pressure → barrel', classifyPenSignal(1, 0) === 'barrel');
+    assert('pen-signals', 'tip contact with pressure → tip',         classifyPenSignal(1, 0.5) === 'tip');
+    assert('pen-signals', 'pressure without tip bit → tip',         classifyPenSignal(0, 0.2) === 'tip');
+    assert('pen-signals', 'nothing → hover',                        classifyPenSignal(0, 0) === 'hover');
+    assert('pen-signals', 'eraser + barrel → eraser',               classifyPenSignal(32 | 2, 0) === 'eraser');
+    assert('pen-signals', 'barrel + tip → barrel',                  classifyPenSignal(2 | 1, 0.5) === 'barrel');
   }
 
   // --- Live-app tests (need the real reader closures — see selftestHooks) ---
