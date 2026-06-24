@@ -205,6 +205,11 @@ body.pen-contact .reader-content {
   color: inherit;
 }
 
+::highlight(search-selected) {
+  background-color: rgba(255, 196, 0, 0.75);
+  color: inherit;
+}
+
 /* Resume highlight: the word (from RSVP) or sentence (from TTS) you were on
    when you switched into the Reader. Persists until the next page turn. Amber,
    so it reads as "you were here" and not as a (red) search match. */
