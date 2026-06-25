@@ -201,12 +201,12 @@ body.pen-contact .reader-content {
 }
 
 ::highlight(search-results) {
-  background-color: rgba(231, 76, 60, 0.3);
+  background-color: var(--accent-dim);
   color: inherit;
 }
 
 ::highlight(search-selected) {
-  background-color: rgba(255, 196, 0, 0.75);
+  background-color: var(--accent-glow);
   color: inherit;
 }
 
