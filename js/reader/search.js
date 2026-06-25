@@ -35,10 +35,10 @@ export class SearchManager {
       charStart: state.doc.wordCharStart,
       query,
       onPick: (wi, charOff) => {
-        this._highlightSelected(charOff);
         const loc = toLocator(state, wi);
         if (loc) this.goToLocatorFn(loc);
-        this.close();
+        this.close();                      // closePanels clears all highlights
+        this._highlightSelected(charOff);  // set after clear so it survives
       },
       onHits: (hits) => this._highlightHits(hits),
     });
@@ -71,7 +71,8 @@ export class SearchManager {
     const wiEnd = indexForOffset(state.doc.wordCharStart, charOff + Math.max(qLen - 1, 0));
     const wStart = state.doc.words[wiStart];
     const wEnd = state.doc.words[wiEnd];
-    if (!wStart || !wEnd) return;
+    // In windowed mode, off-window chapter nodes are detached; skip if not live.
+    if (!wStart || !wEnd || !wStart.node.isConnected || !wEnd.node.isConnected) return;
     try {
       const range = document.createRange();
       range.setStart(wStart.node, wStart.start);
