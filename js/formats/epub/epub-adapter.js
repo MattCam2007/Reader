@@ -5,7 +5,7 @@
 
 import { extractSections } from './extractor.js';
 import { resolveImageUrls } from './images.js';
-import { flattenToc, buildSyntheticToc } from './toc.js';
+import { flattenToc, buildSyntheticToc, parseGuideToc } from './toc.js';
 import { makeCapabilities } from '../capabilities.js';
 import { startsWith, ZIP_MAGIC } from '../detect.js';
 import { registerAdapter } from '../registry.js';
@@ -66,7 +66,18 @@ export const epubAdapter = {
       throw new Error('No readable text found (this EPUB may be image-only or DRM-protected).');
     }
 
-    // Synthesise a TOC from heading blocks when the EPUB has no navigation doc.
+    // When the NCX/nav is absent or suspiciously sparse (≤1 entry for a book
+    // with many sections), try parsing the EPUB 2 guide-type TOC HTML first.
+    // This covers Word→Calibre epubs where the real TOC is an HTML page
+    // referenced by <guide><reference type="toc"> in the OPF.
+    if (toc.length <= 1 && sections.length > 2) {
+      try {
+        const guideToc = await parseGuideToc(book);
+        if (guideToc.length > 1) toc = guideToc;
+      } catch (e) { console.warn('epub:guide-toc', e); }
+    }
+
+    // Final fallback: synthesise a TOC from heading blocks.
     if (!toc.length && sections.length > 1) toc = buildSyntheticToc(sections);
 
     const blobUrls = allImgUrls.length
