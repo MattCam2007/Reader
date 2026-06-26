@@ -1,3 +1,80 @@
+// CSS class pattern for Word/Calibre HTML TOC entries: MsoToc1, MsoToc2, etc.
+// MsoToc (no number) is the overall book-title heading row — skipped.
+const MSOTOC_CLASS_RE = /\bMsoToc(\d+)\b/i;
+
+// Strips trailing page-number suffixes from Word-generated TOC labels.
+// e.g. "Chapter One. 4" → "Chapter One", "PART TWO.. 68" → "PART TWO"
+function stripPageNum(str) {
+  return str.replace(/[\s. ]+\d+\s*$/, '').trim();
+}
+
+// Parse a guide-type TOC from an EPUB 2 book when the NCX is absent or sparse.
+// Reads container.xml → OPF → guide reference → HTML TOC file, then extracts
+// entries from MsoToc* CSS class paragraphs (the pattern used by Word→Calibre
+// converted epubs). Returns TocEntry[] (may be empty on any failure).
+export async function parseGuideToc(book) {
+  try {
+    const zip = book.archive && book.archive.zip;
+    if (!zip) return [];
+
+    // Find OPF path via container.xml
+    const containerFile = zip.file('META-INF/container.xml');
+    if (!containerFile) return [];
+    const containerXml = await containerFile.async('text');
+    const containerDoc = new DOMParser().parseFromString(containerXml, 'application/xml');
+    const rootFileEl = containerDoc.querySelector(
+      'rootfile[media-type="application/oebps-package+xml"]');
+    const opfPath = rootFileEl && (rootFileEl.getAttribute('full-path') || '');
+    if (!opfPath) return [];
+
+    // Load OPF and find guide reference with type="toc"
+    const opfFile = zip.file(opfPath);
+    if (!opfFile) return [];
+    const opfXml = await opfFile.async('text');
+    const opfDoc = new DOMParser().parseFromString(opfXml, 'application/xml');
+    const guideRef = opfDoc.querySelector('guide > reference[type="toc"]');
+    if (!guideRef) return [];
+
+    // Resolve guide href relative to OPF directory, strip fragment anchor
+    const rawGuideHref = guideRef.getAttribute('href') || '';
+    const opfDir = opfPath.includes('/') ? opfPath.replace(/[^/]+$/, '') : '';
+    const tocFileName = decodeURIComponent(rawGuideHref.split('#')[0]);
+    const tocFilePath = opfDir + tocFileName;
+
+    // Load the guide TOC HTML file
+    const tocFile = zip.file(tocFilePath);
+    if (!tocFile) return [];
+    const tocHtml = await tocFile.async('text');
+
+    const doc = new DOMParser().parseFromString(tocHtml, 'application/xhtml+xml');
+    const tocDir = tocFilePath.includes('/') ? tocFilePath.replace(/[^/]+$/, '') : '';
+    const entries = [];
+
+    doc.querySelectorAll('[class]').forEach(el => {
+      const m = MSOTOC_CLASS_RE.exec(el.getAttribute('class') || '');
+      if (!m) return;
+      const depth = parseInt(m[1], 10) - 1; // MsoToc1 → 0, MsoToc2 → 1, …
+
+      const anchor = el.querySelector('a[href]');
+      if (!anchor) return;
+
+      const label = stripPageNum(anchor.textContent);
+      if (!label) return;
+
+      // Decode the anchor href; keep it relative to epub root
+      const href = tocDir + decodeURIComponent(anchor.getAttribute('href') || '');
+      if (!href.trim() || href === tocDir) return;
+
+      entries.push({ label, href, depth });
+    });
+
+    return entries;
+  } catch (e) {
+    console.warn('epub:guide-toc', e);
+    return [];
+  }
+}
+
 // Build a best-effort TOC from the extracted sections when the EPUB provides no
 // navigation document. Iterates over every block flagged isTocHeading (set by
 // blocksFromDoc for semantic h1-h6 and common calibre/Word/Sigil CSS class
@@ -81,7 +158,12 @@ export function resolveHref(href, content, sectionEls) {
     } catch (e) { console.warn("toc:resolveHref", e); }
   }
   const base = parts[0].split("/").pop();
-  const sectionEl = sectionEls.get(base) || null;
+  // Try both as-is and URL-decoded to handle encoding mismatches between
+  // epub.js item hrefs and guide-TOC hrefs (e.g. %2C vs comma).
+  let sectionEl = sectionEls.get(base) || null;
+  if (!sectionEl) {
+    try { sectionEl = sectionEls.get(decodeURIComponent(base)) || null; } catch (_) {}
+  }
   // Fragment absent or unresolved: fall back to the section's first heading
   // rather than the file root. Many EPUBs anchor a chapter with an empty
   // <a id="…"/> that carries no text and is dropped during extraction (so the
