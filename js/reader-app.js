@@ -276,13 +276,28 @@ export function init(options = {}) {
           state.doc.tokenToWs[tok] ?? 0,
           state.doc.wsToToken.length - 1
         ));
-        resyncAfterImages(buildPosition(readerSections(), totalWsWords(), wsOrd, wsWordText));
+        const pos = buildPosition(readerSections(), totalWsWords(), wsOrd, wsWordText);
+        // Pin the cached anchor to where we just landed. The debounced save
+        // (SAVE_DEBOUNCE_MS) won't refresh _lastPos for ~500ms, but a soft-
+        // keyboard close (e.g. after picking a search result) fires a resize
+        // that runs relayout() within RESIZE_DEBOUNCE_MS — and relayout restores
+        // _lastPos, not the live page. Without this pin it would snap back to the
+        // pre-seek page. Use the layout-independent pos so it survives the
+        // image-decode hazard above. See relayout().
+        state._lastPos = pos;
+        resyncAfterImages(pos);
         highlights.renderAll(); // re-resolve into the newly-attached chapter
+      } else {
+        state._lastPos = getCanonicalPosition(); // same-chapter: layout is settled
       }
       return;
     }
-    if (state.isScrollMode) pagination.scrollToWord(tok);
-    else pagination.goTo(pageOfWord(state, els.content, tok), false);
+    if (state.isScrollMode) {
+      pagination.scrollToWord(tok); // scroll mode: relayout reads live scrollTop, no anchor to pin
+    } else {
+      pagination.goTo(pageOfWord(state, els.content, tok), false);
+      state._lastPos = getCanonicalPosition(); // pin so a keyboard-close relayout lands here
+    }
   }
 
   // Seek so that `el` is on screen, attaching its chapter first in windowed mode.
