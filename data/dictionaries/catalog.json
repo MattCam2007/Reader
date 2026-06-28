@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "builtAt": "2026-06-14",
+  "builtAt": "2026-06-28",
   "dictionaries": [
     {
       "id": "wordset",
@@ -116,6 +116,75 @@
         "x": 7322,
         "y": 16972,
         "z": 46924
+      }
+    }
+    },
+    {
+      "id": "quenya",
+      "name": "Quenya",
+      "lang": "qya",
+      "description": "Quenya, the High-elven tongue of Tolkien's legendarium. Entries drawn from attested Tolkien sources and the Neo-Quenya corpus, sourced from Paul Strack's Eldamo project.",
+      "license": "CC-BY 4.0",
+      "attribution": "Elvish data from Eldamo by Paul Strack, eldamo.org",
+      "words": 6781,
+      "bytes": 143382,
+      "buckets": {
+        "0": 3747,
+        "a": 17266,
+        "c": 8980,
+        "e": 7666,
+        "f": 3099,
+        "h": 9442,
+        "i": 5045,
+        "k": 173,
+        "l": 11529,
+        "m": 9877,
+        "n": 12758,
+        "o": 5564,
+        "p": 5111,
+        "q": 3499,
+        "r": 5343,
+        "s": 8878,
+        "t": 10861,
+        "u": 4970,
+        "v": 5444,
+        "w": 633,
+        "x": 153,
+        "y": 3344
+      }
+    },
+    {
+      "id": "sindarin",
+      "name": "Sindarin",
+      "lang": "sjn",
+      "description": "Sindarin, the Grey-elven tongue of Tolkien's legendarium. Entries drawn from attested Tolkien sources and the Neo-Sindarin corpus, sourced from Paul Strack's Eldamo project.",
+      "license": "CC-BY 4.0",
+      "attribution": "Elvish data from Eldamo by Paul Strack, eldamo.org",
+      "words": 3614,
+      "bytes": 75164,
+      "buckets": {
+        "0": 1080,
+        "a": 7200,
+        "b": 3389,
+        "c": 5037,
+        "d": 3546,
+        "e": 4711,
+        "f": 2789,
+        "g": 6801,
+        "h": 2739,
+        "i": 2692,
+        "l": 5263,
+        "m": 4487,
+        "n": 5186,
+        "o": 2348,
+        "p": 3349,
+        "r": 4025,
+        "s": 2364,
+        "t": 6215,
+        "u": 1075,
+        "v": 119,
+        "w": 392,
+        "y": 357
       }
     }
   ]

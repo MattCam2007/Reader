@@ -1,0 +1,119 @@
+{
+  "id": "quenya",
+  "name": "Quenya",
+  "wordCount": 6781,
+  "buckets": {
+    "0": {
+      "words": 165,
+      "bytes": 3747,
+      "raw_bytes": 15389
+    },
+    "a": {
+      "words": 770,
+      "bytes": 17266,
+      "raw_bytes": 66967
+    },
+    "c": {
+      "words": 448,
+      "bytes": 8980,
+      "raw_bytes": 35668
+    },
+    "e": {
+      "words": 364,
+      "bytes": 7666,
+      "raw_bytes": 29212
+    },
+    "f": {
+      "words": 138,
+      "bytes": 3099,
+      "raw_bytes": 11376
+    },
+    "h": {
+      "words": 470,
+      "bytes": 9442,
+      "raw_bytes": 37352
+    },
+    "i": {
+      "words": 237,
+      "bytes": 5045,
+      "raw_bytes": 19003
+    },
+    "k": {
+      "words": 3,
+      "bytes": 173,
+      "raw_bytes": 256
+    },
+    "l": {
+      "words": 568,
+      "bytes": 11529,
+      "raw_bytes": 45048
+    },
+    "m": {
+      "words": 470,
+      "bytes": 9877,
+      "raw_bytes": 38621
+    },
+    "n": {
+      "words": 581,
+      "bytes": 12758,
+      "raw_bytes": 48364
+    },
+    "o": {
+      "words": 266,
+      "bytes": 5564,
+      "raw_bytes": 20767
+    },
+    "p": {
+      "words": 260,
+      "bytes": 5111,
+      "raw_bytes": 19481
+    },
+    "q": {
+      "words": 171,
+      "bytes": 3499,
+      "raw_bytes": 13280
+    },
+    "r": {
+      "words": 269,
+      "bytes": 5343,
+      "raw_bytes": 20149
+    },
+    "s": {
+      "words": 399,
+      "bytes": 8878,
+      "raw_bytes": 33446
+    },
+    "t": {
+      "words": 538,
+      "bytes": 10861,
+      "raw_bytes": 42787
+    },
+    "u": {
+      "words": 224,
+      "bytes": 4970,
+      "raw_bytes": 18625
+    },
+    "v": {
+      "words": 255,
+      "bytes": 5444,
+      "raw_bytes": 20349
+    },
+    "w": {
+      "words": 27,
+      "bytes": 633,
+      "raw_bytes": 2217
+    },
+    "x": {
+      "words": 3,
+      "bytes": 153,
+      "raw_bytes": 242
+    },
+    "y": {
+      "words": 155,
+      "bytes": 3344,
+      "raw_bytes": 12364
+    }
+  },
+  "license": "CC-BY 4.0",
+  "attribution": "Elvish data from Eldamo by Paul Strack, eldamo.org"
+}

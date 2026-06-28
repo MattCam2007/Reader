@@ -29,6 +29,7 @@ const LANG_NAMES = {
   'en': 'English', 'en-US': 'American English', 'en-GB': 'British English', 'en-CA': 'Canadian English',
   'fr': 'French', 'fr-CA': 'Canadian French', 'fr-FR': 'French (France)',
   'es': 'Spanish', 'es-MX': 'Mexican Spanish', 'es-ES': 'Spanish (Spain)',
+  'qya': 'Quenya', 'sjn': 'Sindarin',
 };
 let _langNames = null;
 export function languageName(tag) {

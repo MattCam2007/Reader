@@ -1,0 +1,119 @@
+{
+  "id": "sindarin",
+  "name": "Sindarin",
+  "wordCount": 3614,
+  "buckets": {
+    "0": {
+      "words": 54,
+      "bytes": 1080,
+      "raw_bytes": 4665
+    },
+    "a": {
+      "words": 336,
+      "bytes": 7200,
+      "raw_bytes": 27127
+    },
+    "b": {
+      "words": 170,
+      "bytes": 3389,
+      "raw_bytes": 12722
+    },
+    "c": {
+      "words": 253,
+      "bytes": 5037,
+      "raw_bytes": 18698
+    },
+    "d": {
+      "words": 170,
+      "bytes": 3546,
+      "raw_bytes": 13157
+    },
+    "e": {
+      "words": 230,
+      "bytes": 4711,
+      "raw_bytes": 18302
+    },
+    "f": {
+      "words": 126,
+      "bytes": 2789,
+      "raw_bytes": 9994
+    },
+    "g": {
+      "words": 336,
+      "bytes": 6801,
+      "raw_bytes": 25956
+    },
+    "h": {
+      "words": 141,
+      "bytes": 2739,
+      "raw_bytes": 10344
+    },
+    "i": {
+      "words": 109,
+      "bytes": 2692,
+      "raw_bytes": 8832
+    },
+    "l": {
+      "words": 267,
+      "bytes": 5263,
+      "raw_bytes": 19506
+    },
+    "m": {
+      "words": 230,
+      "bytes": 4487,
+      "raw_bytes": 16756
+    },
+    "n": {
+      "words": 233,
+      "bytes": 5186,
+      "raw_bytes": 18577
+    },
+    "o": {
+      "words": 113,
+      "bytes": 2348,
+      "raw_bytes": 8350
+    },
+    "p": {
+      "words": 159,
+      "bytes": 3349,
+      "raw_bytes": 12052
+    },
+    "r": {
+      "words": 193,
+      "bytes": 4025,
+      "raw_bytes": 15055
+    },
+    "s": {
+      "words": 113,
+      "bytes": 2364,
+      "raw_bytes": 8250
+    },
+    "t": {
+      "words": 304,
+      "bytes": 6215,
+      "raw_bytes": 23132
+    },
+    "u": {
+      "words": 43,
+      "bytes": 1075,
+      "raw_bytes": 3270
+    },
+    "v": {
+      "words": 2,
+      "bytes": 119,
+      "raw_bytes": 161
+    },
+    "w": {
+      "words": 18,
+      "bytes": 392,
+      "raw_bytes": 1206
+    },
+    "y": {
+      "words": 14,
+      "bytes": 357,
+      "raw_bytes": 924
+    }
+  },
+  "license": "CC-BY 4.0",
+  "attribution": "Elvish data from Eldamo by Paul Strack, eldamo.org"
+}

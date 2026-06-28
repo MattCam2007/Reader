@@ -10,8 +10,10 @@
 // rebuild from source. Run: node tools/build-dictionaries.mjs
 //
 // Sources (see data/dictionaries/ATTRIBUTION.md for full licences):
-//   - wordset : Wordset, Inc. — CC BY-SA 4.0 (+ WordNet 3.0). Modern, structured.
-//   - webster : Webster's 1913 (matthewreagan/WebstersEnglishDictionary) — public domain.
+//   - wordset    : Wordset, Inc. — CC BY-SA 4.0 (+ WordNet 3.0). Modern, structured.
+//   - webster    : Webster's 1913 (matthewreagan/WebstersEnglishDictionary) — public domain.
+//   - quenya     : Eldamo (Paul Strack, eldamo.org) — CC-BY 4.0. Built by tools/eldamo_to_shards.py.
+//   - sindarin   : Eldamo (Paul Strack, eldamo.org) — CC-BY 4.0. Built by tools/eldamo_to_shards.py.
 
 import { gzipSync } from 'node:zlib';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
