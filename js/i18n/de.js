@@ -75,6 +75,7 @@ export default {
   'opt.narrow': 'Schmal',
   'opt.normal': 'Normal',
   'opt.wide': 'Breit',
+  'opt.wider': 'Breiter',
   'opt.justify': 'Blocksatz',
   'opt.left': 'Links',
   'opt.on': 'An',

@@ -75,6 +75,7 @@ export default {
   'opt.narrow': 'Estrecha',
   'opt.normal': 'Normal',
   'opt.wide': 'Ancha',
+  'opt.wider': 'Más ancha',
   'opt.justify': 'Justificado',
   'opt.left': 'Izquierda',
   'opt.on': 'Activado',
