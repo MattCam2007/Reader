@@ -1466,6 +1466,7 @@ export function init(options = {}) {
     getCanonicalPosition, applyCanonicalPosition, seekToToken,
     relayout, applyPrefs,
     readerSections, totalWsWords, wsWordText,
+    currentRenderToken,
   };
 
   const srcUrl = urlParams.get("src");

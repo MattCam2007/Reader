@@ -962,10 +962,10 @@ export function runSelftest(state, hooks) {
 // passes its hooks. Restores layout prefs and position when done.
 function runLiveTests(state, hooks, assert) {
   const {
-    prefs, chrome, bookmarkManager, applyPrefs, relayout, seekToToken,
+    els, prefs, chrome, bookmarkManager, applyPrefs, relayout, seekToToken,
     getBookmarkContext, navigateToBookmark, getCanonicalPosition,
     applyCanonicalPosition, readerSections, totalWsWords, wsWordText,
-    highlightManager, highlights,
+    highlightManager, highlights, currentRenderToken,
   } = hooks;
   const addedHighlightIds = [];
   const doc = state.doc;
@@ -1092,6 +1092,37 @@ function runLiveTests(state, hooks, assert) {
     const after = getCanonicalPosition();
     assert('position-live', 'scroll restore after font-size change lands within ±1 word',
       !!before && !!after && Math.abs(after.ord - before.ord) <= 1);
+
+    // --- Paged→scroll switch glues the reader's top line to the top of the
+    // readable content area (parity with the paginated top-line anchor). Capture
+    // the top word in a paginated layout, then switch to scroll preserving the
+    // position exactly as onReaderChange('layout',…) does, and assert that same
+    // word lands flush at the content top (within a line) rather than drifting.
+    if (els && currentRenderToken) {
+      setLayout('paginated', true); // windowed
+      seekToToken(doc.wsToToken[Math.round(0.45 * (totalWs - 1))]);
+      const topTok = currentRenderToken();
+      const capt = getCanonicalPosition();
+      prefs.data.layout = 'scroll';
+      state.forceWindow = false;
+      applyPrefs();
+      relayout(capt);
+      const w = doc.words[topTok];
+      let glued = false, dist = -1;
+      if (w && w.node.isConnected) {
+        const r = wordRange(state, topTok);
+        const vp = els.viewport.getBoundingClientRect();
+        const cssW = parseFloat(getComputedStyle(els.content).width);
+        const scale = cssW > 0 ? els.content.getBoundingClientRect().width / cssW : 1;
+        const padTop = parseFloat(getComputedStyle(els.viewport).paddingTop) || 0;
+        const lh = parseFloat(getComputedStyle(els.content).lineHeight) || 24;
+        dist = Math.abs((r.getBoundingClientRect().top - vp.top) / scale - padTop);
+        glued = dist <= lh + 2; // within one line of the readable top
+      }
+      assert('position-live',
+        'paged→scroll switch glues the top word to the readable top (dist ' +
+        Math.round(dist) + 'px)', glued);
+    }
 
     // --- C2: cross-mode round-trip (reader → TTS counting rule → reader) ---
     // Builds the TTS-rule section table + word list from the live DOM (the same
