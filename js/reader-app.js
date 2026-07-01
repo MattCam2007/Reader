@@ -375,29 +375,138 @@ export function init(options = {}) {
     else clearResumeHighlight();
   }
 
-  // ---------- Paragraph-start glue ----------
-  // Force `el` (a .blk block) to begin a fresh column so it lands at the top of
-  // the page after the next pagination. At most one block carries the class; this
-  // moves it. Pass null to clear (scroll layout, or no position to preserve).
-  // Purely a class toggle — it never touches the doc-model's node references.
+  // ---------- Top-line anchor ----------
+  // After a reflow (viewport resize / maximize, font/margin change) we pin the
+  // reader's position to the TOP OF THE PAGE by forcing a column break just above
+  // the first word on screen, so that exact line lands at the top and the page
+  // fills below it. Two granularities:
+  //   • Block glue (setGlueBlock): the block itself begins a fresh column. Used
+  //     when the anchor word is the first word of its paragraph, or as a fallback.
+  //   • Line anchor (setLineAnchor): a mid-paragraph word begins a fresh column,
+  //     so a paragraph the reader is partway through keeps the line they were on
+  //     at the top instead of jumping back to the paragraph's first line (which
+  //     may sit on the previous page).
+
+  // Force `el` (a .blk block) to begin a fresh column. At most one block carries
+  // the class; this moves it. Pass null to clear. Purely a class toggle — it
+  // never touches the doc-model's node references.
   function setGlueBlock(el) {
     if (state._glueBlockEl === el) return;
     if (state._glueBlockEl) state._glueBlockEl.classList.remove("glue-break");
     state._glueBlockEl = el || null;
     if (el) el.classList.add("glue-break");
   }
-  // Glue the paragraph that holds the first word of `pos` (a canonical position).
-  // Resolving pos → word → block is layout-independent, so this can run *before*
-  // pagination, putting the forced column break in place when totals are computed.
-  function setGlueBlockForPos(pos) {
+
+  // Undo the DOM surgery a previous setLineAnchor() applied, restoring the block
+  // to its pre-anchor shape and the doc-model word refs we repatched. Safe to call
+  // when no anchor is active. Reverses the steps of setLineAnchor in order:
+  // unwrap → re-merge cloned inline ancestors → re-join the split text node.
+  function clearLineAnchor() {
+    const la = state._lineAnchor;
+    if (!la) return;
+    state._lineAnchor = null;
+    const { blkEl, wrap, splits, headNode, tailNode, off, patched } = la;
+    // 1. Unwrap: move the tail content back to where the wrapper sat, drop wrapper.
+    if (wrap && wrap.parentNode === blkEl) {
+      while (wrap.firstChild) blkEl.insertBefore(wrap.firstChild, wrap);
+      blkEl.removeChild(wrap);
+    }
+    // 2. Merge each cloned inline ancestor back into its original, outermost first
+    //    (splits was recorded innermost first), so nesting unwinds cleanly.
+    for (let i = splits.length - 1; i >= 0; i--) {
+      const { orig, clone } = splits[i];
+      if (clone && clone.parentNode) {
+        while (clone.firstChild) orig.appendChild(clone.firstChild);
+        clone.parentNode.removeChild(clone);
+      }
+    }
+    // 3. Re-join the boundary text split and repoint the words we moved. headNode
+    //    is null when the anchor word already began its text node (no split).
+    if (headNode && tailNode && tailNode.parentNode) {
+      headNode.appendData(tailNode.nodeValue);
+      tailNode.parentNode.removeChild(tailNode);
+      const { words } = state.doc;
+      for (const i of patched) {
+        const w = words[i];
+        w.node = headNode; w.start += off; w.end += off;
+      }
+    }
+  }
+
+  // Force render token `tok` to begin a fresh column so its line lands at the top
+  // of the page after the next pagination. Runs *before* pagination so the break
+  // is in place when totals are computed. Reverses any prior anchor first.
+  //
+  // The word may be nested inside inline wrappers (annotateInlineText boxes
+  // punctuation/speech in spans, plus native <em>/<a>/…), so to break exactly
+  // above it we split the block's content at the word: split its text node, then
+  // walk up to the block cloning each inline ancestor's shell and MOVING the tail
+  // subtree into the clone. Only element shells are cloned — every text node keeps
+  // its identity, so doc-model word refs stay valid (only the one split node is
+  // repatched). Finally the whole tail is wrapped in a block-level break element.
+  function setLineAnchor(tok) {
+    clearLineAnchor();
     const { doc } = state;
-    if (!pos || !doc.wsToToken.length) { setGlueBlock(null); return; }
-    const ord = resolvePosition(pos, readerSections(), totalWsWords(), wsWordText);
-    const startWs = Math.max(0, Math.min(ord, doc.wsToToken.length - 1));
-    const tok = doc.wsToToken[startWs];
     const w = doc.words[tok];
     const blk = w ? doc.blocks[w.block] : null;
-    setGlueBlock(blk ? blk.el : null);
+    if (!blk) { setGlueBlock(null); return; }
+    // First word of its paragraph → the paragraph start IS the line start; a plain
+    // block glue lands it at the top without touching text nodes.
+    if (tok === blk.wordStart) { setGlueBlock(blk.el); return; }
+    setGlueBlock(null); // the line anchor supersedes any block glue
+    const node = w.node;
+    // Defensive: the word's node must live inside this block's element.
+    if (!blk.el.contains(node)) { setGlueBlock(blk.el); return; }
+
+    // Split the boundary text node so the anchor word begins a fresh node,
+    // repointing every later word in the block that lived in it.
+    const off = w.start;
+    let headNode = null;
+    let tailNode = node;
+    const patched = [];
+    if (off > 0) {
+      headNode = node;
+      tailNode = node.splitText(off);
+      for (let i = blk.wordStart; i < blk.wordEnd; i++) {
+        const ww = doc.words[i];
+        if (ww.node === node && ww.start >= off) {
+          ww.node = tailNode; ww.start -= off; ww.end -= off;
+          patched.push(i);
+        }
+      }
+    }
+    // Walk up to the block, splitting each inline ancestor: clone its shell and
+    // move the current tail node plus its following siblings into the clone.
+    const splits = [];
+    let child = tailNode;
+    let parent = child.parentNode;
+    while (parent && parent !== blk.el) {
+      const clone = parent.cloneNode(false);
+      parent.parentNode.insertBefore(clone, parent.nextSibling);
+      for (let n = child; n; ) { const nx = n.nextSibling; clone.appendChild(n); n = nx; }
+      splits.push({ orig: parent, clone });
+      child = clone;
+      parent = clone.parentNode;
+    }
+    // `child` and its following siblings are now the block-level tail. Wrap them in
+    // the break element (see .line-break in CSS), which begins a fresh column.
+    const wrap = document.createElement("span");
+    wrap.className = "line-break";
+    const moved = [];
+    for (let n = child; n; n = n.nextSibling) moved.push(n);
+    blk.el.appendChild(wrap);
+    for (const n of moved) wrap.appendChild(n);
+    state._lineAnchor = { blkEl: blk.el, wrap, splits, headNode, tailNode, off, patched };
+  }
+
+  // Anchor the first word of `pos` (a canonical position) to the top of the page.
+  // Resolving pos → word is layout-independent, so this runs before pagination.
+  function setAnchorForPos(pos) {
+    const { doc } = state;
+    if (!pos || !doc.wsToToken.length) { clearLineAnchor(); setGlueBlock(null); return; }
+    const ord = resolvePosition(pos, readerSections(), totalWsWords(), wsWordText);
+    const startWs = Math.max(0, Math.min(ord, doc.wsToToken.length - 1));
+    setLineAnchor(doc.wsToToken[startWs]);
   }
 
   // Images in the freshly-rendered book decode asynchronously; until they do
@@ -710,8 +819,11 @@ export function init(options = {}) {
     state.headingToc = [];
     state.docModelBuilt = false;
     // Drop references into the outgoing book's DOM before it's replaced, so we
-    // don't pin a detached element or carry a stale anchor into the new book.
+    // don't pin a detached element or carry a stale anchor into the new book. The
+    // outgoing DOM (and any line-anchor surgery in it) is discarded wholesale, so
+    // we just forget the anchor rather than reversing it.
     state._glueBlockEl = null;
+    state._lineAnchor = null;
     state._lastPos = null;
     renderSections(els.content, sections, {
       sectionEls: state.sectionEls,
@@ -785,13 +897,14 @@ export function init(options = {}) {
       : (state.doc.words.length
           ? ((!state.isScrollMode && state._lastPos) ? state._lastPos : getCanonicalPosition())
           : null);
-    // Paragraph-start glue: force the paragraph holding the first word on screen
-    // to begin a fresh column, so after the reflow it lands at the TOP of the page
-    // (the page fills below it) rather than partway down. Set before pagination so
-    // the new column boundary is in place when totals are computed. Cleared in
-    // scroll mode (no columns) and when there is no position to preserve.
-    if (pos && !state.isScrollMode) setGlueBlockForPos(pos);
-    else setGlueBlock(null);
+    // Top-line anchor: force a column break just above the first word on screen,
+    // so after the reflow that exact line lands at the TOP of the page (the page
+    // fills below it) rather than partway down — and, mid-paragraph, without
+    // jumping back to the paragraph's first line. Set before pagination so the new
+    // column boundary is in place when totals are computed. Cleared in scroll mode
+    // (no columns) and when there is no position to preserve.
+    if (pos && !state.isScrollMode) setAnchorForPos(pos);
+    else { clearLineAnchor(); setGlueBlock(null); }
     if (shouldWindow()) {
       if (!state.windowed) { pagination.setupWindow(state.curChap || 0); state.windowed = true; }
       pagination.paginateWindow(false);

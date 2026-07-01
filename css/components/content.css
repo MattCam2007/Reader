@@ -109,6 +109,18 @@ body:not(.chrome-hidden) .reader-viewport {
   break-before: column;
   -webkit-column-break-before: always;
 }
+/* Top-line anchor: the tail of a paragraph the reader is partway through, forced
+   to begin a fresh column so the exact line they were on lands at the top of the
+   page after a reflow (rather than snapping back to the paragraph's first line).
+   It's a continuation of the same paragraph, so suppress the first-line indent and
+   any block spacing. See reader-app setLineAnchor(). */
+.reader-content .line-break {
+  display: block;
+  break-before: column;
+  -webkit-column-break-before: always;
+  text-indent: 0;
+  margin: 0;
+}
 
 .reader-content .blk-blockquote {
   margin: 0.8em 1.4em;

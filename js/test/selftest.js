@@ -1063,15 +1063,18 @@ function runLiveTests(state, hooks, assert) {
         ', stale self-capture ' + staleDerived + ', restored ' + afterOrd + ', tol ' + tol + ')',
         ok);
 
-      // Paragraph-start glue: the first whole word on screen after the relayout is
-      // the start of its paragraph (the block was forced to begin a fresh column),
-      // i.e. the paragraph holding the reader's position is pinned to the top.
+      // Top-line anchor: the first whole word on screen after the relayout is the
+      // SAME word that was on screen before it — the reader's exact top line is
+      // pinned to the top of the page, even mid-paragraph, rather than snapping
+      // back to the paragraph's first line. (For a nested-inline anchor the code
+      // falls back to gluing the paragraph, whose start then tops the page.)
       const afterTok = doc.wsToToken[Math.max(0, Math.min(afterOrd, doc.wsToToken.length - 1))];
       const topBlk = doc.words[afterTok] ? doc.words[afterTok].block : -1;
       const blockStartsAtTop = topBlk >= 0 && doc.blocks[topBlk].wordStart === afterTok;
       assert('position-live',
-        'paragraph-start glue pins a paragraph start to the top of the page',
-        blockStartsAtTop);
+        'top-line anchor pins the reader\'s exact line to the top of the page' +
+        ' (anchor ' + anchorOrd + ', top ' + afterOrd + ')',
+        afterOrd === anchorOrd || blockStartsAtTop);
 
       // Restore for the rest of the suite.
       prefs.data.size = origSize;
