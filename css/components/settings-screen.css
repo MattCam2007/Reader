@@ -75,28 +75,6 @@
 .sscreen-lang:focus-visible { outline: 2px solid var(--accent, #4a8); outline-offset: 1px; }
 .sscreen-lang option { color: initial; }
 
-/* Theme picker — a native <select> whose closed state and options are
-   inline-styled per-theme (see themeSelect() in settings-screen.js) so each
-   entry previews its own background/text color. Support for styling <option>
-   varies by browser/platform; this degrades gracefully to a plain list. */
-.ss-theme-select {
-  appearance: none;
-  -webkit-appearance: none;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.55rem 2.2rem 0.55rem 1rem;
-  font: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  min-height: 44px;
-  min-width: 9rem;
-  cursor: pointer;
-  background-repeat: no-repeat;
-  background-position: right 0.85rem center;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none' stroke='%23888' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='1,1 5,5 9,1'/%3E%3C/svg%3E");
-}
-.ss-theme-select:focus-visible { outline: 2px solid var(--accent, #4a8); outline-offset: 1px; }
-
 /* Mode tabs */
 .sscreen-tabs {
   flex: 0 0 auto;

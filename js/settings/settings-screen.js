@@ -1,9 +1,10 @@
-import { DEFAULT_PREFS, MIN_SIZE, MAX_SIZE, GENERAL_DEFAULTS, ALL_THEME_NAMES, THEME_COLORS, THEME_TEXT_COLORS } from '../core/constants.js';
+import { DEFAULT_PREFS, MIN_SIZE, MAX_SIZE, GENERAL_DEFAULTS, ALL_THEME_NAMES } from '../core/constants.js';
 import { RSVP_DEFAULTS } from '../rsvp/constants.js';
 import { TTS_DEFAULTS } from '../tts/constants.js';
 import { PrefsManager } from '../core/prefs.js';
 import { createPicker } from '../shared/picker.js';
 import { renderFontPickerHTML, mountFontPicker } from '../shared/font-picker.js';
+import { renderThemePickerHTML, mountThemePicker } from '../shared/theme-picker.js';
 import { BG_IMAGE_STORAGE_KEY, applyBgSettings, clearBgImage } from '../base-reader-app.js';
 import { dictionaries, languageName } from '../core/dictionary.js';
 import { t, getLang, setLang, availableLanguages } from '../core/i18n.js';
@@ -139,10 +140,12 @@ export function openSettingsScreen(config = {}) {
 
   let rsvpPickers   = null;
   let fontPickerHandle = null;
+  let themePickerHandle = null;
 
   function destroyTabHandles() {
     if (rsvpPickers) { rsvpPickers.forEach(p => p && p.destroy && p.destroy()); rsvpPickers = null; }
     if (fontPickerHandle) { fontPickerHandle.destroy(); fontPickerHandle = null; }
+    if (themePickerHandle) { themePickerHandle.destroy(); themePickerHandle = null; }
   }
 
   function showTab(tab) {
@@ -159,7 +162,7 @@ export function openSettingsScreen(config = {}) {
 
     if (tab === 'general') {
       body.innerHTML = generalTabHTML(generalPrefs.data);
-      wireGeneralTab(generalPrefs, onGeneralChange);
+      themePickerHandle = wireGeneralTab(generalPrefs, onGeneralChange);
     } else if (tab === 'read') {
       body.innerHTML = readTabHTML(readerPrefs.data);
       fontPickerHandle = wireReadTab(readerPrefs, currentMode === 'read' ? onReaderChange : null);
@@ -241,30 +244,6 @@ function seg(id, attr, options, currentVal) {
   return `<div class="reader-seg" id="${id}">${btns}</div>`;
 }
 
-// Renders a native <select> for the theme picker, styling each <option> with
-// that theme's own background/foreground so the closed dropdown list previews
-// every theme. Browsers vary in how much <option> styling they honor (mobile
-// OS pickers largely ignore it), so this is best-effort rather than guaranteed.
-function themeSelect(id, options, currentVal) {
-  const cur = String(currentVal);
-  const opts = options.map(([val, label]) => {
-    const bg = THEME_COLORS[val];
-    const fg = THEME_TEXT_COLORS[val];
-    const style = bg && fg ? ` style="background-color:${bg};color:${fg};"` : '';
-    return `<option value="${val}"${val === cur ? ' selected' : ''}${style}>${label}</option>`;
-  }).join('');
-  const curStyle = themeSelectStyle(cur);
-  return `<select class="ss-theme-select" id="${id}" style="${curStyle}">${opts}</select>`;
-}
-
-// Inline style applied to the closed <select> itself so it previews the
-// currently-chosen theme, not just its (browser-dependent) open option list.
-function themeSelectStyle(themeName) {
-  const bg = THEME_COLORS[themeName];
-  const fg = THEME_TEXT_COLORS[themeName];
-  return bg && fg ? `background-color:${bg};color:${fg};` : '';
-}
-
 function counter(downId, displayId, upId, val) {
   return `<div class="reader-seg">
     <button class="reader-seg-btn" id="${downId}" type="button">&minus;</button>
@@ -306,7 +285,7 @@ function generalTabHTML(p) {
   const hasBg = !!localStorage.getItem(BG_IMAGE_STORAGE_KEY);
   return [
     section(t('sec.appearance')),
-    row(t('lbl.theme'), themeSelect('ss-gen-theme', [
+    row(t('lbl.theme'), renderThemePickerHTML('ss-gen-theme', [
       ['dark', t('theme.dark')], ['sepia', t('theme.sepia')], ['light', t('theme.light')], ['oled', t('theme.oled')],
       ['terminal', t('theme.terminal')], ['nebula', t('theme.nebula')], ['forest', t('theme.forest')],
       ['ember', t('theme.ember')], ['nord', t('theme.nord')],
@@ -339,15 +318,10 @@ function generalTabHTML(p) {
 }
 
 function wireGeneralTab(prefs, liveApply) {
-  const themeSel = byId('ss-gen-theme');
-  if (themeSel) {
-    themeSel.addEventListener('change', () => {
-      const val = themeSel.value;
-      themeSel.setAttribute('style', themeSelectStyle(val));
-      prefs.data.theme = val; prefs.save();
-      if (liveApply) liveApply('theme', val);
-    });
-  }
+  const themePickerHandle = mountThemePicker(byId('ss-gen-theme'), (val) => {
+    prefs.data.theme = val; prefs.save();
+    if (liveApply) liveApply('theme', val);
+  });
 
   const fileInput = byId('ss-bg-file');
   const clearBtn  = byId('ss-bgClear');
@@ -417,6 +391,8 @@ function wireGeneralTab(prefs, liveApply) {
     prefs.data.textOutline = val; prefs.save();
     if (liveApply) liveApply('textOutline', val);
   }, true);
+
+  return themePickerHandle;
 }
 
 // ── Read tab ─────────────────────────────────────────────────────────────────
