@@ -38,6 +38,12 @@ export class ReaderState {
     // current anchor's paragraph. See reader-app setGlueBlock().
     this._glueBlockEl = null;
 
+    // Active top-line anchor: the mid-paragraph column-break surgery applied by
+    // setLineAnchor() (wrapper element + split text node + repatched word refs),
+    // or null. Reversed by clearLineAnchor() before the next anchor is placed. See
+    // reader-app setLineAnchor().
+    this._lineAnchor = null;
+
     // Whole-book page counts (windowed mode only). Measured lazily by PageCounter
     // during idle time and cached in localStorage keyed by layout signature so
     // the exact numbers are available instantly on subsequent loads with the same

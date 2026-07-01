@@ -186,8 +186,17 @@ export class PaginationEngine {
     // short — the error grows with the jump distance, exactly the bug class
     // layoutScale() documents for pageOfWord.
     const scale = layoutScale(els.content);
+    // Land the word flush at the TOP of the readable content area — just inside
+    // the viewport's top padding (safe-area inset + reading margin) — rather than a
+    // fixed 20px below the border. This glues the anchor line to the top the way a
+    // paginated page top does, so a paged→scroll switch (and every bookmark/TOC/
+    // restore seek) keeps the top line at the top instead of leaving the previous
+    // line peeking in, and without drifting under the status bar on safe-area
+    // devices. getComputedStyle().paddingTop is the used value in unscaled CSS px
+    // (transforms don't affect it), matching scrollTop's units.
+    const padTop = parseFloat(getComputedStyle(els.viewport).paddingTop) || 0;
     els.viewport.scrollTop +=
-      (rect.top - els.viewport.getBoundingClientRect().top) / scale - 20;
+      (rect.top - els.viewport.getBoundingClientRect().top) / scale - padTop;
   }
 
   goTo(p, animate) {
