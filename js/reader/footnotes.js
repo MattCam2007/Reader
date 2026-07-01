@@ -32,6 +32,16 @@ export class FootnoteManager {
     if (target) this.goToPageFn(target);
   }
 
+  // Peek a note popover for an anchor element without committing a tap.
+  // Returns true if the anchor resolves to a note ref and the popover was shown.
+  peekAt(anchor) {
+    if (!this._isNoteRef(anchor)) return false;
+    const target = this._findTarget(anchor);
+    if (!target) return false;
+    this._show(anchor, target);
+    return true;
+  }
+
   dismiss() {
     if (!this._active) return;
     this._active.backdrop.remove();

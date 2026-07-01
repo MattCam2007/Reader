@@ -52,6 +52,8 @@ export const REFINE_HIGH_MATCH_THRESHOLD = 0.8;
 export const SAVE_DEBOUNCE_MS = 500;
 export const RESIZE_DEBOUNCE_MS = 150;
 export const SELECTION_DEBOUNCE_MS = 200;
+// S Pen hover settle delay — preview shows after this many ms of pen stillness.
+export const HOVER_SETTLE_MS = 1500;
 
 // EPUB extraction
 export const RICH_INLINE = true;
@@ -111,6 +113,12 @@ export const DEFAULT_PREFS = {
   // Stylus: when false (default) a pen never turns the page — it selects words
   // instead. When true, a pen behaves like a finger (swipe/tap to navigate).
   penTurnsPage: false,
+  // S Pen hover preview (Air View): shows definition/footnote on hover, no tap needed.
+  penHover: true,
+  // S Pen pressure highlighting: maps tip pressure to highlight weight (light/medium/heavy).
+  penPressure: true,
+  // S Pen hover delay in ms: how long the pen must be still before the preview fires.
+  penHoverDelay: 1500,
 };
 
 // Declarative settings wiring (Phase 3: DRY)
@@ -124,6 +132,9 @@ export const SETTINGS = [
   { seg: "alignSeg",     attr: "align",   pref: "align",        repaginate: true  },
   { seg: "selectionSeg", attr: "sel",     pref: "selection",    repaginate: false, transform: v => v === "true" },
   { seg: "penSeg",       attr: "pen",     pref: "penTurnsPage", repaginate: false, transform: v => v === "true" },
+  { seg: "penHoverSeg",    attr: "penhover",    pref: "penHover",    repaginate: false, transform: v => v === "true" },
+  { seg: "penPressureSeg",  attr: "penpressure",  pref: "penPressure",  repaginate: false, transform: v => v === "true" },
+  { seg: "penHoverDelaySeg", attr: "penhoverdelay", pref: "penHoverDelay", repaginate: false, transform: v => parseInt(v, 10) },
   { seg: "pageAnimSeg",  attr: "anim",    pref: "pageAnim",     repaginate: false },
   { seg: "layoutSeg",    attr: "layout",  pref: "layout",       repaginate: true  },
   { seg: "columnsSeg",   attr: "cols",    pref: "columns",      repaginate: true  },

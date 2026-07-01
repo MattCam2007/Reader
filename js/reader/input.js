@@ -6,6 +6,8 @@ import {
 import * as perf from '../core/perf.js';
 import { isSettingsScreenOpen } from '../settings/settings-screen.js';
 import { wordAtPoint } from '../model/geometry.js';
+import { isHover } from './hover-preview.js';
+import { pressureToWeight } from './pen-signals.js';
 
 function pinchDist(touches) {
   const dx = touches[1].clientX - touches[0].clientX;
@@ -62,6 +64,7 @@ export class InputHandler {
     this._penStartY = 0;
     this._penStartT = 0;
     this._penMoved = false;
+    this._penMaxPressure = 0; // peak pressure seen during current stroke (for weight mapping)
 
     // Fix zoom transform anchor at the top-left of contentClip so all math uses
     // a consistent origin. offsetLeft/Top give the natural (untransformed) position.
@@ -235,6 +238,7 @@ export class InputHandler {
     // _penActive here makes the touch* handlers above bail for this contact.
     viewport.addEventListener("pointerdown", (e) => {
       if (e.pointerType !== "pen") return;
+      this.callbacks.penHoverEnd?.();   // pen tip landing → dismiss any hover card
       this._penActive = true;
       this._penNavigating = this._penTurnsPage();
       this._penAnchorWord = -1;
@@ -269,6 +273,7 @@ export class InputHandler {
       e.preventDefault();
       this._penFocusWord = -1;
       this._penAnchorWord = this._wordAtPoint(e.clientX, e.clientY);
+      this._penMaxPressure = e.pressure || 0;
     }, { signal });
 
     viewport.addEventListener("pointermove", (e) => {
@@ -301,12 +306,14 @@ export class InputHandler {
       if (!this._penMoved && Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
       this._penMoved = true;
       e.preventDefault();
+      this._penMaxPressure = Math.max(this._penMaxPressure, e.pressure || 0);
       if (this._penAnchorWord < 0) this._penAnchorWord = this._wordAtPoint(e.clientX, e.clientY);
       const focus = this._wordAtPoint(e.clientX, e.clientY);
       if (this._penAnchorWord < 0 || focus < 0) return;
       this._penFocusWord = focus;
       // Paint while dragging; defer the action bar until the pen lifts.
-      this.callbacks.penSelect(this._penAnchorWord, focus, false);
+      const weight = this.state._prefs?.data?.penPressure ? pressureToWeight(this._penMaxPressure) : 'medium';
+      this.callbacks.penSelect(this._penAnchorWord, focus, false, weight);
     }, { passive: false, signal });
 
     viewport.addEventListener("pointerup", (e) => {
@@ -343,7 +350,8 @@ export class InputHandler {
         // Drag finished → commit the selection and surface the action bar.
         const focus = this._penFocusWord >= 0 ? this._penFocusWord : this._wordAtPoint(e.clientX, e.clientY);
         if (this._penAnchorWord >= 0 && focus >= 0) {
-          this.callbacks.penSelect(this._penAnchorWord, focus, true);
+          const weight = this.state._prefs?.data?.penPressure ? pressureToWeight(this._penMaxPressure) : 'medium';
+          this.callbacks.penSelect(this._penAnchorWord, focus, true, weight);
         } else {
           this.callbacks.penClearSelection();
         }
@@ -354,12 +362,13 @@ export class InputHandler {
           return;
         }
         const wi = this._penAnchorWord >= 0 ? this._penAnchorWord : this._wordAtPoint(e.clientX, e.clientY);
-        if (wi >= 0) this.callbacks.penSelect(wi, wi, true);
+        if (wi >= 0) this.callbacks.penSelect(wi, wi, true, 'medium');
         else this.callbacks.penClearSelection();
       }
       this._penAnchorWord = -1;
       this._penFocusWord = -1;
       this._penMoved = false;
+      this._penMaxPressure = 0;
     }, { signal });
 
     viewport.addEventListener("pointercancel", (e) => {
@@ -372,6 +381,22 @@ export class InputHandler {
       this._penAnchorWord = -1;
       this._penFocusWord = -1;
       this._penMoved = false;
+      this._penMaxPressure = 0;
+    }, { signal });
+
+    // ── S Pen hover (Air View) ─────────────────────────────────────────────
+    // Separate listener: hover has buttons===0 and must NOT set _penActive or
+    // call preventDefault — it is a purely passive observation.
+    viewport.addEventListener("pointermove", (e) => {
+      if (e.pointerType !== "pen") return;
+      if (this._penActive) return;   // a contact is in progress — not a hover
+      if (isHover(e.pointerType, e.buttons, e.pressure)) {
+        this.callbacks.penHoverMove?.(e.clientX, e.clientY);
+      }
+    }, { passive: true, signal });
+
+    viewport.addEventListener("pointerleave", (e) => {
+      if (e.pointerType === "pen") this.callbacks.penHoverEnd?.();
     }, { signal });
 
     viewport.addEventListener("click", (e) => {
