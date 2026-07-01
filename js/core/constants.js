@@ -28,6 +28,20 @@ export const THEME_COLORS = {
 // All theme class names (used for bulk body class removal)
 export const ALL_THEME_NAMES = Object.keys(THEME_COLORS);
 
+// Foreground (text) colors per theme — paired with THEME_COLORS backgrounds to
+// style theme-selector dropdown options so each entry previews its theme.
+export const THEME_TEXT_COLORS = {
+  dark:     "#e8e8e8",
+  sepia:    "#5b4636",
+  light:    "#1f1f1f",
+  oled:     "#cfcfcf",
+  terminal: "#39d353",
+  nebula:   "#e2cefc",
+  forest:   "#c4dac7",
+  ember:    "#f0b95a",
+  nord:     "#d4e0f0",
+};
+
 // Swipe / tap thresholds
 export const SWIPE_THRESHOLD_MAX_PX = 80;
 export const SWIPE_THRESHOLD_VP_FRACTION = 0.18;

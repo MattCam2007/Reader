@@ -4,6 +4,7 @@ import { TTS_DEFAULTS } from '../tts/constants.js';
 import { PrefsManager } from '../core/prefs.js';
 import { createPicker } from '../shared/picker.js';
 import { renderFontPickerHTML, mountFontPicker } from '../shared/font-picker.js';
+import { renderThemePickerHTML, mountThemePicker } from '../shared/theme-picker.js';
 import { BG_IMAGE_STORAGE_KEY, applyBgSettings, clearBgImage } from '../base-reader-app.js';
 import { dictionaries, languageName } from '../core/dictionary.js';
 import { t, getLang, setLang, availableLanguages } from '../core/i18n.js';
@@ -139,10 +140,12 @@ export function openSettingsScreen(config = {}) {
 
   let rsvpPickers   = null;
   let fontPickerHandle = null;
+  let themePickerHandle = null;
 
   function destroyTabHandles() {
     if (rsvpPickers) { rsvpPickers.forEach(p => p && p.destroy && p.destroy()); rsvpPickers = null; }
     if (fontPickerHandle) { fontPickerHandle.destroy(); fontPickerHandle = null; }
+    if (themePickerHandle) { themePickerHandle.destroy(); themePickerHandle = null; }
   }
 
   function showTab(tab) {
@@ -159,7 +162,7 @@ export function openSettingsScreen(config = {}) {
 
     if (tab === 'general') {
       body.innerHTML = generalTabHTML(generalPrefs.data);
-      wireGeneralTab(generalPrefs, onGeneralChange);
+      themePickerHandle = wireGeneralTab(generalPrefs, onGeneralChange);
     } else if (tab === 'read') {
       body.innerHTML = readTabHTML(readerPrefs.data);
       fontPickerHandle = wireReadTab(readerPrefs, currentMode === 'read' ? onReaderChange : null);
@@ -282,7 +285,7 @@ function generalTabHTML(p) {
   const hasBg = !!localStorage.getItem(BG_IMAGE_STORAGE_KEY);
   return [
     section(t('sec.appearance')),
-    row(t('lbl.theme'), seg('ss-gen-theme', 'data-theme', [
+    row(t('lbl.theme'), renderThemePickerHTML('ss-gen-theme', [
       ['dark', t('theme.dark')], ['sepia', t('theme.sepia')], ['light', t('theme.light')], ['oled', t('theme.oled')],
       ['terminal', t('theme.terminal')], ['nebula', t('theme.nebula')], ['forest', t('theme.forest')],
       ['ember', t('theme.ember')], ['nord', t('theme.nord')],
@@ -315,10 +318,10 @@ function generalTabHTML(p) {
 }
 
 function wireGeneralTab(prefs, liveApply) {
-  wireSeg('ss-gen-theme', 'data-theme', (val) => {
+  const themePickerHandle = mountThemePicker(byId('ss-gen-theme'), (val) => {
     prefs.data.theme = val; prefs.save();
     if (liveApply) liveApply('theme', val);
-  }, true);
+  });
 
   const fileInput = byId('ss-bg-file');
   const clearBtn  = byId('ss-bgClear');
@@ -388,6 +391,8 @@ function wireGeneralTab(prefs, liveApply) {
     prefs.data.textOutline = val; prefs.save();
     if (liveApply) liveApply('textOutline', val);
   }, true);
+
+  return themePickerHandle;
 }
 
 // ── Read tab ─────────────────────────────────────────────────────────────────

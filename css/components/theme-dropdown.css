@@ -1,0 +1,96 @@
+/* Custom theme picker — shows each option in its own theme's colors, mirroring
+   the font picker (font-dropdown.css) which shows each option in its own
+   typeface. Background/text colors are set inline per-theme in JS
+   (js/shared/theme-picker.js); this file only owns layout/chrome. */
+
+.theme-picker {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.theme-picker-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1rem;
+  min-height: 44px;
+  min-width: 9rem;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.theme-picker-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-picker-chevron {
+  flex-shrink: 0;
+  color: currentColor;
+  opacity: 0.65;
+  transition: transform 150ms;
+}
+
+.theme-picker-btn[aria-expanded="true"] .theme-picker-chevron {
+  transform: rotate(180deg);
+}
+
+/* Panel is placed via JS with position:fixed so it clears any overflow:hidden parent */
+.theme-picker-panel {
+  position: fixed;
+  z-index: 500;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-mid);
+  border-radius: 10px;
+  padding: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  -webkit-overflow-scrolling: touch;
+}
+/* display is unset (not "none") when [hidden] is absent so JS's
+   removeAttribute('hidden') reveals the panel; setting display
+   unconditionally here would out-cascade the UA [hidden] rule. */
+.theme-picker-panel:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.theme-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid rgba(128, 128, 128, 0.25);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9em;
+  font-weight: 600;
+  text-align: left;
+  border-radius: 6px;
+  line-height: 1.25;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.theme-picker-item:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}
+
+.theme-picker-item--active {
+  border-color: currentColor;
+}
+
+.theme-picker-check {
+  flex-shrink: 0;
+}
