@@ -27,10 +27,12 @@ body:not(.chrome-hidden) .reader-viewport {
   transform: translateY(var(--vp-ty, 0px)) scale(var(--vp-scale, 1));
 }
 
+.reader-viewport.margin-none    { --reading-margin: 0; }
 .reader-viewport.margin-fine    { --reading-margin: 0.4rem; }
 .reader-viewport.margin-narrow  { --reading-margin: 1rem; }
 .reader-viewport.margin-normal  { --reading-margin: clamp(1.25rem, 6vw, 3rem); }
 .reader-viewport.margin-wide    { --reading-margin: clamp(2rem, 10vw, 5rem); }
+.reader-viewport.margin-wider   { --reading-margin: clamp(3rem, 15vw, 8rem); }
 
 .reader-content-clip {
   width: 100%;

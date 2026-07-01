@@ -408,7 +408,7 @@ function readTabHTML(p) {
     section(t('sec.typography')),
     row(t('lbl.textSize'), counter('ss-sizeDown', 'ss-sizeDisplay', 'ss-sizeUp', p.size)),
     row(t('lbl.typeface'), renderFontPickerHTML('ss-font', p.font)),
-    row(t('lbl.margins'), seg('ss-margin', 'data-margin', [['fine', t('opt.fine')],['narrow', t('opt.narrow')],['normal', t('opt.normal')],['wide', t('opt.wide')]], p.margin)),
+    row(t('lbl.margins'), seg('ss-margin', 'data-margin', [['none', t('opt.none')],['fine', t('opt.fine')],['narrow', t('opt.narrow')],['normal', t('opt.normal')],['wide', t('opt.wide')],['wider', t('opt.wider')]], p.margin)),
     row(t('lbl.lineSpacing'), counter('ss-lhDown', 'ss-lhDisplay', 'ss-lhUp', p.lineHeight.toFixed(1))),
     row(t('lbl.paragraphs'), seg('ss-para', 'data-para', [['indent', t('opt.indented')],['spaced', t('opt.spaced')],['both', t('opt.both')]], p.paraSpacing)),
     row(t('lbl.alignment'), seg('ss-align', 'data-align', [['justify', t('opt.justify')],['left', t('opt.left')]], p.align)),

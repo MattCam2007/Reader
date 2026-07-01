@@ -3,8 +3,8 @@ export { FONT_MAP, FONT_SERIF, FONT_SANS, FONT_MONO, FONT_DYSLEXIC } from './fon
 
 // Layout
 export const COLUMN_GAP = 40;
-export const MIN_SIZE = 14;
-export const MAX_SIZE = 30;
+export const MIN_SIZE = 10;
+export const MAX_SIZE = 48;
 
 // Windowed rendering only pays off on books big enough that laying out the whole
 // multi-column tree is paint-bound. Below this whitespace-word count (or with a
