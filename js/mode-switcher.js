@@ -2,6 +2,7 @@ import { readerTemplate } from './reader/template.js';
 import { rsvpTemplate } from './rsvp/template.js';
 import { ttsTemplate } from './tts/template.js';
 import { closeSettingsScreen } from './settings/settings-screen.js';
+import { smarthome } from './core/smarthome.js';
 import * as perf from './core/perf.js';
 import { acceptString } from './formats/registry.js';
 import './formats/index.js'; // ensure all adapters are registered
@@ -98,6 +99,10 @@ async function switchMode(targetMode, posInfo) {
   }
 
   currentMode = targetMode;
+
+  // Smart home: the initial boot just records the mode; a real switch emits.
+  if (fromMode === null) smarthome.setMode(targetMode);
+  else smarthome.modeSwitched(fromMode, targetMode);
 
   // Transfer book and position. Both modes speak the same canonical position
   // object (section href + word ordinal), so the handoff is word-exact rather

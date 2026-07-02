@@ -1,4 +1,5 @@
 import { safeSetItem } from './safe-storage.js';
+import { smarthome } from './smarthome.js';
 
 export const BOOKMARKS_KEY_PREFIX = 'reader:bookmarks:';
 const KEY_PREFIX = BOOKMARKS_KEY_PREFIX;
@@ -55,6 +56,7 @@ export class BookmarkManager {
     };
     this._items.push(item);
     this._save();
+    smarthome.bookmarkAdded(item);
     return item;
   }
 

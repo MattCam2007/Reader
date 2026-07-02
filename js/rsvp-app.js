@@ -20,6 +20,7 @@ import { TrainingManager } from './rsvp/training.js';
 import { createPicker } from './shared/picker.js';
 import { buildPosition, resolvePosition } from './core/position.js';
 import { validateBookSrcUrl } from './core/src-url.js';
+import { smarthome } from './core/smarthome.js';
 import * as perf from './core/perf.js';
 
 // Convert extractSections() output to the plain-text format the tokenizer expects.
@@ -194,10 +195,37 @@ export function init(options = {}) {
   });
   bus.on('renderCountdown', (num) => { display.renderCountdown(num); syncPicker(); });
   bus.on('updateSeek', () => { display.updateSeek(); syncPicker(); });
-  bus.on('playStart', () => { stats.onPlayStart(); syncPicker(); });
-  bus.on('playStop', () => { stats.onPlayStop(); });
+  bus.on('playStart', () => {
+    stats.onPlayStart();
+    syncPicker();
+    smarthome.playbackStarted({
+      playbackMode: 'rsvp',
+      wpm: prefs.data.wpm,
+      chunkSize: prefs.data.chunkSize,
+    });
+  });
+  bus.on('playStop', () => {
+    stats.onPlayStop();
+    smarthome.positionTick(getCanonicalPosition());
+    smarthome.playbackStopped({
+      playbackMode: 'rsvp',
+      wpm: prefs.data.wpm,
+      sessionWords: stats.sessionWords,
+      sessionPlaySec: Math.round(stats.sessionPlayMs / 1000),
+      sessionAvgWpm: stats.sessionPlayMs > 2000
+        ? Math.round(stats.sessionWords / stats.sessionPlayMs * 60000) : null,
+    });
+  });
+  // Continuous playback never pauses, so chapter/milestone derivation would
+  // starve waiting for a playStop tick — feed it a position every few seconds.
+  let _shTickMs = 0;
   bus.on('wordsRead', (count) => {
     stats.addWords(count);
+    const now = Date.now();
+    if (now - _shTickMs > 5000) {
+      _shTickMs = now;
+      smarthome.positionTick(getCanonicalPosition());
+    }
     training.onWordsRead(count, (inc) => {
       const newWpm = Math.min(prefs.data.wpm + inc, prefs.data.trainingCeiling);
       if (newWpm > prefs.data.wpm) {
@@ -686,6 +714,23 @@ export function init(options = {}) {
       const bookTitleEl = document.getElementById("bookTitle");
       if (bookTitleEl) bookTitleEl.textContent = session.title || session.bookId;
       if (onBookLoaded) onBookLoaded({ session });
+      try {
+        smarthome.bookOpened({
+          bookId: state.bookId,
+          title: session.title || state.bookId,
+          fileName: session.fileName,
+          format: session.format,
+          isSample: session.isSample,
+          totalWords: state.totalWords,
+          chapters: rsvpSections().map((s, i) => ({
+            href: s.href,
+            label: (state.chapters[i] && state.chapters[i].title) || '',
+            wordStart: s.wordStart,
+            wordCount: s.wordCount,
+          })),
+          position: getCanonicalPosition(),
+        });
+      } catch (e) { console.warn('smarthome:bookOpened', e); }
     } catch (err) {
       showLoadError(err);
     }
@@ -784,6 +829,7 @@ export function init(options = {}) {
   function savePosition() {
     if (!state.totalWords) return;
     shellSavePosition(state.bookId, getCanonicalPosition);
+    smarthome.positionTick(getCanonicalPosition());
   }
 
   function restorePosition() {

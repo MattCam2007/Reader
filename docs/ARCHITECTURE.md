@@ -60,6 +60,7 @@ Reader/
 │   │   ├── state.js             ReaderState — paginated reader's state container
 │   │   ├── position.js          Canonical cross-mode position (build/resolve/store)
 │   │   ├── bookmarks.js         BookmarkManager — localStorage-backed bookmarks
+│   │   ├── smarthome.js         Smart-home webhook bridge (events → Home Assistant)
 │   │   ├── sw-register.js       Service-worker registration + update toast
 │   │   └── storage.js           StorageManager — position save/restore
 │   │
@@ -357,6 +358,7 @@ Preferences are split by scope:
 | Reader | `reader:prefs` | Font, size, margins, alignment, layout, etc. |
 | RSVP | `rsvp:prefs` | WPM, chunk size, font, training settings |
 | TTS | `tts:prefs` | Voice, rate, highlight mode |
+| Smart home | `smarthome:prefs` | Webhook URL, delivery format, per-event toggles (see [SMART-HOME.md](SMART-HOME.md)) |
 
 Each scope is managed by a `PrefsManager` instance. `PrefsManager` extends `EventBus`, so modules can subscribe to individual key changes:
 

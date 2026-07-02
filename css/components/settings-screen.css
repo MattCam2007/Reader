@@ -378,3 +378,64 @@
   margin: 0.9rem 0 0.1rem;
 }
 .ss-dict-lang:first-child { margin-top: 0; }
+
+/* ── Smart Home tab ─────────────────────────────────────────────────────── */
+.ss-sh-url-row {
+  padding: 0.7rem 1.15rem 0.85rem;
+  border-bottom: 1px solid var(--border-faint);
+}
+.ss-sh-url-label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.45rem;
+}
+.ss-text-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.6rem 0.75rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--fg);
+  background: var(--control-bg);
+  border: 1px solid var(--border-mid);
+  border-radius: 0.55rem;
+  outline: none;
+}
+.ss-text-input:focus { border-color: var(--accent); }
+.ss-text-input::placeholder { color: var(--muted); opacity: 0.6; }
+.ss-sh-hint {
+  padding: 0.55rem 1.15rem 0.75rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  border-bottom: 1px solid var(--border-faint);
+}
+.ss-sh-hint code { font-size: 0.7rem; opacity: 0.9; }
+.ss-sh-hint--warn {
+  color: var(--accent);
+  border-bottom: none;
+  padding: 0.55rem 0 0;
+}
+.ss-sh-foot { border-bottom: none; }
+.ss-sh-test-row { align-items: center; border-bottom: 1px solid var(--border-faint); }
+.ss-sh-status { font-size: 0.75rem; color: var(--muted); line-height: 1.4; }
+.ss-sh-status[data-state="ok"] { color: var(--accent); }
+.ss-sh-status[data-state="fail"] { color: #e74c3c; }
+.ss-sh-group {
+  padding: 0.9rem 1.15rem 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.ss-sh-ev-desc {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 0.15rem;
+}

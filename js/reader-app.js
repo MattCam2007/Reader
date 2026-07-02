@@ -29,6 +29,7 @@ import { FootnoteManager } from './reader/footnotes.js';
 import { buildSample } from '../fixtures/sample.js';
 import { runSelftest } from './test/selftest.js';
 import { trapFocus } from './reader/focus-trap.js';
+import { smarthome } from './core/smarthome.js';
 import * as perf from './core/perf.js';
 
 export function init(options = {}) {
@@ -164,6 +165,9 @@ export function init(options = {}) {
       // stable moment — what relayout() restores after a viewport resize reflows
       // the DOM out from under a now-stale page number. See relayout().
       if (pos && !state.isScrollMode) state._lastPos = pos;
+      // Smart home rides the debounced save: the accurate position feeds
+      // chapter/milestone/finished derivation at zero cost to the turn path.
+      if (pos) smarthome.positionTick(pos);
       return pos;
     });
   }
@@ -175,6 +179,17 @@ export function init(options = {}) {
     if (state.windowed) updateWindowedProgress();
     else chrome.updateProgress();
     chrome.updateBookmarkMarkers(bookmarkManager.getAll(), navigateToBookmark, bookmarkManager.generation);
+    // Smart home page.turned: cheap fields only (page number + a label lookup);
+    // the engine dedupes repeats of the same page and applies the throttle.
+    if (!state.isScrollMode && state.bookId && state.docModelBuilt) {
+      smarthome.pageTurned({
+        page: state.page,
+        total: state.total,
+        chapterLabel: state.windowed
+          ? ((state.sectionLabels && state.sectionLabels[state.curChap]) || '')
+          : chrome.currentChapterLabel(),
+      });
+    }
   }
 
   // Cheap global progress for windowed mode: chapter index + page-within-chapter,
@@ -1009,6 +1024,27 @@ export function init(options = {}) {
         finalizeLayout(session.toc, pos);
       } catch (e) { console.warn("reader:layout", e); }
       clearOverlay();
+      // Smart home: announce the book with its chapter word-table so chapter /
+      // milestone / finished events can be derived from positions. A mode
+      // switch re-announces the same book — the engine treats that as a
+      // context refresh, not a new open.
+      try {
+        smarthome.bookOpened({
+          bookId: state.bookId,
+          title: session.title || state.bookId,
+          fileName: session.fileName,
+          format: session.format,
+          isSample: session.isSample,
+          totalWords: totalWsWords(),
+          chapters: readerSections().map((s, i) => ({
+            href: s.href,
+            label: (state.sectionLabels && state.sectionLabels[i]) || '',
+            wordStart: s.wordStart,
+            wordCount: s.wordCount,
+          })),
+          position: getCanonicalPosition(),
+        });
+      } catch (e) { console.warn('smarthome:bookOpened', e); }
       if (urlParams.get("selftest") === "1") {
         requestAnimationFrame(() => runSelftest(state, selftestHooks));
       }
@@ -1496,6 +1532,7 @@ export function init(options = {}) {
     teardown() {
       closeSettingsScreen();
       storage.flushPos(getCanonicalPosition);
+      try { smarthome.flush(); } catch (_) {}
       pageCounter.destroy();
       // Image blob URLs are owned by the BookSession (shared across modes), not
       // by the mode — the mode-switcher disposes them when a new book loads.

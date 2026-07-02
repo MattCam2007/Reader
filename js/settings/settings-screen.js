@@ -8,6 +8,7 @@ import { renderThemePickerHTML, mountThemePicker } from '../shared/theme-picker.
 import { BG_IMAGE_STORAGE_KEY, applyBgSettings, clearBgImage } from '../base-reader-app.js';
 import { dictionaries, languageName } from '../core/dictionary.js';
 import { t, getLang, setLang, availableLanguages } from '../core/i18n.js';
+import { smarthome, EVENT_CATALOG, EVENT_GROUPS, validWebhookUrl } from '../core/smarthome.js';
 
 let _screen = null;
 let _cleanup = null;
@@ -132,6 +133,7 @@ export function openSettingsScreen(config = {}) {
       <button class="sscreen-tab" role="tab" data-tab="rsvp" type="button">${t('tab.speed')}</button>
       <button class="sscreen-tab" role="tab" data-tab="tts" type="button">${t('tab.listen')}</button>
       <button class="sscreen-tab" role="tab" data-tab="dict" type="button">${t('tab.words')}</button>
+      <button class="sscreen-tab" role="tab" data-tab="smarthome" type="button">${t('tab.smartHome')}</button>
     </nav>
     <div class="sscreen-body" id="sscreenBody" role="tabpanel"></div>`;
 
@@ -177,6 +179,9 @@ export function openSettingsScreen(config = {}) {
     } else if (tab === 'dict') {
       body.innerHTML = `${section(t('sec.offlineDictionaries'))}<div class="ss-dict" id="ssDict"><div class="ss-dict-loading">${t('msg.loading')}</div></div>`;
       wireDictTab(byId('ssDict'));
+    } else if (tab === 'smarthome') {
+      body.innerHTML = smartHomeTabHTML(smarthome.getConfig());
+      wireSmartHomeTab();
     }
   }
 
@@ -859,6 +864,129 @@ async function wireDictTab(root) {
     }
   });
   syncDownloadAll();
+}
+
+// ── Smart Home tab ───────────────────────────────────────────────────────────
+// Rendered entirely from the smarthome config + EVENT_CATALOG: adding an event
+// to the catalog makes its toggle appear here with no UI change. See
+// docs/SMART-HOME.md for the event/payload reference.
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function smartHomeTabHTML(cfg) {
+  const parts = [
+    section(t('sh.sec.connection')),
+    toggleRow('ss-sh-enabled', t('sh.lbl.enabled'), !!cfg.enabled),
+    `<div class="ss-sh-url-row">
+      <label class="ss-sh-url-label" for="ss-sh-url">${t('sh.lbl.url')}</label>
+      <input type="url" id="ss-sh-url" class="ss-text-input" inputmode="url" autocomplete="off"
+        spellcheck="false" placeholder="${t('sh.placeholder.url')}" value="${escapeHtml(cfg.url || '')}">
+      <div class="ss-sh-hint ss-sh-hint--warn" id="ss-sh-mixedWarn" hidden>${t('sh.hint.mixedContent')}</div>
+    </div>`,
+    row(t('sh.lbl.format'), seg('ss-sh-format', 'data-shformat', [
+      ['json', t('sh.opt.json')], ['form', t('sh.opt.form')],
+    ], cfg.format || 'json')),
+    `<div class="ss-sh-hint">${t('sh.hint.format')}</div>`,
+    `<div class="ss-actions ss-sh-test-row">
+      <button class="ui-chip" id="ss-sh-test" type="button">${t('sh.btn.sendTest')}</button>
+      <span class="ss-sh-status" id="ss-sh-status" role="status"></span>
+    </div>`,
+
+    section(t('sh.sec.payload')),
+    toggleRow('ss-sh-device', t('sh.lbl.includeDevice'), cfg.includeDevice !== false),
+    toggleRow('ss-sh-settings', t('sh.lbl.includeSettings'), cfg.includeSettings !== false),
+    row(t('sh.lbl.pageThrottle'), seg('ss-sh-throttle', 'data-shthrottle', [
+      ['0', t('sh.opt.everyTurn')], ['5', '5s'], ['15', '15s'], ['60', '60s'],
+    ], String(cfg.pageTurnThrottleSec || 0))),
+
+    section(t('sh.sec.events')),
+  ];
+
+  for (const grp of EVENT_GROUPS) {
+    const evs = EVENT_CATALOG.filter(e => e.group === grp.id);
+    if (!evs.length) continue;
+    parts.push(`<div class="ss-sh-group">${t('sh.grp.' + grp.id)}</div>`);
+    for (const ev of evs) {
+      const on = (cfg.events || {})[ev.id] !== false;
+      const inputId = 'ss-sh-ev-' + ev.id.replace(/\./g, '-');
+      parts.push(`<label class="ss-toggle-row ss-sh-ev" for="${inputId}">
+        <span class="ss-toggle-label">${t('sh.ev.' + ev.id)}
+          <span class="ss-sh-ev-desc">${t('sh.evd.' + ev.id)}</span>
+        </span>
+        <span class="ss-switch" aria-hidden="true">
+          <input type="checkbox" id="${inputId}" data-shev="${ev.id}"${on ? ' checked' : ''}>
+          <span class="ss-switch-track"></span>
+        </span>
+      </label>`);
+    }
+  }
+
+  parts.push(`<div class="ss-sh-hint ss-sh-foot">${t('sh.hint.docs')}</div>`);
+  return parts.join('');
+}
+
+function wireSmartHomeTab() {
+  bindToggle('ss-sh-enabled', (val) => smarthome.setConfig('enabled', val));
+  bindToggle('ss-sh-device', (val) => smarthome.setConfig('includeDevice', val));
+  bindToggle('ss-sh-settings', (val) => smarthome.setConfig('includeSettings', val));
+
+  const urlInput = byId('ss-sh-url');
+  const mixedWarn = byId('ss-sh-mixedWarn');
+  const syncMixedWarn = () => {
+    if (!mixedWarn || !urlInput) return;
+    // An https page cannot POST to an http webhook (mixed content) — surface
+    // it here instead of letting events silently vanish.
+    const insecureTarget = /^http:\/\//i.test(urlInput.value.trim());
+    mixedWarn.hidden = !(location.protocol === 'https:' && insecureTarget);
+  };
+  if (urlInput) {
+    urlInput.addEventListener('change', () => {
+      smarthome.setConfig('url', urlInput.value);
+      syncMixedWarn();
+    });
+    urlInput.addEventListener('input', syncMixedWarn);
+    syncMixedWarn();
+  }
+
+  wireSeg('ss-sh-format', 'data-shformat', (val) => smarthome.setConfig('format', val));
+  wireSeg('ss-sh-throttle', 'data-shthrottle', (val) =>
+    smarthome.setConfig('pageTurnThrottleSec', parseInt(val, 10) || 0));
+
+  const body = byId('sscreenBody');
+  if (body) {
+    body.addEventListener('change', (e) => {
+      const cb = e.target.closest('input[data-shev]');
+      if (cb) smarthome.setEventEnabled(cb.dataset.shev, cb.checked);
+    });
+  }
+
+  const testBtn = byId('ss-sh-test');
+  const statusEl = byId('ss-sh-status');
+  if (testBtn) {
+    testBtn.addEventListener('click', async () => {
+      // Commit a URL the user typed but hasn't blurred yet.
+      if (urlInput) smarthome.setConfig('url', urlInput.value);
+      if (!validWebhookUrl(smarthome.getConfig().url)) {
+        if (statusEl) { statusEl.textContent = t('sh.status.invalidUrl'); statusEl.dataset.state = 'fail'; }
+        return;
+      }
+      testBtn.disabled = true;
+      if (statusEl) { statusEl.textContent = t('sh.status.sending'); statusEl.dataset.state = ''; }
+      const res = await smarthome.sendTest();
+      testBtn.disabled = false;
+      if (!statusEl) return;
+      if (res.ok && res.detail === 'opaque') {
+        statusEl.textContent = t('sh.status.okOpaque'); statusEl.dataset.state = 'ok';
+      } else if (res.ok) {
+        statusEl.textContent = t('sh.status.ok', { status: res.detail.replace('http-', '') }); statusEl.dataset.state = 'ok';
+      } else {
+        statusEl.textContent = t('sh.status.fail', { detail: res.detail }); statusEl.dataset.state = 'fail';
+      }
+    });
+  }
 }
 
 // ── Shared wiring helpers ────────────────────────────────────────────────────

@@ -197,6 +197,7 @@ The app reads the book aloud using your device's built-in speech synthesis, high
 - **Bookmarks**: save bookmarks with optional notes, backed by localStorage
 - **OS preferences**: follows `prefers-color-scheme` and `prefers-reduced-motion` by default
 - **Mobile-first**: safe-area insets, touch-friendly controls, swipe gestures throughout
+- **Smart home integration**: push rich reading events (book/chapter/page start & finish, progress milestones, playback, theme changes) to a webhook — built for Home Assistant automations. Configure in Settings → Home; see [`docs/SMART-HOME.md`](docs/SMART-HOME.md)
 
 ---
 
@@ -292,6 +293,7 @@ See the [`docs/`](docs/) directory for full developer documentation:
 | [State & Storage](docs/STATE.md) | State structures, localStorage schema, locator system |
 | [CSS Architecture](docs/CSS.md) | Theme system, design tokens, component file breakdown |
 | [Input & Stylus](docs/INPUT.md) | Touch/pointer/pen layers, the pen branch, hardware signals, where stylus features attach |
+| [Smart Home](docs/SMART-HOME.md) | Webhook events for Home Assistant: payload schema, event reference, HA recipes, adding new events |
 | [Contributing](docs/CONTRIBUTING.md) | Dev loop and step-by-step procedures (add a pref, store, input behaviour, test) |
 | [Best Practices](docs/BEST-PRACTICES.md) | Invariants, reminders and hard-won learnings to read before changing core code |
 | [Testing](docs/TESTING.md) | The selftest harness; how to write unit and functional (gesture) tests |

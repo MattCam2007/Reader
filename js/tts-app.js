@@ -15,6 +15,7 @@ import { sentenceIndexForOrdinal } from './tts/sentences.js';
 import { openSettingsScreen, closeSettingsScreen, consumePendingSettingsTab } from './settings/settings-screen.js';
 import { buildPosition, resolvePosition } from './core/position.js';
 import { validateBookSrcUrl } from './core/src-url.js';
+import { smarthome } from './core/smarthome.js';
 import * as perf from './core/perf.js';
 
 export function init(options = {}) {
@@ -77,6 +78,7 @@ export function init(options = {}) {
   let isPlaying = false;
   let voices = [];
   let selectedVoice = null;
+  let _shTickMs = 0; // last smart-home position tick (sentence-end throttle)
 
   // ---------- Engine ----------
   const engine = new TtsEngine({
@@ -90,6 +92,13 @@ export function init(options = {}) {
     },
     onSentenceEnd(index) {
       currentSentenceIdx = index + 1;
+      // Feed the smart-home derivation while narration runs (throttled here so
+      // a stream of short sentences doesn't tick every second).
+      const now = Date.now();
+      if (now - _shTickMs > 5000) {
+        _shTickMs = now;
+        smarthome.positionTick(getCanonicalPosition());
+      }
     },
     onBoundary({ sentenceIndex, charIndex, charLength }) {
       if (prefs.data.highlightMode === 'word') {
@@ -99,6 +108,13 @@ export function init(options = {}) {
     onEnd() {
       setPlaying(false);
       highlighter.clearHighlight();
+      smarthome.positionTick(getCanonicalPosition());
+      smarthome.playbackStopped({
+        playbackMode: 'tts',
+        reason: 'end',
+        sentenceIndex: currentSentenceIdx,
+        sentenceCount: sentences.length,
+      });
     },
     onError(e) {
       console.warn('tts:speech-error', e);
@@ -375,19 +391,37 @@ export function init(options = {}) {
   // ---------- Speech control ----------
   function play() {
     if (!sentences.length) return;
+    const wasPlaying = isPlaying;
     if (engine.paused) {
       engine.resume();
       setPlaying(true);
-      return;
+    } else {
+      const texts = sentences.map(s => s.text);
+      engine.speakSentences(texts, currentSentenceIdx);
+      setPlaying(true);
     }
-    const texts = sentences.map(s => s.text);
-    engine.speakSentences(texts, currentSentenceIdx);
-    setPlaying(true);
+    if (!wasPlaying) {
+      smarthome.playbackStarted({
+        playbackMode: 'tts',
+        voice: selectedVoice ? selectedVoice.name : '',
+        rate: prefs.data.rate,
+        sentenceIndex: currentSentenceIdx,
+        sentenceCount: sentences.length,
+      });
+    }
   }
 
   function pause() {
     engine.pause();
     setPlaying(false);
+    smarthome.positionTick(getCanonicalPosition());
+    smarthome.playbackStopped({
+      playbackMode: 'tts',
+      voice: selectedVoice ? selectedVoice.name : '',
+      rate: prefs.data.rate,
+      sentenceIndex: currentSentenceIdx,
+      sentenceCount: sentences.length,
+    });
   }
 
   function playPause() {
@@ -601,6 +635,31 @@ export function init(options = {}) {
               (el) => seekToElementBlock(el),
               closePanels,
               (href) => resolveHref(href, els.content, sectionEls));
+
+            // Smart home: announce the book with a labelled chapter table.
+            // ttsSections carries hrefs; labels come from the nav TOC where a
+            // base filename matches (fragment entries are ignored — the word
+            // table is per spine file, like the other modes').
+            const tocLabels = new Map();
+            (session.toc || []).forEach(it => {
+              const file = (it.href || '').split('#')[0].split('/').pop();
+              if (file && !tocLabels.has(file)) tocLabels.set(file, (it.label || '').trim());
+            });
+            smarthome.bookOpened({
+              bookId,
+              title: session.title || bookId,
+              fileName: session.fileName,
+              format: session.format,
+              isSample: session.isSample,
+              totalWords,
+              chapters: ttsSections.map(s => ({
+                href: s.href,
+                label: tocLabels.get((s.href || '').split('/').pop()) || '',
+                wordStart: s.wordStart,
+                wordCount: s.wordCount,
+              })),
+              position: getCanonicalPosition(),
+            });
           } catch (e) { console.warn("tts:layout", e); }
           finally { resolve(); }
         });
@@ -631,6 +690,7 @@ export function init(options = {}) {
   function savePosition() {
     if (!sentences.length) return;
     shellSavePosition(bookId, getCanonicalPosition);
+    smarthome.positionTick(getCanonicalPosition());
   }
 
   function restorePosition() {

@@ -13,6 +13,7 @@
 
 import { THEME_COLORS, ALL_THEME_NAMES } from './core/constants.js';
 import { loadStoredPosition, saveStoredPosition } from './core/position.js';
+import { smarthome } from './core/smarthome.js';
 
 export const BG_IMAGE_STORAGE_KEY = 'general:bgImage';
 
@@ -29,9 +30,13 @@ export function setMetaThemeColor(name) {
 }
 
 // Apply a theme everywhere it shows: body class + browser-chrome meta color.
+// Every mode funnels theme changes through here, so it's also the single
+// smart-home hook point (themeChanged dedupes re-applies and skips the boot
+// application — only genuine changes emit an event).
 export function applyTheme(name) {
   applyThemeClass(name);
   setMetaThemeColor(name);
+  smarthome.themeChanged(name);
 }
 
 // First run only: with no stored general prefs, honour the OS light preference.

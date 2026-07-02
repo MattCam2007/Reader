@@ -26,6 +26,7 @@ import { magicBytes, startsWith, ZIP_MAGIC } from '../formats/detect.js';
 import { listAdapters, getAdapterById, selectAdapter, acceptString } from '../formats/registry.js';
 import { MAX_PDF_PAGES } from '../formats/pdf/pdf-adapter.js';
 import { DictionaryManager, languageName } from '../core/dictionary.js';
+import { SmartHomeClient, SMARTHOME_DEFAULTS, EVENT_CATALOG, validWebhookUrl } from '../core/smarthome.js';
 import '../formats/index.js'; // ensure adapters are registered for format tests
 
 export function runSelftest(state, hooks) {
@@ -925,6 +926,173 @@ export function runSelftest(state, hooks) {
     assert("dictionary", "languageName distinguishes region (es-MX ≠ es)", languageName("es-MX") !== languageName("es"));
     assert("dictionary", "languageName falls back to base name for unknown region (en-AU→English)", languageName("en-AU") === "English");
     assert("dictionary", "languageName falls back to 'Other' for undetermined", languageName("und") === "Other");
+  }
+
+  // --- core/smarthome: webhook event derivation ---
+  {
+    // Isolated client: injected clock + latch storage, prefs detached from
+    // localStorage (save stubbed), and _drain disabled so emitted envelopes
+    // stay in _queue for synchronous inspection. No network is ever touched.
+    let clock = 1_000_000;
+    const mkClient = (over) => {
+      const c = new SmartHomeClient({ send: () => ({ ok: true, status: 200 }), now: () => clock, storage: {} });
+      const events = {};
+      for (const ev of EVENT_CATALOG) events[ev.id] = true;
+      c.prefs.data = Object.assign({}, SMARTHOME_DEFAULTS, {
+        enabled: true, url: 'http://ha.local:8123/api/webhook/reader',
+        includeDevice: false, includeSettings: false, events,
+      }, over || {});
+      c.prefs.save = () => {};
+      c._drain = () => {};
+      return c;
+    };
+    const types = (c) => c._queue.map(p => p.event);
+    const last = (c) => c._queue[c._queue.length - 1];
+    const chapters = [
+      { href: 'c1', label: 'One',   wordStart: 0,   wordCount: 100 },
+      { href: 'c2', label: 'Two',   wordStart: 100, wordCount: 200 },
+      { href: 'c3', label: 'Three', wordStart: 300, wordCount: 100 },
+    ];
+    const openBook = (c, ord = 0) => c.bookOpened({
+      bookId: 'sh-test', title: 'SH Test', fileName: 't.epub', format: 'epub',
+      totalWords: 400, chapters, position: { ord, words: 400, f: ord / 399 },
+    });
+
+    assert('smarthome', 'validWebhookUrl accepts http/https',
+      !!validWebhookUrl('http://ha.local:8123/api/webhook/x') && !!validWebhookUrl('https://hooks.nabu.casa/abc'));
+    assert('smarthome', 'validWebhookUrl rejects other schemes and junk',
+      !validWebhookUrl('javascript:alert(1)') && !validWebhookUrl('ftp://x') && !validWebhookUrl('not a url') && !validWebhookUrl(''));
+
+    // Open at the start: session.start, book.opened, book.started, chapter.started.
+    let c = mkClient();
+    openBook(c, 0);
+    assert('smarthome', 'fresh open emits session/book/chapter starts',
+      JSON.stringify(types(c)) === JSON.stringify(['session.start', 'book.opened', 'book.started', 'chapter.started']));
+    assert('smarthome', 'book.opened knows it was not resumed', c._queue[1].data.resumed === false);
+    assert('smarthome', 'chapter.started carries the chapter label', last(c).data.chapter.label === 'One');
+
+    // Envelope shape.
+    const env = last(c);
+    assert('smarthome', 'envelope has ts/seq/app/session/book/position blocks',
+      typeof env.ts === 'string' && typeof env.seq === 'number' && env.app.name === 'Reader'
+      && env.session && env.book && env.book.chapterCount === 3 && env.position && env.position.totalWords === 400);
+    assert('smarthome', 'device/settings omitted when disabled',
+      env.device === undefined && env.settings === undefined);
+
+    // Re-announcing the same book (mode switch) is a context refresh, not a re-open.
+    c._queue.length = 0;
+    openBook(c, 0);
+    assert('smarthome', 'same-book re-open emits nothing', c._queue.length === 0);
+
+    // Mid-chapter leave: chapter.finished (not completed) + chapter.started.
+    c._queue.length = 0;
+    c.positionTick({ ord: 50, words: 400, f: 50 / 399 });
+    const noChapterYet = c._queue.every(p => !p.event.startsWith('chapter.'));
+    c.positionTick({ ord: 120, words: 400, f: 120 / 399 });
+    assert('smarthome', 'same-chapter movement emits no chapter events', noChapterYet);
+    const fin1 = c._queue.find(p => p.event === 'chapter.finished');
+    assert('smarthome', 'crossing into c2 finishes c1 (not completed at 50%)',
+      fin1 && fin1.data.completed === false && fin1.data.chapter.href === 'c1'
+      && c._queue.some(p => p.event === 'chapter.started' && p.data.chapter.href === 'c2'));
+    const miles = c._queue.filter(p => p.event === 'progress.milestone').map(p => p.data.milestone);
+    assert('smarthome', 'progress.milestones fire once each, in order (10 then 25)',
+      JSON.stringify(miles) === '[10,25]');
+
+    // Completed chapter: reach the end of c2 before crossing into c3.
+    c._queue.length = 0;
+    c.positionTick({ ord: 298, words: 400, f: 298 / 399 });
+    c.positionTick({ ord: 310, words: 400, f: 310 / 399 });
+    const fin2 = c._queue.find(p => p.event === 'chapter.finished');
+    assert('smarthome', 'chapter left from its last words counts as completed',
+      fin2 && fin2.data.completed === true && fin2.data.chapter.href === 'c2');
+
+    // Finish latch: fires once, re-arms after dropping back.
+    c._queue.length = 0;
+    c.positionTick({ ord: 398, words: 400, f: 0.9975 });
+    c.positionTick({ ord: 399, words: 400, f: 1 });
+    assert('smarthome', 'book.finished fires exactly once at the end',
+      c._queue.filter(p => p.event === 'book.finished').length === 1);
+    c._queue.length = 0;
+    c.positionTick({ ord: 100, words: 400, f: 100 / 399 });   // restart re-arms
+    c.positionTick({ ord: 398, words: 400, f: 0.9975 });
+    assert('smarthome', 'finish latch re-arms after restarting the book',
+      c._queue.filter(p => p.event === 'book.finished').length === 1);
+
+    // Session word counting: reading deltas accumulate, seeks don't. Needs a
+    // book longer than the seek-detection cap (600 words).
+    c = mkClient();
+    c.bookOpened({
+      bookId: 'sh-long', title: 'Long', totalWords: 2000,
+      chapters: [{ href: 'c1', label: 'One', wordStart: 0, wordCount: 2000 }],
+      position: { ord: 0, words: 2000, f: 0 },
+    });
+    c.positionTick({ ord: 40, words: 2000, f: 0.02 });
+    c.positionTick({ ord: 45, words: 2000, f: 0.0225 });
+    const readSoFar = c._session.wordsRead;
+    c.positionTick({ ord: 1500, words: 2000, f: 0.75 });      // a jump = a seek
+    assert('smarthome', 'wordsRead counts reading deltas, ignores seeks',
+      readSoFar === 45 && c._session.wordsRead === 45);
+
+    // Page turns: baseline, dedupe, direction, throttle.
+    c = mkClient();
+    openBook(c, 0);
+    c._queue.length = 0;
+    c.pageTurned({ page: 4, total: 100 });                    // baseline landing
+    c.pageTurned({ page: 5, total: 100 });
+    c.pageTurned({ page: 5, total: 90 });                     // relayout renumber
+    c.pageTurned({ page: 4, total: 90 });
+    const turns = c._queue.filter(p => p.event === 'page.turned');
+    assert('smarthome', 'page.turned: landing and renumber suppressed, turns kept',
+      turns.length === 2 && turns[0].data.direction === 'forward' && turns[1].data.direction === 'back');
+    assert('smarthome', 'page turns tallied in session stats', c._session.pagesTurned === 2);
+    c = mkClient({ pageTurnThrottleSec: 60 });
+    openBook(c, 0);
+    c._queue.length = 0;
+    c.pageTurned({ page: 1, total: 100 });
+    c.pageTurned({ page: 2, total: 100 });
+    c.pageTurned({ page: 3, total: 100 });
+    // page 1 is the baseline landing; pages 2 and 3 are real turns, but only
+    // the first fits inside the 60s throttle window.
+    assert('smarthome', 'page.turned respects the throttle',
+      c._queue.filter(p => p.event === 'page.turned').length === 1 && c._session.pagesTurned === 2);
+
+    // Theme: first apply is the baseline, repeats dedupe, changes emit.
+    c = mkClient();
+    c.themeChanged('dark');
+    c.themeChanged('dark');
+    c.themeChanged('sepia');
+    const themeEvs = c._queue.filter(p => p.event === 'theme.changed');
+    assert('smarthome', 'theme.changed skips baseline + repeats, emits real change',
+      themeEvs.length === 1 && themeEvs[0].data.theme === 'sepia' && themeEvs[0].data.previous === 'dark');
+
+    // Gating: master switch and per-event toggles.
+    c = mkClient({ enabled: false });
+    openBook(c, 0);
+    assert('smarthome', 'disabled client emits nothing', c._queue.length === 0);
+    c = mkClient();
+    c.setEventEnabled('page.turned', false);
+    openBook(c, 0);
+    c._queue.length = 0;
+    c.pageTurned({ page: 1, total: 100 });
+    c.pageTurned({ page: 2, total: 100 });
+    // Stats still tally (one baseline + one real turn) even though the event
+    // itself is suppressed.
+    assert('smarthome', 'per-event toggle suppresses just that event',
+      c._queue.length === 0 && c._session.pagesTurned === 1);
+
+    // Form-encoded flattening: scalars plain, sections JSON round-trip.
+    c = mkClient();
+    openBook(c, 5);
+    const body = c._formBody(last(c));
+    assert('smarthome', 'form body keeps event scalar and JSON-encodes sections',
+      body.get('event') === last(c).event
+      && JSON.parse(body.get('book')).id === 'sh-test'
+      && JSON.parse(body.get('position')).totalWords === 400);
+
+    // Catalog integrity: unique ids, all defaults present in SMARTHOME_DEFAULTS.
+    const ids = EVENT_CATALOG.map(e => e.id);
+    assert('smarthome', 'catalog ids unique and toggles defaulted',
+      new Set(ids).size === ids.length && ids.every(id => id in SMARTHOME_DEFAULTS.events));
   }
 
   // --- Live-app tests (need the real reader closures — see selftestHooks) ---

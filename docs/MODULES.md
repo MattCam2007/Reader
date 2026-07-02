@@ -420,6 +420,38 @@ strictly by recency, never by key name.
 
 ---
 
+### `js/core/smarthome.js`
+
+The smart-home webhook bridge — pushes reading events as rich JSON payloads to
+a user-configured webhook URL (built for Home Assistant; see
+[`docs/SMART-HOME.md`](SMART-HOME.md) for the full event/payload reference).
+
+**`EVENT_CATALOG`** / **`EVENT_GROUPS`** — the registry of every event the app
+can emit; the Smart Home settings tab renders its toggles from this list.
+
+**`SmartHomeClient`** — all state and logic: config (`smarthome:prefs` via its
+own `PrefsManager`), per-launch session stats, payload envelope assembly, and
+a bounded delivery queue with retry/backoff. Derives `chapter.started/finished`,
+`progress.milestone` and `book.finished` (persisted per-book latches under
+`smarthome:book:<id>`) from consecutive canonical positions fed to
+**`positionTick(posLite)`** — the modes piggyback this on their debounced
+position saves, so events fire identically in Read/Speed/Listen. Other notify
+methods: `bookOpened`, `pageTurned` (dedupe + throttle), `playbackStarted/
+Stopped`, `modeSwitched`, `themeChanged` (baseline + dedupe), `bookmarkAdded`,
+`sendTest`, `flush`. Constructor accepts injected `{ send, now, storage }` so
+the selftest runs it hermetically.
+
+**`smarthome`** — the app-wide singleton; also wires `pagehide`/
+`visibilitychange` so `session.end` and queued events go out via
+beacon/keepalive as the app closes. Undelivered events persist to
+`smarthome:outbox` and re-send next launch.
+
+Delivery formats: `json` (application/json → HA `trigger.json`; cross-origin
+needs `cors_allowed_origins`) and `form` (urlencoded "simple request", no
+preflight, sent no-cors → HA `trigger.data`).
+
+---
+
 ## `js/formats/` — Format Abstraction Layer
 
 ### `js/formats/types.js`
